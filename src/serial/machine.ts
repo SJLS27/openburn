@@ -76,7 +76,7 @@ function initialLogs(): LogLine[] {
     {
       id: 0,
       dir: 'info',
-      text: 'OpenBurn 0.5.0 — GRBL console ready',
+      text: 'OpenBurn 0.5.1 — GRBL console ready',
       time: Date.now(),
     },
   ];

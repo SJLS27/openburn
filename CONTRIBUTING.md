@@ -40,7 +40,7 @@
 Incluye:
 - Sistema operativo y versión de OpenBurn.
 - Pasos para reproducir.
-- Archivo `.ovbrn`/`.lbrn2` o SVG mínimo si aplica.
+- Archivo `.obrn`/`.lbrn2` o SVG mínimo si aplica.
 - Logs de la consola (DevTools) y captura.
 
 ## Licencia

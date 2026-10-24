@@ -1049,8 +1049,14 @@ export class WorkspaceController implements WorkspaceApi {
         return;
       }
       const doc = parseDocument(file.text);
-      await this.applyDocument(doc, file.path ?? null);
-      this.setStatus(`Opened ${file.name}`);
+      // Legacy .ovbrn files are read-only: save as .obrn on the next Ctrl+S.
+      const legacyProject = /\.ovbrn$/i.test(file.name);
+      await this.applyDocument(doc, legacyProject ? null : file.path ?? null);
+      this.setStatus(
+        legacyProject
+          ? `Opened legacy ${file.name} — use Save As to convert it to .obrn`
+          : `Opened ${file.name}`,
+      );
     } catch (err) {
       this.setStatus(`Open failed: ${(err as Error).message}`);
     }

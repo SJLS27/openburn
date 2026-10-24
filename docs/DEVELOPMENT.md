@@ -32,7 +32,7 @@ electron/
   main.ts        # ventana, IPC, permisos Web Serial
   preload.ts     # puente seguro (window.openburn)
 src/
-  core/          # .ovbrn, unidades, DXF, file API
+  core/          # .obrn, unidades, DXF, file API
   geometry/      # paperOps (booleanos), offset, tabs, paperSetup
   gcode/         # types, geometry, job, optimize
   image/         # adjust, trace

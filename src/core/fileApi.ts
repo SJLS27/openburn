@@ -20,7 +20,12 @@ function ext(name: string): string {
   return name.split('.').pop()?.toLowerCase() ?? '';
 }
 
-export const PROJECT_FILTER = [{ name: 'OpenBurn Project', extensions: ['ovbrn'] }];
+export const PROJECT_FILTER = [{ name: 'OpenBurn Project', extensions: ['obrn'] }];
+export const PROJECT_OPEN_FILTERS = [
+  { name: 'OpenBurn Project', extensions: ['obrn', 'ovbrn'] },
+];
+
+const TEXT_EXTENSIONS = new Set(['svg', 'dxf', 'json', 'obrn', 'ovbrn', 'lbrn', 'lbrn2']);
 export const LIGHTBURN_FILTER = [
   { name: 'LightBurn Project', extensions: ['lbrn2', 'lbrn'] },
 ];
@@ -46,7 +51,7 @@ async function browserPick(accept: string): Promise<PickedFile | null> {
       }
       const name = file.name;
       const e = ext(name);
-      if (e === 'svg' || e === 'dxf') {
+      if (TEXT_EXTENSIONS.has(e)) {
         resolve({ name, text: await file.text() });
       } else {
         const buf = await file.arrayBuffer();
@@ -78,14 +83,14 @@ export async function pickProject(): Promise<PickedFile | null> {
   if (isElectron()) {
     const api = window.openburn!;
     const path = await api.openFile([
-      { name: 'OpenBurn Project', extensions: ['ovbrn'] },
+      ...PROJECT_OPEN_FILTERS,
       ...LIGHTBURN_FILTER,
       { name: 'All Files', extensions: ['*'] },
     ]);
     if (!path) return null;
-    return { name: path.split(/[\\/]/).pop() ?? 'project.ovbrn', path, text: await api.readFile(path) };
+    return { name: path.split(/[\\/]/).pop() ?? 'project.obrn', path, text: await api.readFile(path) };
   }
-  return browserPick('.ovbrn,.json,.lbrn,.lbrn2');
+  return browserPick('.obrn,.ovbrn,.json,.lbrn,.lbrn2');
 }
 
 export async function saveProjectFile(
@@ -97,8 +102,9 @@ export async function saveProjectFile(
     const api = window.openburn!;
     let path = existingPath;
     if (!path) {
+      const fileName = /\.(obrn|ovbrn)$/i.test(suggestedName) ? suggestedName : `${suggestedName}.obrn`;
       path = await api.saveFile({
-        defaultPath: suggestedName.endsWith('.ovbrn') ? suggestedName : `${suggestedName}.ovbrn`,
+        defaultPath: fileName,
         filters: PROJECT_FILTER,
       });
     }
@@ -111,7 +117,8 @@ export async function saveProjectFile(
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = suggestedName.endsWith('.ovbrn') ? suggestedName : `${suggestedName}.ovbrn`;
+  const fileName = /\.(obrn|ovbrn)$/i.test(suggestedName) ? suggestedName : `${suggestedName}.obrn`;
+  a.download = fileName;
   a.click();
   URL.revokeObjectURL(url);
   return a.download;

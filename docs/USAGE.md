@@ -161,12 +161,13 @@ Detalles técnicos y limitaciones: [FILE-FORMATS.md](FILE-FORMATS.md).
 
 | Formato | Uso |
 | --- | --- |
-| `.ovbrn` | Proyecto nativo OpenBurn (JSON versionado) |
+| `.obrn` | Proyecto nativo OpenBurn (JSON versionado) |
+| `.ovbrn` | Proyecto nativo legado (solo lectura) |
 | `.lbrn` / `.lbrn2` | Intercambio con LightBurn |
 | `.nc` | GCode para GRBL |
 | `.svg` | Intercambio vectorial |
 
-`Ctrl+S` guarda el proyecto nativo. `Ctrl+Shift+S` guarda como.
+`Ctrl+S` guarda el proyecto nativo `.obrn`. `Ctrl+Shift+S` guarda como.
 
 ---
 

@@ -59,7 +59,7 @@ ipcMain.handle('dialog:openFile', async (_e, filters) => {
 ipcMain.handle('dialog:saveFile', async (_e, options) => {
   const result = await dialog.showSaveDialog(mainWindow!, {
     defaultPath: options?.defaultPath,
-    filters: options?.filters ?? [{ name: 'OpenBurn Project', extensions: ['ovbrn'] }],
+    filters: options?.filters ?? [{ name: 'OpenBurn Project', extensions: ['obrn'] }],
   });
   if (result.canceled || !result.filePath) return null;
   return result.filePath;

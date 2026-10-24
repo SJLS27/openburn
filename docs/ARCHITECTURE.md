@@ -17,7 +17,7 @@ flowchart LR
     GCODE[GCode writer]
     MACHINE[GRBL controller]
     SERIAL[Web Serial / Simulator]
-    FILES[File IO<br/>.ovbrn · .lbrn2 · SVG/DXF]
+    FILES[File IO<br/>.obrn · .lbrn2 · SVG/DXF]
 
     UI <--> STORE
     UI --> CANVAS
@@ -39,7 +39,7 @@ flowchart LR
 | Carpeta | Responsabilidad |
 | --- | --- |
 | `electron/` | Ventana, IPC (diálogos, fs, assets), permisos Web Serial |
-| `src/core/` | `.ovbrn`, unidades, DXF, acceso a archivos |
+| `src/core/` | `.obrn`, unidades, DXF, acceso a archivos |
 | `src/state/` | Store observable + interfaz `WorkspaceApi` |
 | `src/workspace/` | `WorkspaceController`: herramientas, selección, historial, zoom, nodos |
 | `src/ui/` | Menús, toolbars, paneles, diálogos, iconos |
@@ -152,6 +152,6 @@ No usa el código de LightBurn; se basa en el formato XML y en archivos de ejemp
   - creación/transformación de formas,
   - booleanos/offset/tabs,
   - ajuste/trace,
-  - round-trip de `.ovbrn` y `.lbrn2`,
+  - round-trip de `.obrn` y `.lbrn2`,
   - jobs contra el simulador GRBL (pause/resume/stop).
 - La carpeta de tests automatizados está pendiente de incorporar al repo (ver [TODO.md](../TODO.md)).

@@ -42,7 +42,7 @@ export function parseDocument(text: string): OpenBurnDocument {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid project file');
   const obj = raw as Partial<OpenBurnDocument>;
   if (obj.format !== 'openburn' && !Array.isArray(obj.layers)) {
-    throw new Error('Not an OpenBurn project (.ovbrn)');
+    throw new Error('Not an OpenBurn project (.obrn)');
   }
   const base = createEmptyDocument(obj.meta?.name ?? 'Untitled');
   const doc: OpenBurnDocument = {
@@ -61,5 +61,5 @@ export function parseDocument(text: string): OpenBurnDocument {
 
 /** Very small heuristic used to decide between project-open and import. */
 export function looksLikeProject(fileName: string): boolean {
-  return /\.(ovbrn|json)$/i.test(fileName);
+  return /\.(obrn|ovbrn|json)$/i.test(fileName);
 }

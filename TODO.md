@@ -12,7 +12,7 @@ Estado actual: **v0.5.0**. Esta lista se actualiza con cada bloque de trabajo.
 - [x] Booleanos, offset, arrays, edición de nodos
 - [x] Undo/redo con historial
 - [x] Import SVG/DXF/ráster; export SVG
-- [x] Formato nativo `.ovbrn`
+- [x] Formato nativo `.obrn` (lectura de `.ovbrn` legado)
 
 ### Fase 2 — Preview + GRBL
 - [x] Planificador de trayectorias por capa (Line/Fill/Offset Fill/Image)

@@ -1,7 +1,7 @@
 /**
  * OpenBurn document model.
  *
- * The native format (.ovbrn) is a versioned JSON envelope around the Fabric.js
+ * The native format (.obrn) is a versioned JSON envelope around the Fabric.js
  * scene graph plus OpenBurn-specific metadata (layers, cut settings, bed size).
  */
 

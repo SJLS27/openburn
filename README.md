@@ -5,7 +5,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="https://github.com/SJLS27/openburn/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SJLS27/openburn/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.5.0-orange.svg">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.5.1-orange.svg">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="GRBL" src="https://img.shields.io/badge/GRBL-ready-brightgreen.svg">
   <img alt="LightBurn" src="https://img.shields.io/badge/LightBurn-.lbrn%20%7C%20.lbrn2-8a63d2.svg">
@@ -119,7 +119,10 @@ npm run build:app      # instalador (AppImage / NSIS / DMG) con electron-builder
 2. Asigna color/capa desde la paleta y ajusta velocidad/potencia en **Cuts / Layers**.
 3. Pulsa **Preview** (`Alt+P`) para revisar trayectorias y tiempos.
 4. En el panel **Laser**, conecta tu GRBL o el **Simulator (demo)** y pulsa **Start**.
-5. Guarda como `.ovbrn` (`Ctrl+S`) o exporta a LightBurn / GCode desde **File**.
+5. Guarda como `.obrn` (`Ctrl+S`) o exporta a LightBurn / GCode desde **File**.
+
+> **Formato nativo:** `.obrn`. Los proyectos antiguos `.ovbrn` se pueden abrir; al guardar se
+> convierten a `.obrn`.
 
 ---
 
@@ -170,7 +173,7 @@ Más detalles en [docs/FILE-FORMATS.md](docs/FILE-FORMATS.md).
 openburn/
 ├─ electron/           # proceso principal y preload (IPC, diálogos, assets)
 ├─ src/
-│  ├─ core/            # .ovbrn, unidades, DXF, acceso a archivos
+│  ├─ core/            # .obrn, unidades, DXF, acceso a archivos
 │  ├─ geometry/        # booleanos, offset, tabs (Paper.js)
 │  ├─ gcode/           # planificación, optimización y generación de GCode
 │  ├─ image/           # ajuste de imagen y vectorización
@@ -197,7 +200,7 @@ Más en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | Documento | Contenido |
 | --- | --- |
 | [docs/USAGE.md](docs/USAGE.md) | Guía de uso: diseño, capas, preview, GRBL, tests, imágenes y tabs |
-| [docs/FILE-FORMATS.md](docs/FILE-FORMATS.md) | `.ovbrn` y mapeo detallado `.lbrn`/`.lbrn2` |
+| [docs/FILE-FORMATS.md](docs/FILE-FORMATS.md) | `.obrn` y mapeo detallado `.lbrn`/`.lbrn2` |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Módulos, flujo de datos y pipeline de GCode |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Entorno, scripts, pruebas y empaquetado |
 | [TODO.md](TODO.md) | Lista de tareas y roadmap |

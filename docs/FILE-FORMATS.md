@@ -1,10 +1,12 @@
 # Formatos de archivo
 
-OpenBurn usa un formato nativo **`.ovbrn`** (JSON) y es compatible con los proyectos de LightBurn **`.lbrn`** y **`.lbrn2`** (XML).
+OpenBurn usa un formato nativo **`.obrn`** (JSON) y es compatible con los proyectos de LightBurn **`.lbrn`** y **`.lbrn2`** (XML).
 
 ---
 
-## 1. `.ovbrn` — proyecto nativo
+## 1. `.obrn` — proyecto nativo
+
+> El formato anterior `.ovbrn` se sigue leyendo (solo lectura) para no romper proyectos antiguos. Al guardar se usa siempre `.obrn`.
 
 Es un JSON versionado que envuelve la escena de Fabric.js y los metadatos de capas/corte.
 
@@ -183,7 +185,8 @@ Formatos:
 
 | Extensión | Lectura | Escritura | Uso |
 | --- | --- | --- | --- |
-| `.ovbrn` | ✅ | ✅ | Proyecto nativo |
+| `.obrn` | ✅ | ✅ | Proyecto nativo |
+| `.ovbrn` | ✅ | — | Proyecto nativo legado (solo lectura) |
 | `.lbrn` | ✅ | ✅ | Intercambio LightBurn (legado) |
 | `.lbrn2` | ✅ | ✅ | Intercambio LightBurn (actual) |
 | `.svg` | ✅ | ✅ | Vectorial |

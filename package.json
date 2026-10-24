@@ -1,6 +1,6 @@
 {
   "name": "openburn",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "OpenBurn — open-source laser cutting & engraving software with LightBurn .lbrn/.lbrn2 import and export, GRBL control and an animated preview.",
   "main": "dist-electron/main.js",
   "scripts": {
