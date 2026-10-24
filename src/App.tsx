@@ -267,6 +267,28 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
         />
         Optimize travel (nearest neighbour)
       </label>
+      <label className="checkbox" style={{ marginTop: 6 }}>
+        <input
+          type="checkbox"
+          checked={state.device.zAxisEnabled}
+          onChange={(e) => store.updateDevice({ zAxisEnabled: e.target.checked })}
+        />
+        Z axis installed (focus test &amp; per-object Z)
+      </label>
+      {state.device.zAxisEnabled && (
+        <div className="field-row" style={{ marginTop: 6 }}>
+          <span className="field-label">Z feed</span>
+          <input
+            className="input narrow"
+            type="number"
+            min={10}
+            step={10}
+            value={state.device.zFeedRate}
+            onChange={(e) => store.updateDevice({ zFeedRate: Number(e.target.value) || 300 })}
+          />
+          <span className="hint">mm/min</span>
+        </div>
+      )}
 
       <p className="hint" style={{ marginTop: 12 }}>
         Device-specific settings (firmware, homing, laser power limits) are configured in Device

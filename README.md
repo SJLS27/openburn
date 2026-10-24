@@ -5,7 +5,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="https://github.com/SJLS27/openburn/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SJLS27/openburn/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.5.2-orange.svg">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.6.0-orange.svg">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="GRBL" src="https://img.shields.io/badge/GRBL-ready-brightgreen.svg">
   <img alt="LightBurn" src="https://img.shields.io/badge/LightBurn-.lbrn%20%7C%20.lbrn2-8a63d2.svg">
@@ -45,6 +45,8 @@
 ### Capas y operaciones
 - Paleta de colores tipo LightBurn (`C00`, `C01`, …), cada color es una capa.
 - Modos **Line**, **Fill**, **Offset Fill** e **Image** con velocidad, potencia, pasadas, intervalo, overscan y dithering.
+- **Kerf compensation** por capa (expande o contrae cortes cerrados), **ángulo de scan**, **cross-hatch** y **scan offset**.
+- **Biblioteca de materiales editable** (nombre, espesor, velocidad, potencia, pasadas, modo y kerf) con persistencia local.
 - Overrides de corte por objeto (usados por los tests de material).
 - Capa de anotaciones `NOTES` que nunca se envía al láser.
 
@@ -60,6 +62,11 @@
 - Jog (`$J`), homing (`$H`), unlock (`$X`), set origin (`G10 L20`).
 - Consola bidireccional y macros persistentes.
 - Estado en vivo: posición, feed, spindle, progreso y tiempo restante.
+
+### Calibración
+- **Material Test** potencia × velocidad, **Interval Test** y **Focus Test** con rampa de eje Z.
+- Materiales guardables y reutilizables con un clic.
+- Eje **Z** configurable: offsets por objeto y movimientos `G1 Z` en el GCode.
 
 ### Imágenes
 - Importación de PNG/JPG/GIF/BMP/WebP.
@@ -83,6 +90,9 @@
   <tr>
     <td width="50%" align="center"><img src="docs/screenshots/lightburn.png" alt="Importar y exportar LightBurn" width="100%"><br/><sub><strong>LightBurn</strong> — abrir y exportar .lbrn/.lbrn2</sub></td>
     <td width="50%" align="center"><img src="docs/screenshots/image-tools.png" alt="Ajuste de imagen" width="100%"><br/><sub><strong>Adjust Image</strong> — previsualización en escala de grises</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><img src="docs/screenshots/focus-test.png" alt="Focus Test con eje Z" width="78%"><br/><sub><strong>Focus Test</strong> — rampa de Z con etiquetas y offsets por objeto</sub></td>
   </tr>
 </table>
 
@@ -213,9 +223,9 @@ Más en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 - [x] Fase 1 — Núcleo de diseño vectorial y capas
 - [x] Fase 2 — Preview, GCode y control GRBL
-- [x] Fase 3 — Texto a contornos, Material/Interval Test, imágenes (ajuste/trace), tabs y optimización
+- [x] Fase 3 — Texto a contornos, Material/Interval/Focus Test, imágenes (ajuste/trace), tabs y optimización
+- [x] Calibración fina — kerf, ángulo/cross-hatch, scan offset, biblioteca de materiales y eje Z
 - [x] Compatibilidad LightBurn (lectura y escritura `.lbrn`/`.lbrn2`)
-- [ ] Focus Test (requiere eje Z)
 - [ ] Rotary, cámaras y Print & Cut
 - [ ] Ruida/DSP y galvo (EZCad)
 - [ ] Empaquetado firmado y auto-update

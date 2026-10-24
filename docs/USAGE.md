@@ -111,7 +111,34 @@ Cada color de la paleta es una capa (C00, C01, …).
 ### Interval Test
 *Tools → Interval Test…*: parches de relleno con intervalos crecientes para encontrar el espaciado óptimo.
 
-> Focus Test requiere control de eje Z y aún no está implementado.
+### Focus Test (eje Z)
+*Tools → Focus Test…*
+
+1. Activa **Settings → Machine → Z axis installed** e indica el **Z feed** (mm/min).
+2. Define el rango Z (por ejemplo `-2` a `+2` mm), número de pasos, largo de línea y líneas por paso.
+3. Pulsa **Create focus ramp**: se crea una rampa de líneas paralelas, cada grupo con su propio `zOffset`.
+4. Genera el GCode/Preview: aparecen los `G1 Z…` antes de cada grupo y un retorno a `Z0` al final.
+5. Corta en un material de prueba y elige la fila con la línea más fina y oscura. Ese Z es tu foco.
+
+Los valores de Z también se pueden fijar por objeto en **Shape Properties → Z offset** cuando el eje Z está activado.
+
+![Focus Test](screenshots/focus-test.png)
+
+### Kerf, ángulo y scan offset
+En *Cuts / Layers → (editar capa)*:
+
+- **Kerf** (solo Line): compensa el ancho del haz. Positivo expande los contornos cerrados, negativo los contrae. Ej.: para una ranura de 0,2 mm usa `+0.1`.
+- **Angle** (Fill/Image): dirección del relleno en grados (`0` horizontal, `45` diagonal).
+- **Cross-hatch**: añade una segunda pasada a `angle + 90°` para rellenos cruzados.
+- **Scan offset**: desplaza las líneas de scan a lo largo de su dirección para compensar el retardo del láser.
+
+### Biblioteca de materiales
+*Window → Material Library* (panel derecho):
+
+- Selecciona un material, edita sus valores (incluido **kerf**) y pulsa **Apply to layer**.
+- **Save layer** añade la capa activa como material nuevo.
+- **Delete** elimina el material seleccionado.
+- Los cambios se guardan automáticamente en el navegador/equipo (`localStorage`).
 
 ---
 

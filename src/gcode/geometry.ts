@@ -73,50 +73,101 @@ export function objectContours(obj: FabricObject): Contour[] {
     if (!item) return [];
     const contours = flattenItem(item);
     item.remove();
-    return contours.map((c) => ({ ...c, closed: true }));
+    return contours;
   } catch {
     return [];
   }
 }
 
-/** Horizontal scanline fill clipped to the object's filled silhouette. */
+/** Scanline fill clipped to the object's filled silhouette. */
 export function hatchContours(
   obj: FabricObject,
   interval: number,
   overscan: number,
+  angle = 0,
+  crossHatch = false,
+  scanOffset = 0,
 ): Contour[] {
   try {
     const step = Math.max(0.02, interval);
     const item = sceneItem(obj);
     if (!item) return [];
-    const bounds = item.bounds;
     const out: Contour[] = [];
-
-  for (let y = bounds.top + step / 2; y <= bounds.bottom; y += step) {
-    const line = new paper.Path.Line(
-      new paper.Point(bounds.left - overscan - 1, y),
-      new paper.Point(bounds.right + overscan + 1, y),
-    );
-    const crossings = item
-      .getIntersections(line)
-      .map((loc) => loc.point.x)
-      .sort((a, b) => a - b);
-    line.remove();
-
-    for (let i = 0; i + 1 < crossings.length; i += 2) {
-      let x0 = crossings[i];
-      let x1 = crossings[i + 1];
-      if (x1 - x0 < 0.01) continue;
-      if (i === 0) x0 -= overscan;
-      if (i + 2 >= crossings.length) x1 += overscan;
-      out.push({ points: [{ x: x0, y }, { x: x1, y }], closed: false });
+    const angles = crossHatch ? [angle, angle + 90] : [angle];
+    for (const a of angles) {
+      out.push(...hatchAtAngle(item, step, overscan, a, scanOffset));
     }
-  }
     item.remove();
     return out;
   } catch {
     return [];
   }
+}
+
+function hatchAtAngle(
+  item: paper.CompoundPath,
+  step: number,
+  overscan: number,
+  angle: number,
+  scanOffset: number,
+): Contour[] {
+  const bounds = item.bounds;
+  const theta = (angle * Math.PI) / 180;
+  const ux = Math.cos(theta);
+  const uy = Math.sin(theta);
+  const nx = -uy;
+  const ny = ux;
+  const cx = bounds.left + bounds.width / 2;
+  const cy = bounds.top + bounds.height / 2;
+  const diagonal = Math.hypot(bounds.width, bounds.height) + overscan * 2 + step * 2;
+  const count = Math.ceil(diagonal / step);
+  const out: Contour[] = [];
+
+  for (let k = -count / 2; k <= count / 2; k += 1) {
+    const offset = k * step;
+    const mx = cx + nx * offset;
+    const my = cy + ny * offset;
+    const half = diagonal / 2;
+    const line = new paper.Path.Line(
+      new paper.Point(mx - ux * half, my - uy * half),
+      new paper.Point(mx + ux * half, my + uy * half),
+    );
+    const hits = item
+      .getIntersections(line)
+      .map((loc) => ({
+        x: loc.point.x,
+        y: loc.point.y,
+        t: (loc.point.x - mx) * ux + (loc.point.y - my) * uy,
+      }))
+      .sort((a, b) => a.t - b.t);
+    line.remove();
+
+    for (let i = 0; i + 1 < hits.length; i += 2) {
+      const a = hits[i];
+      const b = hits[i + 1];
+      if (b.t - a.t < 0.01) continue;
+      let ax = a.x;
+      let ay = a.y;
+      let bx = b.x;
+      let by = b.y;
+      if (i === 0) {
+        ax -= ux * overscan;
+        ay -= uy * overscan;
+      }
+      if (i + 2 >= hits.length) {
+        bx += ux * overscan;
+        by += uy * overscan;
+      }
+      out.push({
+        points: [
+          { x: ax + ux * scanOffset, y: ay + uy * scanOffset },
+          { x: bx + ux * scanOffset, y: by + uy * scanOffset },
+        ],
+        closed: false,
+      });
+    }
+  }
+  return out;
 }
 
 /** Concentric inward offsets, used for Offset Fill mode. */

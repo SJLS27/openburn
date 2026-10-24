@@ -141,6 +141,7 @@ Los proyectos de LightBurn son **XML plano** (no ZIP). `.lbrn` es la variante le
 | Color de capa | `PALETTE_COLORS[index]` (el color en LightBurn se deriva del índice) |
 | `type="Cut"` / `type="Scan"` | `line` / `fill` |
 | `speed`, `maxPower`, `numPasses`, `interval` | Ajustes de la capa |
+| `kerf`, `angle`, `crossHatch`, `scanOffset` | Kerf, ángulo de scan, cross-hatch y scan offset |
 | `Shape Rect/Ellipse/Polygon` | `Fabric.Path` (geometría transformada) |
 | `Shape Path` + `VertList` | `Fabric.Path` (líneas y Bézier) |
 | `Shape Group` | hijos aplanados con transformación compuesta |

@@ -1,4 +1,8 @@
-import { createEmptyDocument, type OpenBurnDocument } from '@/types/document';
+import {
+  DEFAULT_CUT_SETTINGS,
+  createEmptyDocument,
+  type OpenBurnDocument,
+} from '@/types/document';
 
 export interface SaveInput {
   name: string;
@@ -52,7 +56,13 @@ export function parseDocument(text: string): OpenBurnDocument {
     format: 'openburn',
     units: obj.units === 'in' ? 'in' : 'mm',
     bed: { ...base.bed, ...(obj.bed ?? {}) },
-    layers: Array.isArray(obj.layers) && obj.layers.length > 0 ? obj.layers : base.layers,
+    layers:
+      Array.isArray(obj.layers) && obj.layers.length > 0
+        ? obj.layers.map((layer) => ({
+            ...layer,
+            settings: { ...DEFAULT_CUT_SETTINGS, ...(layer.settings ?? {}) },
+          }))
+        : base.layers,
     canvas: obj.canvas ?? base.canvas,
     meta: { ...base.meta, ...(obj.meta ?? {}) },
   };

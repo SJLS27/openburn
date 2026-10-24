@@ -85,15 +85,15 @@ Formas Fabric
    ▼
 Contornos en coordenadas de escena
    │
-   ├─ Line: contornos tal cual
-   ├─ Fill: scanlines con intersecciones Paper.js
+   ├─ Line: contornos, con kerf opcional (expande/contrae cerrados)
+   ├─ Fill: scanlines a `angle` (y +90° con cross-hatch) + scan offset
    ├─ Offset Fill: offsets concéntricos (polígonos)
    └─ Image: filas con potencia por punto
    ▼
-PlanSegment[]  { rapid | cut, points, feed, power, powers }
+PlanSegment[]  { rapid | cut, points, feed, power, powers, z }
    │  (optimizeSegments: vecino más cercano por capa)
    ▼
-emitGcode: cabecera, M3/M4, G0/G1, M5, M2
+emitGcode: cabecera, M3/M4, G1 Z (si hay eje Z), G0/G1, M5, M2
    │  (mapeo de origen)
    ▼
 GCode + estadísticas (tiempo, distancia, bounds)
@@ -101,6 +101,8 @@ GCode + estadísticas (tiempo, distancia, bounds)
 
 - **Preview** consume el mismo `JobPlan`, por lo que trayectorias y tiempos coinciden con el envío.
 - Los segmentos raster llevan `powers[]` y emiten `G1 X Y S…` para variar potencia punto a punto.
+- El kerf se aplica al contorno antes de cerrarlo; los offsets que colapsan se descartan.
+- Con `zAxisEnabled`, cada cambio de `zOffset` emite un `G1 Z…` con el feed configurado y el job vuelve a `Z0` al terminar.
 - El control de flujo del envío usa una ventana de 120 bytes y acks de GRBL.
 
 ---

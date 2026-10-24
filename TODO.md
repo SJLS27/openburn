@@ -1,6 +1,6 @@
 # OpenBurn — TODO & Roadmap
 
-Estado actual: **v0.5.0**. Esta lista se actualiza con cada bloque de trabajo.
+Estado actual: **v0.6.0**. Esta lista se actualiza con cada bloque de trabajo.
 
 ## ✅ Completado
 
@@ -53,9 +53,11 @@ Estado actual: **v0.5.0**. Esta lista se actualiza con cada bloque de trabajo.
 ## 🚧 Próximos pasos
 
 ### Calibración
-- [ ] **Focus Test** con eje Z (ladder de offsets y `G1 Z`)
-- [ ] Interval Test con más parámetros (dirección de scan, cross-hatch)
-- [ ] Material Test con subcapas y biblioteca de materiales editable
+- [x] **Focus Test** con eje Z (rampa de offsets y `G1 Z`)
+- [x] Kerf compensation por capa y en la biblioteca de materiales
+- [x] Ángulo de scan, cross-hatch y scan offset
+- [x] Biblioteca de materiales editable con persistencia
+- [ ] Material Test con subcapas y más parámetros por celda
 
 ### Imagen / vector
 - [ ] Trace por capas de color (una capa por color)
@@ -67,7 +69,8 @@ Estado actual: **v0.5.0**. Esta lista se actualiza con cada bloque de trabajo.
 ### Control y hardware
 - [ ] Rotary mode (cilindro, pasos/mm)
 - [ ] Print & Cut y cámaras/overlays
-- [ ] Focus/Z axis y límites suaves
+- [x] Eje Z: offset por objeto, Focus Test y `G1 Z`
+- [ ] Límites suaves y homing de Z
 - [ ] Ruida/DSP (UDP)
 - [ ] Galvo / EZCad (BSLFiber)
 - [ ] Repeat marking / array desde la UI del láser
@@ -92,7 +95,7 @@ Estado actual: **v0.5.0**. Esta lista se actualiza con cada bloque de trabajo.
 - Imágenes rotadas se exportan sin rotación.
 - Trace limitado a 700 px de lado mayor.
 - El raster de GCode se limita a 360 muestras por eje.
-- Focus Test, rotary, cámaras y DSP están pendientes.
+- Rotary, cámaras, Print & Cut y DSP están pendientes.
 - El puerto serie en Electron auto-selecciona el primer dispositivo (mejorable con un selector nativo).
 
 ---

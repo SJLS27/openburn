@@ -11,6 +11,7 @@ type DialogKind =
   | 'about'
   | 'material'
   | 'interval'
+  | 'focus'
   | 'image-adjust'
   | 'trace'
   | 'tabs';
@@ -134,6 +135,7 @@ const MENUS: MenuDef[] = [
       { separator: true },
       { label: 'Material Test…', dialog: 'material' },
       { label: 'Interval Test…', dialog: 'interval' },
+      { label: 'Focus Test…', dialog: 'focus' },
       { separator: true },
       { label: 'Adjust Image…', dialog: 'image-adjust' },
       { label: 'Trace Image…', dialog: 'trace' },
@@ -197,6 +199,8 @@ export function MenuBar() {
   const [matPasses, setMatPasses] = useState(1);
   const [matInterval, setMatInterval] = useState(0.1);
   const [matLabels, setMatLabels] = useState(true);
+  const [matAngle, setMatAngle] = useState(0);
+  const [matCrossHatch, setMatCrossHatch] = useState(false);
 
   const [intMin, setIntMin] = useState(0.05);
   const [intMax, setIntMax] = useState(0.3);
@@ -205,6 +209,17 @@ export function MenuBar() {
   const [intSpeed, setIntSpeed] = useState(50);
   const [intPower, setIntPower] = useState(40);
   const [intLabels, setIntLabels] = useState(true);
+
+  const [focusZMin, setFocusZMin] = useState(-2);
+  const [focusZMax, setFocusZMax] = useState(2);
+  const [focusSteps, setFocusSteps] = useState(9);
+  const [focusLength, setFocusLength] = useState(20);
+  const [focusGap, setFocusGap] = useState(2);
+  const [focusRepeats, setFocusRepeats] = useState(3);
+  const [focusSpeed, setFocusSpeed] = useState(50);
+  const [focusPower, setFocusPower] = useState(40);
+  const [focusPasses, setFocusPasses] = useState(1);
+  const [focusLabels, setFocusLabels] = useState(true);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -421,6 +436,8 @@ export function MenuBar() {
                       passes: matPasses,
                       interval: matInterval,
                       labels: matLabels,
+                      angle: matAngle,
+                      crossHatch: matCrossHatch,
                     });
                   } else {
                     ws?.generateIntervalTest({
@@ -483,6 +500,15 @@ export function MenuBar() {
                   Labels
                 </label>
               </div>
+              <div className="field-row">
+                <span className="field-label">Angle</span>
+                <input className="input narrow" type="number" step={15} value={matAngle} onChange={(e) => setMatAngle(Number(e.target.value))} />
+                <span className="hint">deg</span>
+                <label className="checkbox">
+                  <input type="checkbox" checked={matCrossHatch} onChange={(e) => setMatCrossHatch(e.target.checked)} />
+                  Cross-hatch
+                </label>
+              </div>
               <p className="hint" style={{ marginTop: 8 }}>
                 Creates {Math.max(1, Math.min(12, Math.round(matPowerSteps)))} ×{' '}
                 {Math.max(1, Math.min(12, Math.round(matSpeedSteps)))} squares on the active layer.
@@ -520,6 +546,77 @@ export function MenuBar() {
         </Modal>
       )}
 
+      {dialog === 'focus' && (
+        <Modal
+          title="Focus Test"
+          onClose={() => setDialog(null)}
+          width={480}
+          footer={
+            <>
+              <button className="btn" onClick={() => setDialog(null)}>Cancel</button>
+              <button
+                className="btn primary"
+                onClick={() => {
+                  ws?.generateFocusTest({
+                    zMin: focusZMin,
+                    zMax: focusZMax,
+                    steps: focusSteps,
+                    lineLength: focusLength,
+                    gap: focusGap,
+                    repeats: focusRepeats,
+                    speed: focusSpeed,
+                    power: focusPower,
+                    passes: focusPasses,
+                    labels: focusLabels,
+                  });
+                  setDialog(null);
+                }}
+              >
+                Create focus ramp
+              </button>
+            </>
+          }
+        >
+          <p className="hint" style={{ margin: 0 }}>
+            Cuts a ramp of parallel lines, each at a different Z height. Find the row with the
+            thinnest, darkest line — that Z is your focus distance. Requires a Z axis enabled in
+            Settings → Machine.
+          </p>
+          <h4 style={{ margin: '12px 0 6px' }}>Z range (mm)</h4>
+          <div className="field-row">
+            <span className="field-label">Min</span>
+            <input className="input narrow" type="number" step={0.1} value={focusZMin} onChange={(e) => setFocusZMin(Number(e.target.value))} />
+            <span className="field-label">Max</span>
+            <input className="input narrow" type="number" step={0.1} value={focusZMax} onChange={(e) => setFocusZMax(Number(e.target.value))} />
+            <span className="field-label">Steps</span>
+            <input className="input narrow" type="number" min={2} max={30} value={focusSteps} onChange={(e) => setFocusSteps(Number(e.target.value))} />
+          </div>
+          <h4 style={{ margin: '10px 0 6px' }}>Lines</h4>
+          <div className="field-row">
+            <span className="field-label">Length</span>
+            <NumberField value={focusLength} onChange={setFocusLength} units={units} />
+            <span className="field-label">Row gap</span>
+            <NumberField value={focusGap} onChange={setFocusGap} units={units} />
+            <span className="field-label">Lines/step</span>
+            <input className="input narrow" type="number" min={1} max={8} value={focusRepeats} onChange={(e) => setFocusRepeats(Number(e.target.value))} />
+          </div>
+          <h4 style={{ margin: '10px 0 6px' }}>Cut</h4>
+          <div className="field-row">
+            <span className="field-label">Speed</span>
+            <input className="input narrow" type="number" value={focusSpeed} onChange={(e) => setFocusSpeed(Number(e.target.value))} />
+            <span className="hint">mm/s</span>
+            <span className="field-label">Power</span>
+            <input className="input narrow" type="number" value={focusPower} onChange={(e) => setFocusPower(Number(e.target.value))} />
+            <span className="field-label">Passes</span>
+            <input className="input narrow" type="number" min={1} value={focusPasses} onChange={(e) => setFocusPasses(Number(e.target.value))} />
+          </div>
+          <label className="checkbox" style={{ marginTop: 8 }}>
+            <input type="checkbox" checked={focusLabels} onChange={(e) => setFocusLabels(e.target.checked)} />
+            Add Z labels on a non-output NOTES layer
+          </label>
+        </Modal>
+      )}
+
       {dialog === 'image-adjust' && <ImageAdjustDialog onClose={() => setDialog(null)} />}
       {dialog === 'trace' && <TraceDialog onClose={() => setDialog(null)} />}
       {dialog === 'tabs' && <TabsDialog onClose={() => setDialog(null)} />}
@@ -529,7 +626,7 @@ export function MenuBar() {
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <Icon name="flame" size={40} style={{ color: 'var(--accent)' }} />
             <div>
-              <h3 style={{ margin: '0 0 6px' }}>OpenBurn 0.5.2</h3>
+              <h3 style={{ margin: '0 0 6px' }}>OpenBurn 0.6.0</h3>
               <p className="hint" style={{ margin: 0 }}>
                 Open-source laser cutting &amp; engraving software inspired by the LightBurn
                 workflow. Built with Electron, React, Fabric.js and a GRBL controller. Not

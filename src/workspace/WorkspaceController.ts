@@ -21,6 +21,7 @@ import {
   store,
   type AlignMode,
   type BooleanOp,
+  type FocusTestOptions,
   type IntervalTestOptions,
   type MaterialTestOptions,
   type ToolId,
@@ -51,8 +52,8 @@ import {
 } from '@/io/lightburn';
 
 // Serialize our per-object layer assignment along with everything else.
-FabricObject.customProperties = ['layerId', 'cutOverride', 'imageAdjust'];
-Group.customProperties = ['layerId', 'cutOverride', 'imageAdjust'];
+FabricObject.customProperties = ['layerId', 'cutOverride', 'imageAdjust', 'zOffset'];
+Group.customProperties = ['layerId', 'cutOverride', 'imageAdjust', 'zOffset'];
 
 const SELECTION_ACCENT = '#3f8fdd';
 
@@ -736,6 +737,7 @@ export class WorkspaceController implements WorkspaceApi {
         overrideCount: objs.filter(
           (o) => (o as FabricObject & { cutOverride?: unknown }).cutOverride != null,
         ).length,
+        zOffset: Number((objs[0] as FabricObject & { zOffset?: number }).zOffset ?? 0),
       },
     });
     if (store.getState().tool === 'node') this.rebuildNodeHandles();
@@ -2028,6 +2030,8 @@ export class WorkspaceController implements WorkspaceApi {
           power,
           passes: Math.max(1, options.passes),
           interval: options.interval,
+          angle: options.angle,
+          crossHatch: options.crossHatch,
         };
         this.assignLayer(rect, layer.id);
         this.canvas.add(rect);
@@ -2143,6 +2147,102 @@ export class WorkspaceController implements WorkspaceApi {
     this.reselect(created);
     this.afterChange();
     this.zoomToPage(false);
+  }
+
+  generateFocusTest(options: FocusTestOptions): void {
+    const state = store.getState();
+    const layer = this.activeLayer();
+    const notes = options.labels ? this.ensureAnnotationLayer() : null;
+    const zoom = this.canvas.getZoom();
+
+    const steps = Math.max(2, Math.min(30, Math.round(options.steps)));
+    const repeats = Math.max(1, Math.min(8, Math.round(options.repeats)));
+    const length = Math.max(5, options.lineLength);
+    const rowGap = Math.max(0.5, options.gap);
+    const lineGap = Math.max(0.6, Math.min(4, length * 0.08));
+    const blockHeight = repeats * lineGap;
+    const totalWidth = length;
+    const totalHeight = steps * blockHeight + (steps - 1) * rowGap;
+    const startX = Math.max(10, Math.round((state.doc.bed.width - totalWidth) / 2));
+    const startY = Math.max(notes ? 22 : 10, Math.round((state.doc.bed.height - totalHeight) / 2) + 4);
+
+    const valueAt = (min: number, max: number, index: number, count: number) =>
+      count <= 1 ? min : min + ((max - min) * index) / (count - 1);
+
+    const created: FabricObject[] = [];
+    if (notes) {
+      created.push(
+        this.makeNote(
+          `FOCUS TEST — ${options.zMin.toFixed(2)} to ${options.zMax.toFixed(2)} mm · ${options.speed} mm/s · ${options.power}%`,
+          startX,
+          Math.max(2, startY - 12),
+          Math.max(totalWidth, 60),
+          2.8,
+          notes,
+        ),
+      );
+    }
+
+    for (let r = 0; r < steps; r += 1) {
+      const z = Math.round(valueAt(options.zMin, options.zMax, r, steps) * 100) / 100;
+      const rowTop = startY + r * (blockHeight + rowGap);
+      for (let i = 0; i < repeats; i += 1) {
+        const y = rowTop + i * lineGap;
+        const line = new Line([startX, y, startX + length, y], {
+          stroke: layer.color,
+          strokeUniform: true,
+          strokeWidth: 1.15 / zoom,
+          objectCaching: false,
+        });
+        (line as FabricObject & { zOffset?: number }).zOffset = z;
+        (line as FabricObject & { cutOverride?: unknown }).cutOverride = {
+          mode: 'line',
+          speed: options.speed,
+          power: options.power,
+          passes: Math.max(1, options.passes),
+        };
+        this.assignLayer(line, layer.id);
+        this.canvas.add(line);
+        line.setCoords();
+        created.push(line);
+      }
+      if (notes) {
+        created.push(
+          this.makeNote(
+            `Z ${z.toFixed(2)} mm`,
+            startX + length + 2,
+            rowTop - 0.4,
+            Math.max(16, 26),
+            2.4,
+            notes,
+          ),
+        );
+      }
+    }
+
+    const zActive = state.device.zAxisEnabled;
+    this.setStatus(
+      zActive
+        ? `Focus test: ${steps} Z steps (${options.zMin}–${options.zMax} mm) on ${layer.name}`
+        : 'Focus test created — enable the Z axis in Settings → Machine to emit Z moves',
+    );
+    this.reselect(created);
+    this.afterChange();
+    this.zoomToPage(false);
+  }
+
+  setSelectionZOffset(z: number): void {
+    const objs = this.canvas.getActiveObjects();
+    if (objs.length === 0) {
+      this.setStatus('Select an object first');
+      return;
+    }
+    for (const obj of objs) {
+      (obj as FabricObject & { zOffset?: number }).zOffset = Number.isFinite(z) ? z : 0;
+    }
+    this.syncSelection();
+    this.afterChange();
+    this.setStatus(`Z offset set to ${z.toFixed(2)} mm`);
   }
 
   // -------------------------------------------------------------------------

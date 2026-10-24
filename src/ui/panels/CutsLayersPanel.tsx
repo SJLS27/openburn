@@ -382,6 +382,49 @@ function CutSettingsDialog({
           </span>
           <NumberField value={s.overscan} onChange={(v) => update({ overscan: v })} units={units} />
         </div>
+        {s.mode === 'line' && (
+          <div className="field-row">
+            <span className="field-label" style={{ minWidth: 58 }}>
+              Kerf
+            </span>
+            <NumberField value={s.kerf} onChange={(v) => update({ kerf: v })} units={units} />
+          </div>
+        )}
+        {(s.mode === 'fill' || s.mode === 'image') && (
+          <>
+            <div className="field-row">
+              <span className="field-label" style={{ minWidth: 58 }}>
+                Angle
+              </span>
+              <input
+                className="input narrow"
+                type="number"
+                step={15}
+                value={s.angle}
+                onChange={(e) => update({ angle: toNum(e.target.value) })}
+              />
+              <span className="hint">deg</span>
+            </div>
+            <div className="field-row">
+              <span className="field-label" style={{ minWidth: 58 }}>
+                Scan off.
+              </span>
+              <NumberField
+                value={s.scanOffset}
+                onChange={(v) => update({ scanOffset: v })}
+                units={units}
+              />
+            </div>
+            <label className="checkbox" style={{ alignSelf: 'center' }}>
+              <input
+                type="checkbox"
+                checked={s.crossHatch}
+                onChange={(e) => update({ crossHatch: e.target.checked })}
+              />
+              Cross-hatch
+            </label>
+          </>
+        )}
       </div>
 
       <div className="field-row" style={{ marginTop: 8 }}>
@@ -429,8 +472,10 @@ function CutSettingsDialog({
       </div>
 
       <p className="hint" style={{ marginTop: 10 }}>
-        <ModeGlyph mode={s.mode} /> {MODE_LABEL[s.mode]} mode — these settings are used when GCode
-        generation is added in Phase 2.
+        <ModeGlyph mode={s.mode} /> {MODE_LABEL[s.mode]} mode.{' '}
+        {s.mode === 'line'
+          ? 'Kerf expands (+mm) or shrinks (−mm) closed cuts.'
+          : 'Angle, cross-hatch and scan offset control the raster pattern.'}
       </p>
     </Modal>
   );

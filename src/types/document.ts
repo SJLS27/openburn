@@ -24,6 +24,14 @@ export interface CutSettings {
   offsetDistance: number;
   /** Extra travel distance for fill scanning, in mm */
   overscan: number;
+  /** Fill scan angle in degrees (0 = horizontal) */
+  angle: number;
+  /** Add a second fill pass at angle + 90° */
+  crossHatch: boolean;
+  /** Kerf compensation for closed line cuts, in mm (positive expands) */
+  kerf: number;
+  /** Raster scan delay compensation, in mm along the scan direction */
+  scanOffset: number;
   dither: DitherMode;
   /** Send this layer to the laser */
   output: boolean;
@@ -113,6 +121,10 @@ export const DEFAULT_CUT_SETTINGS: CutSettings = {
   interval: 0.1,
   offsetDistance: 0.2,
   overscan: 2.5,
+  angle: 0,
+  crossHatch: false,
+  kerf: 0,
+  scanOffset: 0,
   dither: 'none',
   output: true,
   visible: true,

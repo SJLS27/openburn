@@ -15,6 +15,8 @@ export interface PlanSegment {
   powers?: number[];
   /** mm / min */
   feed?: number;
+  /** Z height in mm (only used when the device has a Z axis) */
+  z?: number;
 }
 
 export interface LayerStat {
@@ -60,6 +62,10 @@ export interface DeviceConfig {
   homeBeforeJob: boolean;
   /** Reorder cut segments to minimise travel */
   optimizeTravel: boolean;
+  /** Z axis available (required for Focus Test and per-object Z offsets) */
+  zAxisEnabled: boolean;
+  /** Z move feed rate in mm per minute */
+  zFeedRate: number;
 }
 
 export const DEFAULT_DEVICE: DeviceConfig = {
@@ -72,6 +78,8 @@ export const DEFAULT_DEVICE: DeviceConfig = {
   origin: 'bottom-left',
   homeBeforeJob: false,
   optimizeTravel: true,
+  zAxisEnabled: false,
+  zFeedRate: 300,
 };
 
 export function emptyBounds(): JobBounds {

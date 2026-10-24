@@ -323,6 +323,10 @@ function cutSettingsFromElement(el: Element, index: number): LayerDef {
   const power = num(childValue(el, 'maxPower'), 50);
   const passes = Math.max(1, Math.round(num(childValue(el, 'numPasses'), 1)));
   const interval = Math.max(0.01, num(childValue(el, 'interval'), 0.1));
+  const kerf = num(childValue(el, 'kerf'), 0);
+  const scanOffset = num(childValue(el, 'scanOffset'), 0);
+  const angle = num(childValue(el, 'angle'), 0);
+  const crossHatch = num(childValue(el, 'crossHatch'), 0) !== 0;
   const name = childValue(el, 'name') || `C${String(index).padStart(2, '0')}`;
   const color = PALETTE_COLORS[index % PALETTE_COLORS.length];
 
@@ -334,6 +338,10 @@ function cutSettingsFromElement(el: Element, index: number): LayerDef {
     interval,
     offsetDistance: 0.2,
     overscan: 2.5,
+    angle,
+    crossHatch,
+    kerf,
+    scanOffset,
     dither: 'none',
     output: true,
     visible: true,
@@ -598,6 +606,10 @@ export async function parseLightBurn(xmlText: string): Promise<LightBurnImportRe
         interval: 0.1,
         offsetDistance: 0.2,
         overscan: 2.5,
+        angle: 0,
+        crossHatch: false,
+        kerf: 0,
+        scanOffset: 0,
         dither: 'none',
         output: true,
         visible: true,
@@ -690,10 +702,12 @@ function cutSettingXml(layer: LayerDef, index: number): string {
     `    <minPower Value="${fmt(s.power)}"/>`,
     `    <maxPower Value="${fmt(s.power)}"/>`,
     `    <speed Value="${fmt(s.speed)}"/>`,
-    `    <kerf Value="0"/>`,
+    `    <kerf Value="${fmt(s.kerf)}"/>`,
     `    <numPasses Value="${Math.max(1, Math.round(s.passes))}"/>`,
     `    <interval Value="${fmt(s.interval)}"/>`,
-    `    <angle Value="0"/>`,
+    `    <angle Value="${fmt(s.angle)}"/>`,
+    `    <crossHatch Value="${s.crossHatch ? 1 : 0}"/>`,
+    `    <scanOffset Value="${fmt(s.scanOffset)}"/>`,
     `    <overScanning Value="${fmt(s.overscan)}"/>`,
     '  </CutSetting>',
   ];
@@ -781,6 +795,9 @@ export async function serializeLightBurn(
     if ((obj as FabricObject & { cutOverride?: unknown }).cutOverride != null && !overrideWarning) {
       warnings.push('Per-object cut overrides are exported as layer settings');
       overrideWarning = true;
+    }
+    if ((obj as FabricObject & { zOffset?: number }).zOffset) {
+      warnings.push('Per-object Z offsets are not exported to LightBurn');
     }
 
     if (obj instanceof FabricImage) {

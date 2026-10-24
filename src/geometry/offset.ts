@@ -63,6 +63,33 @@ function toPathData(points: Vec[], closed: boolean): string {
   return `${parts.join(' ')}${closed ? ' Z' : ''}`;
 }
 
+/** Offset a closed polygon by distance (positive expands, negative shrinks). */
+export function offsetPolygonPoints(
+  points: { x: number; y: number }[],
+  distance: number,
+): { x: number; y: number }[] {
+  if (points.length < 3 || Math.abs(distance) < 1e-6) {
+    return points.map((p) => ({ x: p.x, y: p.y }));
+  }
+  const magnitude = Math.abs(distance);
+  const candidates = [offsetPolygon(points, magnitude), offsetPolygon(points, -magnitude)];
+  const areas = candidates.map((c) => Math.abs(area(c)));
+  const chosen =
+    distance >= 0
+      ? areas[0] >= areas[1]
+        ? candidates[0]
+        : candidates[1]
+      : areas[0] <= areas[1]
+        ? candidates[0]
+        : candidates[1];
+  return chosen;
+}
+
+/** Absolute area of a closed polygon (mm²). */
+export function polygonArea(points: { x: number; y: number }[]): number {
+  return Math.abs(area(points));
+}
+
 /**
  * Approximate outline offset for polygonal geometry. Curves are flattened to
  * their anchor points, which is accurate for rectangles/polygons and close

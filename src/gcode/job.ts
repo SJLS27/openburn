@@ -1,6 +1,7 @@
 import { FabricImage, type FabricObject } from 'fabric';
 import type { CutSettings, LayerDef } from '@/types/document';
 import { optimizeSegments } from './optimize';
+import { offsetPolygonPoints, polygonArea } from '@/geometry/offset';
 import {
   hatchContours,
   objectContours,
@@ -18,6 +19,8 @@ import {
   type PlanSegment,
   type Pt,
 } from './types';
+
+const Z_WARNING = 'Z offsets ignored — enable the Z axis in Settings → Machine';
 
 export interface BuildJobInput {
   objects: FabricObject[];
@@ -41,9 +44,22 @@ function pushContour(
   power: number,
   speed: number,
   passes: number,
+  kerf = 0,
+  z = 0,
 ): void {
-  const pts = [...contour.points];
-  if (contour.closed && pts.length > 2) pts.push(pts[0]);
+  let pts = [...contour.points];
+  if (contour.closed && pts.length > 2) {
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    if (Math.hypot(first.x - last.x, first.y - last.y) < 1e-6) pts.pop();
+
+    if (kerf !== 0) {
+      const offset = offsetPolygonPoints(pts, kerf);
+      // A collapsed inward offset means the shape is smaller than the kerf.
+      if (offset.length >= 3 && polygonArea(offset) > 1e-3) pts = offset;
+    }
+    pts.push(pts[0]);
+  }
   if (pts.length < 2) return;
 
   for (let pass = 0; pass < Math.max(1, passes); pass += 1) {
@@ -54,6 +70,7 @@ function pushContour(
       layerId,
       power,
       feed: Math.max(1, speed) * 60,
+      z,
     });
   }
 }
@@ -93,6 +110,11 @@ export function buildJob(input: BuildJobInput): JobPlan {
     for (const obj of objs) {
       const override = (obj as FabricObject & { cutOverride?: Partial<CutSettings> }).cutOverride;
       const s: CutSettings = override ? { ...layer.settings, ...override } : layer.settings;
+      const rawZ = Number((obj as FabricObject & { zOffset?: number }).zOffset ?? 0);
+      if (rawZ !== 0 && !device.zAxisEnabled && !warnings.includes(Z_WARNING)) {
+        warnings.push(Z_WARNING);
+      }
+      const zOffset = device.zAxisEnabled && Number.isFinite(rawZ) ? rawZ : 0;
 
       if (s.mode === 'image') {
         if (!(obj instanceof FabricImage)) continue;
@@ -111,6 +133,7 @@ export function buildJob(input: BuildJobInput): JobPlan {
               powers: row.powers,
               layerId: layer.id,
               feed,
+              z: zOffset,
             });
           }
         }
@@ -125,7 +148,7 @@ export function buildJob(input: BuildJobInput): JobPlan {
       let contours: Contour[] = [];
 
       if (s.mode === 'fill') {
-        contours = hatchContours(obj, s.interval, s.overscan);
+        contours = hatchContours(obj, s.interval, s.overscan, s.angle, s.crossHatch, s.scanOffset);
       } else if (s.mode === 'offsetFill') {
         const base = objectContours(obj);
         contours = base.length
@@ -147,7 +170,16 @@ export function buildJob(input: BuildJobInput): JobPlan {
       }
 
       for (const contour of contours) {
-        pushContour(segments, contour, layer.id, s.power, s.speed, s.passes);
+        pushContour(
+          segments,
+          contour,
+          layer.id,
+          s.power,
+          s.speed,
+          s.passes,
+          s.mode === 'line' ? s.kerf : 0,
+          zOffset,
+        );
       }
     }
 
@@ -174,8 +206,14 @@ export function buildJob(input: BuildJobInput): JobPlan {
   let timeSeconds = 0;
   let bounds = emptyBounds();
   let previous: Pt | null = null;
+  let statsZ = 0;
   for (const seg of planSegments) {
     if (seg.kind === 'cut') {
+      const z = device.zAxisEnabled ? seg.z ?? 0 : 0;
+      if (z !== statsZ) {
+        timeSeconds += (Math.abs(z - statsZ) / Math.max(1, device.zFeedRate || 300)) * 60 + 0.05;
+        statsZ = z;
+      }
       const d = polylineLength(seg.points);
       cutDistance += d;
       timeSeconds += (d / Math.max(1, seg.feed ?? 600)) * 60 + 0.02;
@@ -190,6 +228,9 @@ export function buildJob(input: BuildJobInput): JobPlan {
       includePoint(bounds, target);
       previous = target;
     }
+  }
+  if (device.zAxisEnabled && statsZ !== 0) {
+    timeSeconds += (Math.abs(statsZ) / Math.max(1, device.zFeedRate || 300)) * 60 + 0.05;
   }
   if (!Number.isFinite(bounds.minX)) bounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
@@ -244,6 +285,8 @@ function emitGcode(
   let laserOn = false;
   let lastPower = -1;
   let lastFeed = -1;
+  let currentZ = 0;
+  const zFeed = Math.max(1, Math.round(device.zFeedRate || 300));
 
   for (const seg of segments) {
     if (seg.points.length === 0) continue;
@@ -259,6 +302,16 @@ function emitGcode(
 
     const feed = Math.max(1, Math.round(seg.feed ?? 600));
     const s = Math.max(0, Math.min(device.maxS, Math.round(((seg.power ?? 0) / 100) * device.maxS)));
+
+    const targetZ = device.zAxisEnabled ? seg.z ?? 0 : 0;
+    if (targetZ !== currentZ) {
+      if (laserOn) {
+        lines.push('M5');
+        laserOn = false;
+      }
+      lines.push(`G1 Z${fmt(targetZ)} F${zFeed}`);
+      currentZ = targetZ;
+    }
 
     if (feed !== lastFeed) {
       lines.push(`G1 F${feed}`);
@@ -295,6 +348,14 @@ function emitGcode(
     }
   }
 
+  if (device.zAxisEnabled && currentZ !== 0) {
+    if (laserOn) {
+      lines.push('M5');
+      laserOn = false;
+    }
+    lines.push(`G1 Z0 F${zFeed}`);
+    currentZ = 0;
+  }
   if (laserOn) lines.push('M5');
   lines.push('M2');
   return { lines };

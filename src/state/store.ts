@@ -35,6 +35,8 @@ export interface SelectionSnapshot {
   layerIds: string[];
   /** Number of selected objects with per-object cut overrides */
   overrideCount: number;
+  /** Per-object Z offset in mm (first selected object) */
+  zOffset: number;
 }
 
 export interface AppState {
@@ -270,6 +272,8 @@ export interface WorkspaceApi {
   clearCutOverride(): void;
   generateMaterialTest(options: MaterialTestOptions): void;
   generateIntervalTest(options: IntervalTestOptions): void;
+  generateFocusTest(options: FocusTestOptions): void;
+  setSelectionZOffset(z: number): void;
   applyImageAdjust(adjust: ImageAdjust): void;
   getSelectedImageInfo(): { dataUrl: string; adjust: ImageAdjust } | null;
   traceSelectedImage(options: TraceOptions): Promise<void>;
@@ -303,6 +307,21 @@ export interface MaterialTestOptions {
   mode: 'line' | 'fill';
   passes: number;
   interval: number;
+  labels: boolean;
+  angle: number;
+  crossHatch: boolean;
+}
+
+export interface FocusTestOptions {
+  zMin: number;
+  zMax: number;
+  steps: number;
+  lineLength: number;
+  gap: number;
+  repeats: number;
+  speed: number;
+  power: number;
+  passes: number;
   labels: boolean;
 }
 

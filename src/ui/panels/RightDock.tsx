@@ -60,6 +60,16 @@ function ShapePropertiesPanel() {
               />
               <span className="hint">°</span>
             </Field>
+            {state.device.zAxisEnabled && (
+              <Field label="Z offset">
+                <NumberField
+                  value={sel.zOffset}
+                  onChange={(v) => ws?.setSelectionZOffset(v)}
+                  units={units}
+                  decimals={2}
+                />
+              </Field>
+            )}
             <Field label="Layer">
               <select
                 className="input"
@@ -165,20 +175,89 @@ function ColorPalettePanel() {
   );
 }
 
-const MATERIALS = [
-  { name: 'Plywood', thickness: '3 mm', speed: 18, power: 55, passes: 1, mode: 'line' as const },
-  { name: 'Plywood', thickness: '6 mm', speed: 10, power: 75, passes: 2, mode: 'line' as const },
-  { name: 'Acrylic (cast)', thickness: '3 mm', speed: 15, power: 60, passes: 1, mode: 'line' as const },
-  { name: 'Acrylic (cast)', thickness: '3 mm', speed: 120, power: 45, passes: 1, mode: 'fill' as const },
-  { name: 'MDF', thickness: '3 mm', speed: 22, power: 50, passes: 1, mode: 'line' as const },
-  { name: 'Leather', thickness: '2 mm', speed: 90, power: 25, passes: 1, mode: 'fill' as const },
-  { name: 'Stainless (marking)', thickness: '—', speed: 200, power: 40, passes: 1, mode: 'fill' as const },
+interface MaterialEntry {
+  id: string;
+  name: string;
+  thickness: string;
+  speed: number;
+  power: number;
+  passes: number;
+  mode: 'line' | 'fill';
+  kerf: number;
+}
+
+const MATERIAL_STORAGE_KEY = 'openburn.materials.v1';
+
+const DEFAULT_MATERIALS: MaterialEntry[] = [
+  { id: 'ply-3', name: 'Plywood', thickness: '3 mm', speed: 18, power: 55, passes: 1, mode: 'line', kerf: 0 },
+  { id: 'ply-6', name: 'Plywood', thickness: '6 mm', speed: 10, power: 75, passes: 2, mode: 'line', kerf: 0 },
+  { id: 'acry-3', name: 'Acrylic (cast)', thickness: '3 mm', speed: 15, power: 60, passes: 1, mode: 'line', kerf: 0 },
+  { id: 'acry-3-fill', name: 'Acrylic (cast)', thickness: '3 mm', speed: 120, power: 45, passes: 1, mode: 'fill', kerf: 0 },
+  { id: 'mdf-3', name: 'MDF', thickness: '3 mm', speed: 22, power: 50, passes: 1, mode: 'line', kerf: 0 },
+  { id: 'leather-2', name: 'Leather', thickness: '2 mm', speed: 90, power: 25, passes: 1, mode: 'fill', kerf: 0 },
+  { id: 'steel-mark', name: 'Stainless (marking)', thickness: '—', speed: 200, power: 40, passes: 1, mode: 'fill', kerf: 0 },
 ];
+
+function loadMaterials(): MaterialEntry[] {
+  try {
+    const raw = localStorage.getItem(MATERIAL_STORAGE_KEY);
+    if (!raw) return DEFAULT_MATERIALS;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return DEFAULT_MATERIALS;
+    const valid = parsed.filter(
+      (m): m is MaterialEntry =>
+        m && typeof m.name === 'string' && Number.isFinite(m.speed) && Number.isFinite(m.power),
+    );
+    return valid.length > 0 ? valid : DEFAULT_MATERIALS;
+  } catch {
+    return DEFAULT_MATERIALS;
+  }
+}
 
 function MaterialPanel() {
   const state = useAppState();
+  const units = useUnits();
+  const [materials, setMaterials] = useState<MaterialEntry[]>(() => loadMaterials());
   const [selected, setSelected] = useState(0);
   const active = state.doc.layers.find((l) => l.id === state.activeLayerId);
+  const current = materials[Math.min(selected, materials.length - 1)];
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MATERIAL_STORAGE_KEY, JSON.stringify(materials));
+    } catch {
+      /* storage may be unavailable */
+    }
+  }, [materials]);
+
+  const updateCurrent = (patch: Partial<MaterialEntry>) => {
+    if (!current) return;
+    setMaterials((list) =>
+      list.map((m) => (m.id === current.id ? { ...m, ...patch } : m)),
+    );
+  };
+
+  const addFromLayer = () => {
+    if (!active) return;
+    const entry: MaterialEntry = {
+      id: `mat-${Date.now()}`,
+      name: active.name,
+      thickness: '',
+      speed: active.settings.speed,
+      power: active.settings.power,
+      passes: active.settings.passes,
+      mode: active.settings.mode === 'fill' ? 'fill' : 'line',
+      kerf: active.settings.kerf ?? 0,
+    };
+    setMaterials((list) => [...list, entry]);
+    setSelected(materials.length);
+  };
+
+  const removeCurrent = () => {
+    if (!current) return;
+    setMaterials((list) => list.filter((m) => m.id !== current.id));
+    setSelected(0);
+  };
 
   return (
     <div id="panel-material">
@@ -186,36 +265,110 @@ function MaterialPanel() {
         <select
           className="input"
           style={{ height: 24 }}
-          value={selected}
+          value={current ? materials.indexOf(current) : 0}
           onChange={(e) => setSelected(Number(e.target.value))}
         >
-          {MATERIALS.map((m, i) => (
-            <option key={`${m.name}-${m.thickness}-${i}`} value={i}>
-              {m.name} — {m.thickness}
+          {materials.map((m, i) => (
+            <option key={m.id} value={i}>
+              {m.name}
+              {m.thickness ? ` — ${m.thickness}` : ''}
             </option>
           ))}
         </select>
+
+        {current && (
+          <>
+            <div className="grid-2" style={{ marginTop: 6 }}>
+              <Field label="Name">
+                <input
+                  className="input"
+                  value={current.name}
+                  onChange={(e) => updateCurrent({ name: e.target.value })}
+                />
+              </Field>
+              <Field label="Thick.">
+                <input
+                  className="input"
+                  value={current.thickness}
+                  placeholder="3 mm"
+                  onChange={(e) => updateCurrent({ thickness: e.target.value })}
+                />
+              </Field>
+              <Field label="Speed">
+                <input
+                  className="input"
+                  type="number"
+                  value={current.speed}
+                  onChange={(e) => updateCurrent({ speed: Number(e.target.value) })}
+                />
+              </Field>
+              <Field label="Power">
+                <input
+                  className="input"
+                  type="number"
+                  value={current.power}
+                  onChange={(e) => updateCurrent({ power: Number(e.target.value) })}
+                />
+              </Field>
+              <Field label="Pass">
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  value={current.passes}
+                  onChange={(e) => updateCurrent({ passes: Math.max(1, Number(e.target.value)) })}
+                />
+              </Field>
+              <Field label="Kerf">
+                <NumberField
+                  value={current.kerf}
+                  onChange={(v) => updateCurrent({ kerf: v })}
+                  units={units}
+                />
+              </Field>
+            </div>
+            <div className="field-row" style={{ marginTop: 6 }}>
+              <span className="field-label">Mode</span>
+              <select
+                className="input"
+                value={current.mode}
+                onChange={(e) => updateCurrent({ mode: e.target.value as 'line' | 'fill' })}
+              >
+                <option value="line">Line</option>
+                <option value="fill">Fill</option>
+              </select>
+            </div>
+          </>
+        )}
+
         <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
           <button
             className="btn primary"
             style={{ flex: 1 }}
-            disabled={!active}
+            disabled={!active || !current}
             onClick={() => {
-              const m = MATERIALS[selected];
-              if (!active) return;
+              if (!active || !current) return;
               store.updateCutSettings(active.id, {
-                speed: m.speed,
-                power: m.power,
-                passes: m.passes,
-                mode: m.mode,
+                speed: current.speed,
+                power: current.power,
+                passes: current.passes,
+                mode: current.mode,
+                kerf: current.kerf,
               });
             }}
           >
             Apply to layer
           </button>
+          <button className="btn" title="Add the active layer as a material" onClick={addFromLayer}>
+            Save layer
+          </button>
+          <button className="btn" title="Delete this material" onClick={removeCurrent} disabled={!current}>
+            Delete
+          </button>
         </div>
         <p className="hint" style={{ marginTop: 6 }}>
-          Applies speed, power, passes and mode to the active layer ({active?.name ?? '—'}).
+          Applies speed, power, passes, mode and kerf to {active?.name ?? '—'}. Edits are saved in
+          this browser/computer automatically.
         </p>
       </Panel>
     </div>
