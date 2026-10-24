@@ -5,7 +5,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="https://github.com/SJLS27/openburn/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SJLS27/openburn/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.5.1-orange.svg">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.5.2-orange.svg">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="GRBL" src="https://img.shields.io/badge/GRBL-ready-brightgreen.svg">
   <img alt="LightBurn" src="https://img.shields.io/badge/LightBurn-.lbrn%20%7C%20.lbrn2-8a63d2.svg">
@@ -40,6 +40,7 @@
 - **Offset** de contornos, arrays en cuadrícula/circulares y **edición de nodos**.
 - **Texto a contornos** con opentype.js (fuente Inter incluida) para cortar o grabar sin depender de fuentes.
 - **Add Tabs**: puentes en contornos para que las piezas no se suelten.
+- **Pegado desde el portapapeles del sistema**: texto, SVG e imágenes, además de menú contextual en el lienzo.
 
 ### Capas y operaciones
 - Paleta de colores tipo LightBurn (`C00`, `C01`, …), cada color es una capa.
@@ -140,6 +141,7 @@ npm run build:app      # instalador (AppImage / NSIS / DMG) con electron-builder
 | Preview | `Alt+P` |
 | Zoom a página / a selección | `Ctrl+0` / `Ctrl+=` |
 | Paneo | `Espacio` + arrastrar, o botón central |
+| Pegar desde el sistema (con portapapeles interno lleno) | `Ctrl+Shift+V` |
 
 ---
 

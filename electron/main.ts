@@ -1,4 +1,12 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  Menu,
+  clipboard,
+  type MenuItemConstructorOptions,
+} from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -12,6 +20,7 @@ function createWindow() {
     minHeight: 680,
     backgroundColor: '#26282c',
     title: 'OpenBurn',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -30,6 +39,26 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+
+  // Native context menu for editable fields (text inputs, console, text editing).
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    const template: MenuItemConstructorOptions[] = [];
+    if (params.isEditable) {
+      const flags = params.editFlags;
+      if (flags.canUndo) template.push({ role: 'undo' });
+      if (flags.canRedo) template.push({ role: 'redo' });
+      if (template.length > 0) template.push({ type: 'separator' });
+      if (flags.canCut) template.push({ role: 'cut' });
+      if (flags.canCopy) template.push({ role: 'copy' });
+      if (flags.canPaste) template.push({ role: 'paste' });
+      template.push({ type: 'separator' }, { role: 'selectAll' });
+    } else if (params.selectionText.trim().length > 0) {
+      template.push({ role: 'copy' });
+    }
+    if (template.length > 0) {
+      Menu.buildFromTemplate(template).popup({ window: mainWindow ?? undefined });
+    }
   });
 
   // Allow Web Serial access from the renderer (GRBL connection).
@@ -83,6 +112,15 @@ ipcMain.handle('fs:readBinary', async (_e, filePath) => {
 });
 
 // Read a bundled renderer asset (fonts, icons) from the built dist folder.
+ipcMain.handle('clipboard:read', () => {
+  const image = clipboard.readImage();
+  return {
+    text: clipboard.readText(),
+    html: clipboard.readHTML(),
+    image: image.isEmpty() ? null : image.toDataURL(),
+  };
+});
+
 ipcMain.handle('app:readAsset', async (_e, relativePath) => {
   const safe = String(relativePath ?? '')
     .replace(/\\/g, '/')
@@ -94,7 +132,17 @@ ipcMain.handle('app:readAsset', async (_e, relativePath) => {
   return buf.toString('base64');
 });
 
+function installApplicationMenu(): void {
+  const isMac = process.platform === 'darwin';
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac ? [{ role: 'appMenu' as const }] : []),
+    { role: 'editMenu' },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 app.whenReady().then(() => {
+  installApplicationMenu();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

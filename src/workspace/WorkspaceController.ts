@@ -117,7 +117,7 @@ export class WorkspaceController implements WorkspaceApi {
       selectionBorderColor: 'rgba(63,143,221,0.75)',
       selectionLineWidth: 1,
       fireRightClick: true,
-      stopContextMenu: true,
+      stopContextMenu: false,
       uniformScaling: true,
     });
 
@@ -143,6 +143,7 @@ export class WorkspaceController implements WorkspaceApi {
     this.currentSnapshot = this.snapshot();
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
+    window.addEventListener('paste', this.onPaste);
     (window as unknown as { __openburn?: WorkspaceController }).__openburn = this;
     this.setStatus('Ready');
   }
@@ -155,6 +156,7 @@ export class WorkspaceController implements WorkspaceApi {
     this.resizeObserver?.disconnect();
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
+    window.removeEventListener('paste', this.onPaste);
     this.canvas.dispose();
   }
 
@@ -2293,6 +2295,162 @@ export class WorkspaceController implements WorkspaceApi {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // System clipboard
+  // -------------------------------------------------------------------------
+
+  private onPaste = (e: ClipboardEvent): void => {
+    const target = e.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    if (document.querySelector('.dialog-backdrop')) return;
+    const data = e.clipboardData;
+    if (!data) return;
+
+    const files = Array.from(data.files);
+    const imageItem = Array.from(data.items).find(
+      (i) => i.kind === 'file' && i.type.startsWith('image/'),
+    );
+    const imageFile = files.length === 0 && imageItem ? imageItem.getAsFile() : null;
+    const text = data.getData('text/plain');
+    const html = data.getData('text/html');
+    if (files.length === 0 && !imageFile && !text.trim() && !html) return;
+
+    e.preventDefault();
+    void this.handlePastedPayload({
+      text,
+      html,
+      files: imageFile ? [...files, imageFile] : files,
+    });
+  };
+
+  async pasteFromSystem(): Promise<void> {
+    try {
+      if (window.openburn?.readClipboard) {
+        const data = await window.openburn.readClipboard();
+        const handled = await this.handlePastedPayload(data);
+        if (!handled) this.setStatus('Clipboard is empty or unsupported');
+        return;
+      }
+
+      if (navigator.clipboard?.read) {
+        const items = await navigator.clipboard.read();
+        const payload: { text?: string; html?: string; image?: string } = {};
+        for (const item of items) {
+          for (const type of item.types) {
+            if (type.startsWith('image/')) {
+              const blob = await item.getType(type);
+              payload.image = await this.blobToDataUrl(blob);
+              break;
+            }
+            if (type === 'text/plain') {
+              payload.text = await (await item.getType(type)).text();
+            } else if (type === 'text/html') {
+              payload.html = await (await item.getType(type)).text();
+            }
+          }
+        }
+        const handled = await this.handlePastedPayload(payload);
+        if (!handled) this.setStatus('Clipboard is empty or unsupported');
+      } else {
+        this.setStatus('Use Ctrl+V to paste from the system clipboard');
+      }
+    } catch (err) {
+      this.setStatus(`Clipboard access failed: ${(err as Error).message}. Try Ctrl+V.`);
+    }
+  }
+
+  private blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  private async handlePastedPayload(payload: {
+    text?: string | null;
+    html?: string | null;
+    image?: string | null;
+    files?: File[];
+  }): Promise<boolean> {
+    for (const file of payload.files ?? []) {
+      if (file.type === 'image/svg+xml' || /\.svg$/i.test(file.name)) {
+        await this.importSvg(await file.text());
+        this.setStatus('Pasted SVG from clipboard');
+        return true;
+      }
+      if (file.type.startsWith('image/')) {
+        await this.importImage(await this.blobToDataUrl(file));
+        this.setStatus('Pasted image from clipboard');
+        return true;
+      }
+    }
+
+    if (payload.image) {
+      await this.importImage(payload.image);
+      this.setStatus('Pasted image from clipboard');
+      return true;
+    }
+
+    const htmlSvg = payload.html?.match(/<svg[\s\S]*?<\/svg>/i)?.[0];
+    if (htmlSvg) {
+      await this.importSvg(htmlSvg);
+      this.setStatus('Pasted SVG from clipboard');
+      return true;
+    }
+
+    const text = payload.text ?? '';
+    if (/^<svg[\s>]/i.test(text.trim()) && /<\/svg>/i.test(text)) {
+      await this.importSvg(text);
+      this.setStatus('Pasted SVG from clipboard');
+      return true;
+    }
+
+    if (text.trim()) {
+      this.addTextFromClipboard(text);
+      return true;
+    }
+    return false;
+  }
+
+  private addTextFromClipboard(text: string): void {
+    const content = text.replace(/\r\n/g, '\n');
+    if (!content.trim()) return;
+    const layer = this.activeLayer();
+    const vpt = this.canvas.viewportTransform ?? [1, 0, 0, 1, 0, 0];
+    const zoom = this.canvas.getZoom();
+    const centerX = (this.host.clientWidth / 2 - vpt[4]) / zoom;
+    const centerY = (this.host.clientHeight / 2 - vpt[5]) / zoom;
+    const width = Math.max(40, Math.min(120, content.length * 2.2));
+
+    const box = new Textbox(content, {
+      left: centerX - width / 2,
+      top: centerY - 5,
+      width,
+      fontSize: 8,
+      fontFamily: 'Inter',
+      fill: layer.color,
+      objectCaching: false,
+    });
+    this.assignLayerDeep(box, layer.id);
+    this.canvas.add(box);
+    box.setCoords();
+    this.canvas.setActiveObject(box);
+    this.canvas.requestRenderAll();
+    this.afterChange();
+    this.syncSelection();
+    this.setStatus('Pasted text from clipboard');
+  }
+
   updateCursor(x: number, y: number): void {
     store.setState({ cursor: { x, y } });
   }
@@ -2354,8 +2512,14 @@ export class WorkspaceController implements WorkspaceApi {
           this.deleteSelection();
           return;
         case 'v':
-          e.preventDefault();
-          void this.pasteClipboard();
+          if (this.clipboard.length > 0 && !e.shiftKey) {
+            e.preventDefault();
+            void this.pasteClipboard();
+          } else if (window.openburn?.readClipboard) {
+            e.preventDefault();
+            void this.pasteFromSystem();
+          }
+          // In the browser without internal content, let the paste event fire.
           return;
         case 'd':
           e.preventDefault();

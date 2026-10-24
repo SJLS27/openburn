@@ -14,6 +14,7 @@ export function Workspace({ onReady }: Props) {
   const fabricRef = useRef<HTMLCanvasElement>(null);
   const bgRef = useRef<HTMLCanvasElement>(null);
   const [controller, setController] = useState<WorkspaceController | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const state = useAppState();
 
   useEffect(() => {
@@ -44,12 +45,77 @@ export function Workspace({ onReady }: Props) {
     };
   }, [controller]);
 
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    window.addEventListener('mousedown', close);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [contextMenu]);
+
+  const run = (fn: () => void) => {
+    setContextMenu(null);
+    fn();
+  };
+
+  const hasSelection = !!state.selection;
+  const menuX = contextMenu ? Math.min(contextMenu.x, window.innerWidth - 220) : 0;
+  const menuY = contextMenu ? Math.min(contextMenu.y, window.innerHeight - 300) : 0;
+
   return (
-    <div className="workspace-area" ref={wrapRef}>
+    <div
+      className="workspace-area"
+      ref={wrapRef}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setContextMenu({ x: e.clientX, y: e.clientY });
+      }}
+    >
       <canvas ref={bgRef} className="bg-canvas" />
       <div className="fabric-host" ref={hostRef}>
         <canvas ref={fabricRef} />
       </div>
+
+      {contextMenu && (
+        <div
+          className="canvas-context-menu"
+          style={{ left: menuX, top: menuY }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            disabled={!hasSelection}
+            onClick={() => run(() => { controller?.copySelection(); controller?.deleteSelection(); })}
+          >
+            <span>Cut</span><span className="shortcut">Ctrl+X</span>
+          </button>
+          <button type="button" disabled={!hasSelection} onClick={() => run(() => controller?.copySelection())}>
+            <span>Copy</span><span className="shortcut">Ctrl+C</span>
+          </button>
+          <button type="button" onClick={() => run(() => void controller?.pasteClipboard())}>
+            <span>Paste</span><span className="shortcut">Ctrl+V</span>
+          </button>
+          <button type="button" onClick={() => run(() => void controller?.pasteFromSystem())}>
+            <span>Paste from clipboard</span>
+          </button>
+          <button type="button" disabled={!hasSelection} onClick={() => run(() => controller?.duplicateSelection())}>
+            <span>Duplicate</span><span className="shortcut">Ctrl+D</span>
+          </button>
+          <div className="ctx-sep" />
+          <button type="button" disabled={!hasSelection} onClick={() => run(() => controller?.deleteSelection())}>
+            <span>Delete</span><span className="shortcut">Supr</span>
+          </button>
+          <button type="button" onClick={() => run(() => controller?.selectAll())}>
+            <span>Select all</span><span className="shortcut">Ctrl+A</span>
+          </button>
+        </div>
+      )}
 
       <div className="pages-bar">
         <span className="page-tab active">Page 1</span>

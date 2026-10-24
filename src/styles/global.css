@@ -1022,3 +1022,53 @@ input[type='color'].layer-swatch::-webkit-color-swatch {
   align-items: center;
   gap: 4px;
 }
+
+/* ------------------------------------------------------------------ context menu */
+
+.canvas-context-menu {
+  position: fixed;
+  z-index: 450;
+  min-width: 208px;
+  background: #3a3d43;
+  border: 1px solid #1a1b1e;
+  border-radius: 4px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  padding: 4px;
+}
+
+.canvas-context-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 3px;
+  color: var(--text);
+  text-align: left;
+}
+
+.canvas-context-menu button:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+
+.canvas-context-menu button:hover:not(:disabled) .shortcut {
+  color: #ffe9dc;
+}
+
+.canvas-context-menu button:disabled {
+  color: #6a6e75;
+  cursor: default;
+}
+
+.canvas-context-menu .shortcut {
+  color: var(--text-faint);
+  font-size: 10.5px;
+}
+
+.canvas-context-menu .ctx-sep {
+  height: 1px;
+  background: #4a4e55;
+  margin: 4px 2px;
+}

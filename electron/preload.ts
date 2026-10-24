@@ -20,6 +20,8 @@ const api = {
     ipcRenderer.invoke('fs:writeFile', filePath, content, encoding),
   readAppAsset: (relativePath: string): Promise<string> =>
     ipcRenderer.invoke('app:readAsset', relativePath),
+  readClipboard: (): Promise<{ text?: string; html?: string; image?: string | null }> =>
+    ipcRenderer.invoke('clipboard:read'),
   platform: process.platform,
   isElectron: true,
 };

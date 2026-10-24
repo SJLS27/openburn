@@ -157,7 +157,19 @@ Detalles técnicos y limitaciones: [FILE-FORMATS.md](FILE-FORMATS.md).
 
 ---
 
-## 9. Guardar
+## 9. Portapapeles
+
+- **Dentro de OpenBurn**: `Ctrl+C` / `Ctrl+X` / `Ctrl+V` copian y pegan formas.
+- **Desde otros programas**: `Ctrl+V` pega:
+  - **texto** como un `Textbox` en el centro de la vista,
+  - **SVG** (texto o HTML con `<svg>`) como vectores editables,
+  - **imágenes** (PNG/JPG) como raster.
+- Si hay formas en el portapapeles interno y quieres pegar lo del sistema, usa **`Ctrl+Shift+V`** o el menú contextual → *Paste from clipboard*.
+- **Clic derecho en el lienzo** abre un menú con Cut / Copy / Paste / Paste from clipboard / Duplicate / Delete / Select all.
+- **Clic derecho en campos de texto** (consola, ajustes) abre el menú nativo con Undo / Redo / Cut / Copy / Paste / Select all.
+- En macOS/Linux, el menú de edición nativo de Electron garantiza los atajos `Cmd/Ctrl+C/V/X` en todos los campos.
+
+## 10. Guardar
 
 | Formato | Uso |
 | --- | --- |
@@ -171,7 +183,7 @@ Detalles técnicos y limitaciones: [FILE-FORMATS.md](FILE-FORMATS.md).
 
 ---
 
-## 10. Problemas comunes
+## 11. Problemas comunes
 
 | Síntoma | Solución |
 | --- | --- |
@@ -184,7 +196,7 @@ Detalles técnicos y limitaciones: [FILE-FORMATS.md](FILE-FORMATS.md).
 
 ---
 
-## 11. Flujo recomendado
+## 12. Flujo recomendado
 
 1. Diseña o importa (SVG/DXF/LightBurn).
 2. Asigna capas y ajustes.

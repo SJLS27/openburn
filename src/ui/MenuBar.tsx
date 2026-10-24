@@ -529,7 +529,7 @@ export function MenuBar() {
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <Icon name="flame" size={40} style={{ color: 'var(--accent)' }} />
             <div>
-              <h3 style={{ margin: '0 0 6px' }}>OpenBurn 0.5.1</h3>
+              <h3 style={{ margin: '0 0 6px' }}>OpenBurn 0.5.2</h3>
               <p className="hint" style={{ margin: 0 }}>
                 Open-source laser cutting &amp; engraving software inspired by the LightBurn
                 workflow. Built with Electron, React, Fabric.js and a GRBL controller. Not

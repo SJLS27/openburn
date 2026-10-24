@@ -231,6 +231,7 @@ export interface WorkspaceApi {
   duplicateSelection(): void;
   copySelection(): void;
   pasteClipboard(): Promise<void>;
+  pasteFromSystem(): Promise<void>;
   selectAll(): void;
   group(): void;
   ungroup(): void;
