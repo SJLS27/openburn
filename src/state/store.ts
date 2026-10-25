@@ -8,7 +8,7 @@ import {
   type OpenBurnDocument,
   type Units,
 } from '@/types/document';
-import { DEFAULT_DEVICE, type DeviceConfig, type JobPlan } from '@/gcode/types';
+import { DEFAULT_DEVICE, DEFAULT_OPTIMIZATION, type DeviceConfig, type JobPlan, type OptimizationSettings } from '@/gcode/types';
 import type { TraceOptions } from '@/image/trace';
 
 export type ToolId =
@@ -37,6 +37,8 @@ export interface SelectionSnapshot {
   overrideCount: number;
   /** Per-object Z offset in mm (first selected object) */
   zOffset: number;
+  /** Cut order priority of the first selected object */
+  cutPriority: number;
 }
 
 export interface AppState {
@@ -63,9 +65,12 @@ export interface AppState {
   showPreview: boolean;
   beginnerMode: boolean;
   device: DeviceConfig;
+  optimization: OptimizationSettings;
 }
 
 const DEVICE_KEY = 'openburn.device';
+const OPTIMIZATION_KEY = 'openburn.optimization';
+const LAYER_DEFAULTS_KEY = 'openburn.layerDefaults';
 
 function loadDevice(): DeviceConfig {
   try {
@@ -78,6 +83,25 @@ function loadDevice(): DeviceConfig {
     /* ignore corrupted settings */
   }
   return { ...DEFAULT_DEVICE };
+}
+
+function loadOptimization(): OptimizationSettings {
+  try {
+    const raw = localStorage.getItem(OPTIMIZATION_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<OptimizationSettings>;
+      return {
+        ...DEFAULT_OPTIMIZATION,
+        ...parsed,
+        orderBy: Array.isArray(parsed.orderBy) && parsed.orderBy.length
+          ? parsed.orderBy
+          : DEFAULT_OPTIMIZATION.orderBy,
+      };
+    }
+  } catch {
+    /* ignore corrupted settings */
+  }
+  return { ...DEFAULT_OPTIMIZATION };
 }
 
 function initialState(): AppState {
@@ -101,6 +125,7 @@ function initialState(): AppState {
     showPreview: false,
     beginnerMode: false,
     device: loadDevice(),
+    optimization: loadOptimization(),
   };
 }
 
@@ -198,6 +223,82 @@ class AppStore {
     this.setState({ device });
   }
 
+  updateOptimization(patch: Partial<OptimizationSettings>): void {
+    const optimization = { ...this.state.optimization, ...patch };
+    try {
+      localStorage.setItem(OPTIMIZATION_KEY, JSON.stringify(optimization));
+    } catch {
+      /* storage may be unavailable */
+    }
+    this.setState({ optimization });
+  }
+
+  /** Move a layer up (-1) or down (+1) in the cut order. */
+  moveLayer(layerId: string, delta: number): void {
+    const doc = this.state.doc;
+    const index = doc.layers.findIndex((l) => l.id === layerId);
+    if (index < 0) return;
+    const target = index + delta;
+    if (target < 0 || target >= doc.layers.length) return;
+    const layers = [...doc.layers];
+    const [layer] = layers.splice(index, 1);
+    layers.splice(target, 0, layer);
+    this.setState({ doc: { ...doc, layers }, dirty: true });
+  }
+
+  /**
+   * LightBurn "Sort Cuts Last": order by how strongly a layer burns (higher
+   * power, slower speed, more passes first), then push Line-mode layers to the
+   * end so engraving happens before cutting.
+   */
+  sortCutsLast(): void {
+    const doc = this.state.doc;
+    const strength = (s: CutSettings): number =>
+      s.power - s.speed / 10 + s.passes * 5;
+    const sorted = [...doc.layers].sort((a, b) => {
+      const aLine = a.settings.mode === 'line' ? 1 : 0;
+      const bLine = b.settings.mode === 'line' ? 1 : 0;
+      if (aLine !== bLine) return aLine - bLine;
+      return strength(b.settings) - strength(a.settings);
+    });
+    this.setState({ doc: { ...doc, layers: sorted }, dirty: true });
+  }
+
+  // ---- per-layer defaults (LightBurn "Default Layer Settings") ------------
+
+  private loadLayerDefaults(): Record<string, CutSettings> {
+    try {
+      const raw = localStorage.getItem(LAYER_DEFAULTS_KEY);
+      if (raw) return JSON.parse(raw) as Record<string, CutSettings>;
+    } catch {
+      /* ignore corrupted defaults */
+    }
+    return {};
+  }
+
+  hasLayerDefaults(layerId: string): boolean {
+    return !!this.loadLayerDefaults()[layerId];
+  }
+
+  saveLayerDefaults(layerId: string): void {
+    const layer = this.state.doc.layers.find((l) => l.id === layerId);
+    if (!layer) return;
+    const all = this.loadLayerDefaults();
+    all[layerId] = { ...layer.settings };
+    try {
+      localStorage.setItem(LAYER_DEFAULTS_KEY, JSON.stringify(all));
+    } catch {
+      /* storage may be unavailable */
+    }
+  }
+
+  resetLayerDefaults(layerId: string): void {
+    const all = this.loadLayerDefaults();
+    const saved = all[layerId];
+    if (!saved) return;
+    this.updateCutSettings(layerId, { ...saved });
+  }
+
   markDirty(dirty = true): void {
     if (this.state.dirty !== dirty) this.setState({ dirty });
   }
@@ -256,6 +357,11 @@ export interface WorkspaceApi {
   arrayGrid(rows: number, cols: number, dx: number, dy: number): void;
   arrayCircular(count: number, radius: number, startAngle: number): void;
   setLayerOfSelection(layerId: string): void;
+  setSelectionCutPriority(priority: number): void;
+  selectLayerObjects(layerId: string): void;
+  flashLayer(layerId: string): void;
+  copyLayerSettings(layerId: string): void;
+  pasteLayerSettings(layerId: string): void;
   applyNumeric(patch: Partial<{ x: number; y: number; width: number; height: number; angle: number }>): void;
   applyTextStyle(patch: {
     fontSize?: number;

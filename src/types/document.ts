@@ -9,14 +9,38 @@ export type Units = 'mm' | 'in';
 
 export type CutMode = 'line' | 'fill' | 'offsetFill' | 'image';
 
-export type DitherMode = 'none' | 'jarvis' | 'atkinson' | 'ordered' | 'stucki';
+/**
+ * Image processing mode, mirroring LightBurn's Image Mode list. `none` and
+ * `grayscale` both mean continuous power (no dithering); `none` is kept for
+ * backwards compatibility with older OpenBurn documents.
+ */
+export type DitherMode =
+  | 'none'
+  | 'grayscale'
+  | 'threshold'
+  | 'ordered'
+  | 'atkinson'
+  | 'dither'
+  | 'stucki'
+  | 'jarvis'
+  | 'newsprint'
+  | 'halftone'
+  | 'sketch';
+
+/** How Fill/Offset Fill groups shapes into scan passes (LightBurn "Fill Grouping"). */
+export type FillGrouping = 'all' | 'groups' | 'individual';
+
+/** Lead-In / Lead-Out shape (LightBurn). */
+export type LeadStyle = 'line' | 'arc';
 
 export interface CutSettings {
   mode: CutMode;
   /** mm / second */
   speed: number;
-  /** 0 - 100 % */
+  /** Max power, 0 - 100 % */
   power: number;
+  /** Min power, 0 - 100 % (grayscale / corner power) */
+  minPower: number;
   passes: number;
   /** Line interval for fill modes, in mm */
   interval: number;
@@ -38,6 +62,64 @@ export interface CutSettings {
   /** Show this layer in the editor */
   visible: boolean;
   airAssist: boolean;
+
+  // ---- Fill / Image common ------------------------------------------------
+  /** Fill in both directions (serpentine); off = engrave one way only */
+  bidirectional: boolean;
+  /** How Fill groups shapes into scan passes */
+  fillGrouping: FillGrouping;
+  /** Per-layer Z offset in mm (added to per-object Z offset) */
+  zOffset: number;
+  /** Z change between passes in mm */
+  zStepPerPass: number;
+  /** Ramp length for fill/image power ramping, in mm (0 disables) */
+  rampLength: number;
+  /** Apply the ramp to the outer edge too */
+  rampOuter: boolean;
+  /** Reorder hatch lines to minimise travel across blank space */
+  floodFill: boolean;
+
+  // ---- Line common --------------------------------------------------------
+  /** Perforation (dashed cut): enabled */
+  perforation: boolean;
+  /** Perforation: cut distance in mm */
+  perforationCut: number;
+  /** Perforation: skip distance in mm */
+  perforationSkip: number;
+
+  // ---- Line advanced ------------------------------------------------------
+  /** Extend closed cuts past their start point, in mm */
+  overcut: number;
+  /** Dwell at the start of a cut, in ms */
+  startPause: number;
+  /** Dwell at the end of a cut, in ms */
+  endPause: number;
+  /** Fire the laser during start/end pauses (to pierce material) */
+  cutThrough: boolean;
+  /** Power % used while Cut Through is pausing */
+  pausePower: number;
+  leadIn: boolean;
+  leadOut: boolean;
+  /** Lead length in mm */
+  leadInLength: number;
+  leadOutLength: number;
+  /** Lead angle in degrees (positive = outside the shape) */
+  leadAngle: number;
+  leadStyle: LeadStyle;
+
+  // ---- Image advanced -----------------------------------------------------
+  /** Invert the image while engraving (slate / glass) */
+  negative: boolean;
+  /** Shorten scan lines by the beam width, in mm */
+  dotWidthCorrection: number;
+  /** Rotate the scan angle by this amount on each successive pass */
+  angleIncrement: number;
+  /** Engrave pre-processed images as-is (no resampling) */
+  passThrough: boolean;
+  /** Halftone cells per inch */
+  cellsPerInch: number;
+  /** Halftone pattern angle in degrees */
+  halftoneAngle: number;
 }
 
 /** Per-object cut setting overrides (used by material/interval tests). */
@@ -45,10 +127,12 @@ export interface CutOverride {
   mode?: CutMode;
   speed?: number;
   power?: number;
+  minPower?: number;
   passes?: number;
   interval?: number;
   offsetDistance?: number;
   overscan?: number;
+  angle?: number;
   dither?: DitherMode;
 }
 
@@ -127,6 +211,7 @@ export const DEFAULT_CUT_SETTINGS: CutSettings = {
   mode: 'line',
   speed: 20,
   power: 50,
+  minPower: 20,
   passes: 1,
   interval: 0.1,
   offsetDistance: 0.2,
@@ -139,6 +224,37 @@ export const DEFAULT_CUT_SETTINGS: CutSettings = {
   output: true,
   visible: true,
   airAssist: false,
+
+  bidirectional: true,
+  fillGrouping: 'all',
+  zOffset: 0,
+  zStepPerPass: 0,
+  rampLength: 0,
+  rampOuter: false,
+  floodFill: false,
+
+  perforation: false,
+  perforationCut: 2,
+  perforationSkip: 1,
+
+  overcut: 0,
+  startPause: 0,
+  endPause: 0,
+  cutThrough: false,
+  pausePower: 100,
+  leadIn: false,
+  leadOut: false,
+  leadInLength: 2,
+  leadOutLength: 2,
+  leadAngle: 45,
+  leadStyle: 'line',
+
+  negative: false,
+  dotWidthCorrection: 0,
+  angleIncrement: 0,
+  passThrough: false,
+  cellsPerInch: 40,
+  halftoneAngle: 45,
 };
 
 /** LightBurn-style palette. Each swatch is a usable layer. */

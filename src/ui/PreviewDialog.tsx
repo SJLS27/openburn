@@ -37,7 +37,7 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(10);
-  const [showTravel, setShowTravel] = useState(false);
+  const [showTravel, setShowTravel] = useState(true);
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 });
   const [dragging, setDragging] = useState(false);
   const viewRef = useRef(view);
@@ -54,15 +54,15 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
     return map;
   }, [plan]);
 
-  const { cumulative, totalDistance } = useMemo(() => {
-    const distances: number[] = [];
-    let total = 0;
-    for (const seg of plan.segments) {
-      const d = polyLength(seg.points);
-      distances.push(d);
-      total += d;
-    }
-    return { cumulative: distances, totalDistance: total };
+  const { weights, totalWeight } = useMemo(() => {
+    const w =
+      plan.segSeconds && plan.segSeconds.length === plan.segments.length
+        ? plan.segSeconds
+        : plan.segments.map((seg) => {
+            const d = polyLength(seg.points);
+            return seg.kind === 'cut' ? d / Math.max(1, seg.feed ?? 600) : d / 3000;
+          });
+    return { weights: w, totalWeight: w.reduce((a, b) => a + b, 0) || 1 };
   }, [plan]);
 
   const baseScale = Math.min((W - MARGIN * 2) / bed.width, (H - MARGIN * 2) / bed.height);
@@ -210,19 +210,30 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
     }
     ctx.stroke();
 
-    // travel
+    // travel (machine path between cuts)
     if (showTravel) {
-      ctx.strokeStyle = 'rgba(210,150,80,0.22)';
-      ctx.setLineDash([3, 4]);
+      ctx.strokeStyle = 'rgba(210,150,80,0.45)';
+      ctx.setLineDash([4, 4]);
       ctx.lineWidth = 1;
+      let position: Pt | null = null;
       for (const seg of plan.segments) {
-        if (seg.kind !== 'rapid') continue;
-        const p = toScreen(seg.points[0]);
-        ctx.beginPath();
-        // draw a tiny marker for each rapid target
-        ctx.moveTo(p.x - 1, p.y);
-        ctx.lineTo(p.x + 1, p.y);
-        ctx.stroke();
+        if (seg.points.length === 0) continue;
+        if (seg.kind === 'rapid') {
+          const target = seg.points[0];
+          if (position) {
+            const a = toScreen(position);
+            const b = toScreen(target);
+            if (Math.hypot(b.x - a.x, b.y - a.y) > 0.5) {
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(b.x, b.y);
+              ctx.stroke();
+            }
+          }
+          position = target;
+        } else {
+          position = seg.points[seg.points.length - 1];
+        }
       }
       ctx.setLineDash([]);
     }
@@ -255,46 +266,87 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
     ctx.clearRect(0, 0, W, H);
     if (bgRef.current) ctx.drawImage(bgRef.current, 0, 0);
 
-    const target = value * totalDistance;
-    let consumed = 0;
+    const target = value * totalWeight;
+    let elapsed = 0;
     let head: Pt | null = null;
+    let position: Pt | null = null;
 
     ctx.lineWidth = 1;
     for (let i = 0; i < plan.segments.length; i += 1) {
       const seg: PlanSegment = plan.segments[i];
-      const d = cumulative[i];
-      if (seg.kind === 'cut' && consumed < target) {
+      const w = weights[i];
+      if (seg.points.length === 0) continue;
+
+      if (elapsed + w <= target + 1e-9) {
+        if (seg.kind === 'cut') {
+          const color = colorByLayer.get(seg.layerId ?? '') ?? '#e8eaec';
+          ctx.strokeStyle = color;
+          ctx.beginPath();
+          seg.points.forEach((pt, k) => {
+            const s = toScreen(pt);
+            if (k === 0) ctx.moveTo(s.x, s.y);
+            else ctx.lineTo(s.x, s.y);
+          });
+          ctx.stroke();
+        }
+        position = seg.points[seg.points.length - 1];
+        elapsed += w;
+        continue;
+      }
+
+      const frac = w > 0 ? Math.max(0, Math.min(1, (target - elapsed) / w)) : 0;
+      if (seg.kind === 'cut') {
         const color = colorByLayer.get(seg.layerId ?? '') ?? '#e8eaec';
         ctx.strokeStyle = color;
         ctx.beginPath();
-        const remaining = target - consumed;
+        const remaining = polyLength(seg.points) * frac;
         let walked = 0;
+        let started = false;
         for (let k = 0; k < seg.points.length; k += 1) {
           const s = toScreen(seg.points[k]);
-          if (k === 0) ctx.moveTo(s.x, s.y);
-          else {
-            const prev = seg.points[k - 1];
-            const stepLen = Math.hypot(seg.points[k].x - prev.x, seg.points[k].y - prev.y);
-            if (walked + stepLen <= remaining) {
-              ctx.lineTo(s.x, s.y);
-              walked += stepLen;
-            } else {
-              const t = stepLen > 0 ? (remaining - walked) / stepLen : 0;
-              const px = prev.x + (seg.points[k].x - prev.x) * t;
-              const py = prev.y + (seg.points[k].y - prev.y) * t;
-              const sp = toScreen({ x: px, y: py });
-              ctx.lineTo(sp.x, sp.y);
-              head = { x: px, y: py };
-              break;
-            }
+          if (k === 0) {
+            ctx.moveTo(s.x, s.y);
+            started = true;
+            continue;
+          }
+          const prev = seg.points[k - 1];
+          const stepLen = Math.hypot(seg.points[k].x - prev.x, seg.points[k].y - prev.y);
+          if (walked + stepLen <= remaining) {
+            ctx.lineTo(s.x, s.y);
+            walked += stepLen;
+          } else {
+            const t = stepLen > 0 ? (remaining - walked) / stepLen : 0;
+            const px = prev.x + (seg.points[k].x - prev.x) * t;
+            const py = prev.y + (seg.points[k].y - prev.y) * t;
+            const sp = toScreen({ x: px, y: py });
+            ctx.lineTo(sp.x, sp.y);
+            head = { x: px, y: py };
+            break;
           }
         }
-        ctx.stroke();
+        if (started) ctx.stroke();
         if (!head) head = seg.points[seg.points.length - 1];
+      } else {
+        // Moving through a travel move: interpolate the head position.
+        const to = seg.points[0];
+        const from = position ?? to;
+        const px = from.x + (to.x - from.x) * frac;
+        const py = from.y + (to.y - from.y) * frac;
+        head = { x: px, y: py };
+        const a = toScreen(from);
+        const b = toScreen({ x: px, y: py });
+        ctx.strokeStyle = 'rgba(255,190,110,0.85)';
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
-      consumed += d;
-      if (consumed > target && head) break;
+      break;
     }
+
+    if (!head && position) head = position;
 
     if (head) {
       const s = toScreen(head);

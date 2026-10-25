@@ -4,7 +4,12 @@ import {
   Path as FabricPath,
   Textbox,
 } from 'fabric';
-import { PALETTE_COLORS, type CutSettings, type LayerDef } from '@/types/document';
+import {
+  DEFAULT_CUT_SETTINGS,
+  PALETTE_COLORS,
+  type CutSettings,
+  type LayerDef,
+} from '@/types/document';
 import { objectContours } from '@/gcode/geometry';
 import { textToScenePath } from '@/text/outline';
 
@@ -331,13 +336,15 @@ function cutSettingsFromElement(el: Element, index: number): LayerDef {
   const color = PALETTE_COLORS[index % PALETTE_COLORS.length];
 
   const settings: CutSettings = {
+    ...DEFAULT_CUT_SETTINGS,
     mode,
     speed,
     power,
+    minPower: num(childValue(el, 'minPower'), DEFAULT_CUT_SETTINGS.minPower),
     passes,
     interval,
     offsetDistance: 0.2,
-    overscan: 2.5,
+    overscan: num(childValue(el, 'overScanning'), 2.5),
     angle,
     crossHatch,
     kerf,
@@ -345,7 +352,7 @@ function cutSettingsFromElement(el: Element, index: number): LayerDef {
     dither: 'none',
     output: true,
     visible: true,
-    airAssist: false,
+    airAssist: num(childValue(el, 'airAssist'), 0) !== 0,
   };
 
   return {
@@ -599,6 +606,7 @@ export async function parseLightBurn(xmlText: string): Promise<LightBurnImportRe
       name: 'C00',
       color: PALETTE_COLORS[0],
       settings: {
+        ...DEFAULT_CUT_SETTINGS,
         mode: 'line',
         speed: 20,
         power: 50,
@@ -699,7 +707,7 @@ function cutSettingXml(layer: LayerDef, index: number): string {
     `    <index Value="${index}"/>`,
     `    <name Value="${escapeXml(layer.name)}"/>`,
     `    <priority Value="${index}"/>`,
-    `    <minPower Value="${fmt(s.power)}"/>`,
+    `    <minPower Value="${fmt(s.minPower)}"/>`,
     `    <maxPower Value="${fmt(s.power)}"/>`,
     `    <speed Value="${fmt(s.speed)}"/>`,
     `    <kerf Value="${fmt(s.kerf)}"/>`,
@@ -709,6 +717,7 @@ function cutSettingXml(layer: LayerDef, index: number): string {
     `    <crossHatch Value="${s.crossHatch ? 1 : 0}"/>`,
     `    <scanOffset Value="${fmt(s.scanOffset)}"/>`,
     `    <overScanning Value="${fmt(s.overscan)}"/>`,
+    `    <airAssist Value="${s.airAssist ? 1 : 0}"/>`,
     '  </CutSetting>',
   ];
   return lines.join('\n');

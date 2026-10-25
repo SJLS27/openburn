@@ -5,7 +5,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="https://github.com/SJLS27/openburn/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SJLS27/openburn/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.6.1-orange.svg">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.7.0-orange.svg">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="GRBL" src="https://img.shields.io/badge/GRBL-ready-brightgreen.svg">
   <img alt="LightBurn" src="https://img.shields.io/badge/LightBurn-.lbrn%20%7C%20.lbrn2-8a63d2.svg">
@@ -44,7 +44,10 @@
 
 ### Capas y operaciones
 - Paleta de colores tipo LightBurn (`C00`, `C01`, …), cada color es una capa.
-- Modos **Line**, **Fill**, **Offset Fill** e **Image** con velocidad, potencia, pasadas, intervalo, overscan y dithering.
+- **Ventana Cuts / Layers tipo LightBurn**: tabla con Modo, Spd/Pwr, Output, Show y Air, reordenación de capas, menús contextuales (activar/ocultar todo, invertir, Sort Cuts Last, copiar/pegar ajustes) y campos rápidos de Passes, Speed, Power Max, Power Min e Interval.
+- **Cut Settings Editor** con pestañas Common/Advanced y campos por modo: Min Power, perforación (Cut/Skip), overcut, pausas de inicio/fin con Cut Through, lead-in/lead-out (línea o arco), Z offset y Z step por pasada.
+- Modos **Line**, **Fill**, **Offset Fill** e **Image** con velocidad, potencia, pasadas, intervalo, overscan, bi-direccional, cross-hatch, flood fill, ramp y agrupación de relleno.
+- **Imagen tipo LightBurn**: Threshold, Ordered, Atkinson, Dither, Stucki, Jarvis, Newsprint, Halftone, Sketch y Grayscale, con Negative, Dot Width Correction, Angle Increment y Pass-Through.
 - **Kerf compensation** por capa (expande o contrae cortes cerrados), **ángulo de scan**, **cross-hatch** y **scan offset**.
 - Trazos **hairline** de 1 px como LightBurn, independientes del zoom (también en grupos anidados y en la exportación SVG).
 - **Biblioteca de materiales editable** (nombre, espesor, velocidad, potencia, pasadas, modo y kerf) con persistencia local.
@@ -54,7 +57,8 @@
 ### Preview y GCode
 - Generación de GCode GRBL por capas, con mapeo de origen y `M3`/`M4`.
 - **Preview animado** con scrub, velocidad, cabeza láser, tiempo estimado y estadísticas por capa.
-- Optimización de recorridos (vecino más cercano) para reducir viajes.
+- **Recorrido de máquina visible**: líneas de travel entre cortes y cabeza animada que recorre también los movimientos en vacío (como LightBurn).
+- **Planificador de corte tipo LightBurn** (Optimization Settings): Order by Layer/Group/Priority, corte de formas interiores primero, orden por dirección, reducción de viajes con búsqueda local, mejor punto de inicio, esquinas preferidas, mejor dirección, reducción de cambios de dirección y eliminación de líneas solapadas.
 - Exportación de GCode (`.nc`) y LightBurn (`.lbrn` / `.lbrn2`).
 
 ### Control GRBL

@@ -45,10 +45,14 @@ Cada color de la paleta es una capa (C00, C01, …).
 - Haz clic en un swatch para activar la capa; con una selección, el color se aplica a las formas.
 - En **Cuts / Layers**:
   - **Mode**: `Line` (contorno), `Fill` (relleno por scanlines), `Offset Fill` (relleno concéntrico), `Image` (raster).
-  - **Speed** (mm/s), **Power** (%), **Passes**, **Interval** (mm).
-  - **Output**: si la capa se envía al láser.
-  - **Eye**: visibilidad en el editor (no afecta la salida).
-- Doble clic en una fila abre el **Cut Settings** completo (offset, overscan, dither, air assist).
+  - **Spd/Pwr** editable en la fila; **Output** (salida al láser), **Show** (visibilidad) y **Air** (air assist).
+  - Campos rápidos de la capa activa: **Passes**, **Speed**, **Power Max**, **Power Min** e **Interval**.
+  - Botones ↑/↓ para reordenar, **Copy/Paste** de ajustes y **Sort** (graba primero, corta al final).
+  - Clic derecho en la cabecera: activar/desactivar todas, mostrar/ocultar todas, invertir, air assist, `Sort Cuts Last` y columnas visibles.
+  - Clic derecho en una capa: aislar salida/visibilidad, **Select all shapes**, **Flash**, copiar/pegar ajustes y borrar.
+- Doble clic en una fila abre el **Cut Settings Editor** con pestañas **Common** y **Advanced**:
+  - **Common**: intervalo, líneas por pulgada, Z offset, Z step, kerf, perforación (Cut/Skip), bi-direccional, cross-hatch, overscan, ángulo de scan, fill grouping, image mode (Threshold/Ordered/Atkinson/Dither/Stucki/Jarvis/Newsprint/Halftone/Sketch/Grayscale), DPI, dot width, negative…
+  - **Advanced**: pausas de inicio/fin, Cut Through, overcut, Lead-In/Lead-Out (longitud, ángulo, línea/arco), ramp length, flood fill y pass-through.
 - **Material Library** (panel derecho): presets rápidos de velocidad/potencia.
 
 > El orden de las capas en la lista es el orden de ejecución: graba primero y corta al final.
@@ -58,10 +62,10 @@ Cada color de la paleta es una capa (C00, C01, …).
 ## 4. Preview y GCode
 
 - **Preview** (`Alt+P`) abre la simulación: trayectorias por capa, recorridos, cabeza láser, tiempo estimado y longitud de corte.
-- Controles: play/pausa, scrub, velocidad (1×–60×), mostrar *travel*.
+- Controles: play/pausa, scrub, velocidad (1×–60×), mostrar *travel*. Con **Travel** activo se dibuja el recorrido completo de la máquina entre cortes y la cabeza lo recorre durante la animación, igual que en LightBurn.
 - **Send to laser** envía el plan si hay una máquina conectada.
 - *File → Export GCode…* (`Ctrl+E`) guarda un `.nc`.
-- **Optimización**: *Settings → Optimize travel* reordena segmentos por capa para minimizar viajes. Desactívala si necesitas el orden original de las formas.
+- **Optimization Settings** (botón en *Cuts / Layers* o en el panel *Laser*): activa/desactiva el planificador y ajusta **Order by** (Layer/Group/Priority), **Direction order**, corte de formas interiores primero, reducción de viajes, dirección y cambios de dirección, mejor punto de inicio, esquinas preferidas y eliminación de líneas solapadas.
 
 > El GCode usa `G21/G90`, `M3`/`M4`, `M5` entre desplazamientos y `M2` al final. El origen (bottom-left/top-left) se configura en *Settings → Machine*.
 

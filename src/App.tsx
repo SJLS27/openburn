@@ -265,8 +265,21 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
           checked={state.device.optimizeTravel !== false}
           onChange={(e) => store.updateDevice({ optimizeTravel: e.target.checked })}
         />
-        Optimize travel (nearest neighbour)
+        Enable cut planner (see Optimization Settings in the Laser panel)
       </label>
+      <div className="field-row" style={{ marginTop: 6 }}>
+        <span className="field-label">Air assist</span>
+        <select
+          className="input"
+          value={state.device.airAssistCommand}
+          onChange={(e) =>
+            store.updateDevice({ airAssistCommand: e.target.value as 'M7' | 'M8' })
+          }
+        >
+          <option value="M8">M8 (flood coolant)</option>
+          <option value="M7">M7 (mist coolant)</option>
+        </select>
+      </div>
       <label className="checkbox" style={{ marginTop: 6 }}>
         <input
           type="checkbox"

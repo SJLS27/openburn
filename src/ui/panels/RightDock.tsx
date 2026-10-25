@@ -3,8 +3,9 @@ import { store, useAppState } from '@/state/store';
 import { PALETTE_COLORS, type LayerDef } from '@/types/document';
 import { machine, useMachine, type MachineStatus } from '@/serial/machine';
 import { formatDuration } from '@/gcode/types';
+import { OptimizationDialog } from './OptimizationDialog';
 import { Icon } from '../icons';
-import { Field, NumberField, Panel, ToolButton, useUnits, useWorkspace } from '../common';
+import { Field, Modal, NumberField, Panel, ToolButton, useUnits, useWorkspace } from '../common';
 import { CutsLayersPanel } from './CutsLayersPanel';
 import {
   MATERIALS_UPDATED_EVENT,
@@ -77,6 +78,18 @@ function ShapePropertiesPanel() {
                 />
               </Field>
             )}
+            <Field label="Cut priority">
+              <input
+                key={`priority-${sel.cutPriority}`}
+                className="input narrow"
+                type="number"
+                min={0}
+                step={1}
+                title="Lower numbers are cut first when Order by → Priority is enabled"
+                defaultValue={sel.cutPriority}
+                onBlur={(e) => ws?.setSelectionCutPriority(Number(e.target.value) || 0)}
+              />
+            </Field>
             <Field label="Layer">
               <select
                 className="input"
@@ -363,6 +376,7 @@ function LaserPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cutSelected, setCutSelected] = useState(false);
+  const [optOpen, setOptOpen] = useState(false);
 
   useEffect(() => {
     void machine.refreshPorts();
@@ -533,6 +547,14 @@ function LaserPanel() {
             Cut selected graphics
           </label>
         </div>
+        <button
+          className="btn block"
+          style={{ marginTop: 2, marginBottom: 5 }}
+          onClick={() => setOptOpen(true)}
+          title="Order of cuts and path optimisations"
+        >
+          <Icon name="settings" size={13} /> Optimization Settings
+        </button>
         <div className="field-row">
           <span className="field-label">Origin</span>
           <select
@@ -549,6 +571,7 @@ function LaserPanel() {
           S{device.maxS}
         </p>
       </Panel>
+      {optOpen && <OptimizationDialog onClose={() => setOptOpen(false)} />}
     </div>
   );
 }

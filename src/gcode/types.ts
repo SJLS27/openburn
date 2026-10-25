@@ -17,6 +17,16 @@ export interface PlanSegment {
   feed?: number;
   /** Z height in mm (only used when the device has a Z axis) */
   z?: number;
+  /** Dwell before the cut starts, in milliseconds (Line mode). */
+  startPause?: number;
+  /** Dwell after the cut ends, in milliseconds (Line mode). */
+  endPause?: number;
+  /** Fire the laser during the pauses instead of leaving it off. */
+  cutThrough?: boolean;
+  /** Power % to use while Cut Through is pausing. */
+  pausePower?: number;
+  /** Enable air assist (M7/M8) for this segment. */
+  airAssist?: boolean;
 }
 
 export interface LayerStat {
@@ -45,7 +55,49 @@ export interface JobPlan {
   layerStats: LayerStat[];
   lineCount: number;
   warnings: string[];
+  /** Time (seconds) spent on each segment, parallel to `segments`. */
+  segSeconds?: number[];
 }
+
+/** Criteria used to sort cut units before optimising (LightBurn "Order by"). */
+export type CutOrderKey = 'layer' | 'group' | 'priority';
+
+/** "Cut in direction order" options (LightBurn). */
+export type DirectionOrder = 'none' | 'topBottom' | 'bottomTop' | 'leftRight' | 'rightLeft';
+
+/**
+ * Cut planner settings, mirroring LightBurn's Optimization Settings window.
+ * All of these only apply when `enabled` is true.
+ */
+export interface OptimizationSettings {
+  enabled: boolean;
+  /** Ordered list of sorting criteria (first has highest precedence). */
+  orderBy: CutOrderKey[];
+  cutInnerFirst: boolean;
+  cutInDirectionOrder: DirectionOrder;
+  reduceTravel: boolean;
+  reduceDirectionChanges: boolean;
+  chooseBestStartingPoint: boolean;
+  chooseCorners: boolean;
+  chooseBestDirection: boolean;
+  removeOverlapping: boolean;
+  /** Distance (mm) under which two overlapping lines are considered equal. */
+  overlapTolerance: number;
+}
+
+export const DEFAULT_OPTIMIZATION: OptimizationSettings = {
+  enabled: true,
+  orderBy: ['layer'],
+  cutInnerFirst: true,
+  cutInDirectionOrder: 'none',
+  reduceTravel: true,
+  reduceDirectionChanges: false,
+  chooseBestStartingPoint: true,
+  chooseCorners: false,
+  chooseBestDirection: true,
+  removeOverlapping: false,
+  overlapTolerance: 0.05,
+};
 
 export interface DeviceConfig {
   type: 'grbl';
@@ -66,6 +118,8 @@ export interface DeviceConfig {
   zAxisEnabled: boolean;
   /** Z move feed rate in mm per minute */
   zFeedRate: number;
+  /** GCode command used to enable air assist */
+  airAssistCommand: 'M7' | 'M8';
 }
 
 export const DEFAULT_DEVICE: DeviceConfig = {
@@ -80,6 +134,7 @@ export const DEFAULT_DEVICE: DeviceConfig = {
   optimizeTravel: true,
   zAxisEnabled: false,
   zFeedRate: 300,
+  airAssistCommand: 'M8',
 };
 
 export function emptyBounds(): JobBounds {

@@ -42,7 +42,12 @@ import { parseDxf } from '@/core/dxf';
 import { prepareSvgForImport, applySvgPhysicalSize } from '@/io/svg';
 import { buildFramePlan, buildJob, planToText } from '@/gcode/job';
 import type { JobPlan, Pt } from '@/gcode/types';
-import { DEFAULT_IMAGE_ADJUST, type ImageAdjust, type LayerDef } from '@/types/document';
+import {
+  DEFAULT_IMAGE_ADJUST,
+  type CutSettings,
+  type ImageAdjust,
+  type LayerDef,
+} from '@/types/document';
 import { textToScenePath } from '@/text/outline';
 import { addTabsToContour } from '@/geometry/tabs';
 import { traceImageByColor, traceImageObject, type TraceOptions } from '@/image/trace';
@@ -54,8 +59,8 @@ import {
 } from '@/io/lightburn';
 
 // Serialize our per-object layer assignment along with everything else.
-FabricObject.customProperties = ['layerId', 'cutOverride', 'imageAdjust', 'zOffset'];
-Group.customProperties = ['layerId', 'cutOverride', 'imageAdjust', 'zOffset'];
+FabricObject.customProperties = ['layerId', 'cutOverride', 'imageAdjust', 'zOffset', 'cutPriority'];
+Group.customProperties = ['layerId', 'cutOverride', 'imageAdjust', 'zOffset', 'cutPriority'];
 
 const SELECTION_ACCENT = '#3f8fdd';
 
@@ -116,6 +121,7 @@ export class WorkspaceController implements WorkspaceApi {
   private editingText = false;
   private historyTimer: number | null = null;
   private clipboard: Record<string, unknown>[] = [];
+  private layerSettingsClipboard: Partial<CutSettings> | null = null;
   private lastCursorPush = 0;
 
   private lastLayers = store.getState().doc.layers;
@@ -805,6 +811,7 @@ export class WorkspaceController implements WorkspaceApi {
           (o) => (o as FabricObject & { cutOverride?: unknown }).cutOverride != null,
         ).length,
         zOffset: Number((objs[0] as FabricObject & { zOffset?: number }).zOffset ?? 0),
+        cutPriority: Number((objs[0] as FabricObject & { cutPriority?: number }).cutPriority ?? 0),
       },
     });
     if (store.getState().tool === 'node') this.rebuildNodeHandles();
@@ -2061,6 +2068,75 @@ export class WorkspaceController implements WorkspaceApi {
     this.syncSelection();
   }
 
+  setSelectionCutPriority(priority: number): void {
+    const objs = this.canvas.getActiveObjects();
+    if (objs.length === 0) {
+      this.setStatus('Select an object first');
+      return;
+    }
+    for (const obj of objs) {
+      (obj as FabricObject & { cutPriority?: number }).cutPriority = Number.isFinite(priority)
+        ? Math.max(0, Math.round(priority))
+        : 0;
+    }
+    this.syncSelection();
+    this.afterChange();
+    this.setStatus(`Cut order priority set to ${Math.round(priority)}`);
+  }
+
+  /** Select every object assigned to a layer (LightBurn "Select all on layer"). */
+  selectLayerObjects(layerId: string): void {
+    const matches = this.canvas
+      .getObjects()
+      .filter((o) => !this.isNodeHandle(o))
+      .filter((o) => (o as FabricObject & { layerId?: string }).layerId === layerId);
+    if (matches.length === 0) {
+      this.setStatus('No objects on that layer');
+      return;
+    }
+    this.reselect(matches);
+    this.setStatus(`Selected ${matches.length} object(s)`);
+  }
+
+  /** Briefly flash the contents of a layer (LightBurn layer context menu). */
+  flashLayer(layerId: string): void {
+    const matches = this.canvas
+      .getObjects()
+      .filter((o) => (o as FabricObject & { layerId?: string }).layerId === layerId);
+    if (matches.length === 0) return;
+    const previous = matches.map((o) => o.opacity);
+    matches.forEach((o) => o.set({ opacity: 1 }));
+    this.canvas.requestRenderAll();
+    let ticks = 0;
+    const timer = window.setInterval(() => {
+      ticks += 1;
+      matches.forEach((o, i) => o.set({ opacity: ticks % 2 === 1 ? 0.15 : previous[i] ?? 1 }));
+      this.canvas.requestRenderAll();
+      if (ticks >= 4) {
+        window.clearInterval(timer);
+        matches.forEach((o, i) => o.set({ opacity: previous[i] ?? 1 }));
+        this.canvas.requestRenderAll();
+      }
+    }, 140);
+  }
+
+  /** Copy the active layer's cut settings into an internal clipboard. */
+  copyLayerSettings(layerId: string): void {
+    const layer = store.getState().doc.layers.find((l) => l.id === layerId);
+    if (!layer) return;
+    this.layerSettingsClipboard = { ...layer.settings };
+    this.setStatus(`Copied settings from ${layer.name}`);
+  }
+
+  pasteLayerSettings(layerId: string): void {
+    if (!this.layerSettingsClipboard) {
+      this.setStatus('Copy a layer first');
+      return;
+    }
+    store.updateCutSettings(layerId, { ...this.layerSettingsClipboard });
+    this.setStatus('Pasted layer settings');
+  }
+
   // Kept for API completeness (used by menus / panels later)
   setLayerColorForSelection(color: string): void {
     const s = store.getState();
@@ -2277,6 +2353,7 @@ export class WorkspaceController implements WorkspaceApi {
       layers: s.doc.layers,
       bed: s.doc.bed,
       device: s.device,
+      optimization: { ...s.optimization, enabled: s.optimization.enabled && s.device.optimizeTravel !== false },
     });
   }
 

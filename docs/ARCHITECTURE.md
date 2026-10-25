@@ -13,7 +13,7 @@ flowchart LR
     CANVAS[WorkspaceController<br/>Fabric.js]
     GEO[Geometry<br/>Paper.js]
     PLAN[Job planner<br/>gcode/job.ts]
-    OPT[Optimizer<br/>nearest neighbour]
+    OPT[Cut planner<br/>optimize.ts]
     GCODE[GCode writer]
     MACHINE[GRBL controller]
     SERIAL[Web Serial / Simulator]
