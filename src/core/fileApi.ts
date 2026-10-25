@@ -55,7 +55,13 @@ async function browserPick(accept: string): Promise<PickedFile | null> {
         resolve({ name, text: await file.text() });
       } else {
         const buf = await file.arrayBuffer();
-        resolve({ name, bytes: new Uint8Array(buf) });
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        });
+        resolve({ name, bytes: new Uint8Array(buf), dataUrl });
       }
     };
     input.click();
