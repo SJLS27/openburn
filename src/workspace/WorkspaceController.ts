@@ -59,6 +59,16 @@ Group.customProperties = ['layerId', 'cutOverride', 'imageAdjust', 'zOffset'];
 
 const SELECTION_ACCENT = '#3f8fdd';
 
+/**
+ * On-screen thickness of design strokes in device pixels. A value of 1 draws a
+ * hairline regardless of zoom, matching how LightBurn renders the laser path
+ * (the real cut width is decided by the machine, not the artwork).
+ */
+const HAIRLINE_PX = 1;
+
+/** Stroke width used when writing vector artwork to SVG (mm). */
+const EXPORT_STROKE_MM = 0.1;
+
 interface DrawState {
   tool: ToolId;
   start: Point;
@@ -343,12 +353,36 @@ export class WorkspaceController implements WorkspaceApi {
   }
 
   private refreshStrokeWidth(zoom: number): void {
-    const width = 1.15 / zoom;
-    for (const obj of this.canvas.getObjects()) {
-      if (this.isText(obj)) continue;
-      obj.set({ strokeWidth: width, objectCaching: false });
-    }
+    const width = HAIRLINE_PX / Math.max(zoom, 0.0001);
+    this.forEachStyledObject((obj) => {
+      if (this.isText(obj) || obj.type === 'image') return;
+      obj.set({ strokeWidth: width, strokeUniform: true, objectCaching: false });
+    });
     this.canvas.requestRenderAll();
+  }
+
+  /**
+   * Walk every drawable object, descending into groups so nested artwork keeps
+   * the layer colour and hairline stroke (Fabric groups do not inherit either).
+   */
+  private forEachStyledObject(fn: (obj: FabricObject) => void): void {
+    const walk = (objs: FabricObject[], inheritedLayer?: string): void => {
+      for (const obj of objs) {
+        if (this.isNodeHandle(obj)) continue;
+        const tagged = obj as FabricObject & { layerId?: string };
+        if (!tagged.layerId && inheritedLayer) tagged.layerId = inheritedLayer;
+        if (obj instanceof Group) {
+          walk(obj.getObjects(), tagged.layerId);
+          continue;
+        }
+        fn(obj);
+      }
+    };
+    walk(this.canvas.getObjects());
+  }
+
+  private hairlineWidth(): number {
+    return HAIRLINE_PX / Math.max(this.canvas.getZoom(), 0.0001);
   }
 
   zoomToPage(notify = true): void {
@@ -464,7 +498,7 @@ export class WorkspaceController implements WorkspaceApi {
         fill: 'transparent',
         stroke: layer.color,
         strokeUniform: true,
-        strokeWidth: 1,
+        strokeWidth: this.hairlineWidth(),
         objectCaching: false,
       });
     } else if (tool === 'ellipse') {
@@ -476,14 +510,14 @@ export class WorkspaceController implements WorkspaceApi {
         fill: 'transparent',
         stroke: layer.color,
         strokeUniform: true,
-        strokeWidth: 1,
+        strokeWidth: this.hairlineWidth(),
         objectCaching: false,
       });
     } else if (tool === 'line') {
       obj = new Line([p.x, p.y, p.x, p.y], {
         stroke: layer.color,
         strokeUniform: true,
-        strokeWidth: 1,
+        strokeWidth: this.hairlineWidth(),
         objectCaching: false,
       });
     } else if (tool === 'polygon') {
@@ -493,7 +527,7 @@ export class WorkspaceController implements WorkspaceApi {
         fill: 'transparent',
         stroke: layer.color,
         strokeUniform: true,
-        strokeWidth: 1,
+        strokeWidth: this.hairlineWidth(),
         objectCaching: false,
       });
       obj = poly;
@@ -502,7 +536,7 @@ export class WorkspaceController implements WorkspaceApi {
         stroke: '#e0b84a',
         strokeDashArray: [4, 3],
         strokeUniform: true,
-        strokeWidth: 1,
+        strokeWidth: this.hairlineWidth(),
         objectCaching: false,
       });
       (obj as FabricObject & { isMeasure?: boolean }).isMeasure = true;
@@ -622,8 +656,7 @@ export class WorkspaceController implements WorkspaceApi {
 
   private styleObject(obj: FabricObject, recolor: boolean): void {
     const layer = this.layerFor(obj);
-    const zoom = this.canvas.getZoom();
-    const width = 1.15 / zoom;
+    const width = this.hairlineWidth();
 
     if (this.isText(obj)) {
       obj.set({ fill: layer.color, stroke: null, objectCaching: false });
@@ -657,13 +690,17 @@ export class WorkspaceController implements WorkspaceApi {
 
   private applyLayerStyles(): void {
     const layerIds = new Set(store.getState().doc.layers.map((l) => l.id));
-    for (const obj of this.canvas.getObjects()) {
+    const validLayer = (obj: FabricObject): void => {
       const id = (obj as FabricObject & { layerId?: string }).layerId;
       if (id && !layerIds.has(id)) {
         (obj as FabricObject & { layerId?: string }).layerId = this.activeLayer().id;
       }
-      this.styleObject(obj, true);
+    };
+    for (const obj of this.canvas.getObjects()) {
+      validLayer(obj);
+      if (obj instanceof Group) obj.getObjects().forEach(validLayer);
     }
+    this.forEachStyledObject((obj) => this.styleObject(obj, true));
   }
 
   // -------------------------------------------------------------------------
@@ -822,7 +859,7 @@ export class WorkspaceController implements WorkspaceApi {
         originY: 'center',
         fill: '#f5f6f7',
         stroke: SELECTION_ACCENT,
-        strokeWidth: 1.4 / zoom,
+        strokeWidth: HAIRLINE_PX / zoom,
         strokeUniform: true,
         hasControls: false,
         hasBorders: false,
@@ -914,7 +951,7 @@ export class WorkspaceController implements WorkspaceApi {
         left: scene.x,
         top: scene.y,
         radius: 4 / zoom,
-        strokeWidth: 1.4 / zoom,
+        strokeWidth: HAIRLINE_PX / zoom,
       });
       handle.circle.setCoords();
     }
@@ -1351,12 +1388,30 @@ export class WorkspaceController implements WorkspaceApi {
   }
 
   async exportSvg(): Promise<void> {
-    const svg = applySvgPhysicalSize(this.canvas.toSVG());
+    // On-screen strokes scale with zoom; normalise them to a fixed hairline so
+    // exported artwork keeps thin contours when opened elsewhere.
+    const restore = this.setExportStrokeWidth();
+    let svg: string;
+    try {
+      svg = applySvgPhysicalSize(this.canvas.toSVG());
+    } finally {
+      restore();
+    }
     const name = (store.getState().doc.meta.name || 'openburn').replace(/\s+/g, '_');
     const ok = await saveTextFile(`${name}.svg`, svg, 'svg', 'image/svg+xml', [
       { name: 'SVG', extensions: ['svg'] },
     ]);
     if (ok) this.setStatus('Exported SVG');
+  }
+
+  private setExportStrokeWidth(): () => void {
+    const changed: Array<{ obj: FabricObject; width: number }> = [];
+    this.forEachStyledObject((obj) => {
+      if (this.isText(obj) || obj.type === 'image') return;
+      changed.push({ obj, width: obj.strokeWidth ?? 0 });
+      obj.set({ strokeWidth: EXPORT_STROKE_MM });
+    });
+    return () => changed.forEach(({ obj, width }) => obj.set({ strokeWidth: width }));
   }
 
   deleteSelection(): void {
@@ -1608,7 +1663,7 @@ export class WorkspaceController implements WorkspaceApi {
       const path = new FabricPath(result.pathData, {
         fill: 'transparent',
         stroke: layer.color,
-        strokeWidth: 1.15 / this.canvas.getZoom(),
+        strokeWidth: HAIRLINE_PX / this.canvas.getZoom(),
         strokeUniform: true,
         objectCaching: false,
       });
@@ -1643,7 +1698,7 @@ export class WorkspaceController implements WorkspaceApi {
       const path = new FabricPath(offset, {
         fill: 'transparent',
         stroke: layer.color,
-        strokeWidth: 1.15 / this.canvas.getZoom(),
+        strokeWidth: HAIRLINE_PX / this.canvas.getZoom(),
         strokeUniform: true,
         objectCaching: false,
       });
@@ -1845,7 +1900,7 @@ export class WorkspaceController implements WorkspaceApi {
         const path = new FabricPath(result.pathData, {
           fill: 'transparent',
           stroke: layer.color,
-          strokeWidth: 1.15 / zoom,
+          strokeWidth: HAIRLINE_PX / zoom,
           strokeUniform: true,
           objectCaching: false,
         });
@@ -1867,7 +1922,7 @@ export class WorkspaceController implements WorkspaceApi {
       const path = new FabricPath(data, {
         fill: 'transparent',
         stroke: layer.color,
-        strokeWidth: 1.15 / zoom,
+        strokeWidth: HAIRLINE_PX / zoom,
         strokeUniform: true,
         objectCaching: false,
       });
@@ -2099,7 +2154,7 @@ export class WorkspaceController implements WorkspaceApi {
           fill: 'transparent',
           stroke: cellLayer.color,
           strokeUniform: true,
-          strokeWidth: 1.15 / zoom,
+          strokeWidth: HAIRLINE_PX / zoom,
           objectCaching: false,
         });
         if (options.sublayers) {
@@ -2199,7 +2254,7 @@ export class WorkspaceController implements WorkspaceApi {
         fill: 'transparent',
         stroke: layer.color,
         strokeUniform: true,
-        strokeWidth: 1.15 / zoom,
+        strokeWidth: HAIRLINE_PX / zoom,
         objectCaching: false,
       });
       (rect as FabricObject & { cutOverride?: unknown }).cutOverride = {
@@ -2280,7 +2335,7 @@ export class WorkspaceController implements WorkspaceApi {
         const line = new Line([startX, y, startX + length, y], {
           stroke: layer.color,
           strokeUniform: true,
-          strokeWidth: 1.15 / zoom,
+          strokeWidth: HAIRLINE_PX / zoom,
           objectCaching: false,
         });
         (line as FabricObject & { zOffset?: number }).zOffset = z;
@@ -2362,7 +2417,7 @@ export class WorkspaceController implements WorkspaceApi {
         const line = new Line([x, top, x, top + length], {
           stroke: layer.color,
           strokeUniform: true,
-          strokeWidth: 1.15 / zoom,
+          strokeWidth: HAIRLINE_PX / zoom,
           objectCaching: false,
         });
         (line as FabricObject & { cutOverride?: unknown }).cutOverride = { ...baseOverride };
@@ -2402,7 +2457,7 @@ export class WorkspaceController implements WorkspaceApi {
         fill: 'transparent',
         stroke: layer.color,
         strokeUniform: true,
-        strokeWidth: 1.15 / zoom,
+        strokeWidth: HAIRLINE_PX / zoom,
         objectCaching: false,
       });
       (rect as FabricObject & { cutOverride?: unknown }).cutOverride = { ...baseOverride };
@@ -2566,7 +2621,7 @@ export class WorkspaceController implements WorkspaceApi {
       const path = new FabricPath(pathData, {
         fill: 'transparent',
         stroke: layer.color,
-        strokeWidth: 1.15 / zoom,
+        strokeWidth: HAIRLINE_PX / zoom,
         strokeUniform: true,
         objectCaching: false,
       });

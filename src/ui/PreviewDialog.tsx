@@ -259,7 +259,7 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
     let consumed = 0;
     let head: Pt | null = null;
 
-    ctx.lineWidth = 1.35;
+    ctx.lineWidth = 1;
     for (let i = 0; i < plan.segments.length; i += 1) {
       const seg: PlanSegment = plan.segments[i];
       const d = cumulative[i];

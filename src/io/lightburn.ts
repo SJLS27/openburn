@@ -564,7 +564,7 @@ function addPath(
   const path = new FabricPath(pathData, {
     fill: 'transparent',
     stroke: '#000000',
-    strokeWidth: 0.6,
+    strokeWidth: 0.1,
     strokeUniform: true,
     objectCaching: false,
   });
