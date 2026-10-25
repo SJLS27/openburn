@@ -39,6 +39,7 @@ import { booleanObjects, isConvertible, objectToPathData } from '@/geometry/pape
 import { offsetPathData } from '@/geometry/offset';
 import { objectContours } from '@/gcode/geometry';
 import { parseDxf } from '@/core/dxf';
+import { prepareSvgForImport, applySvgPhysicalSize } from '@/io/svg';
 import { buildFramePlan, buildJob, planToText } from '@/gcode/job';
 import type { JobPlan, Pt } from '@/gcode/types';
 import { DEFAULT_IMAGE_ADJUST, type ImageAdjust, type LayerDef } from '@/types/document';
@@ -626,12 +627,18 @@ export class WorkspaceController implements WorkspaceApi {
 
     if (this.isText(obj)) {
       obj.set({ fill: layer.color, stroke: null, objectCaching: false });
-    } else if (recategorizeFill(obj)) {
-      obj.set({ stroke: layer.color, strokeWidth: width, objectCaching: false });
     } else if (obj.type === 'image') {
       // leave image colours alone
     } else {
-      obj.set({ stroke: layer.color, strokeWidth: width, objectCaching: false });
+      // Like LightBurn, imported/created vectors are contour-only (Line mode):
+      // any fill coming from an SVG is dropped so shapes never render as solid
+      // blocks. The layer colour is used for the stroke.
+      obj.set({
+        fill: null,
+        stroke: layer.color,
+        strokeWidth: width,
+        objectCaching: false,
+      });
     }
 
     obj.set({
@@ -1197,7 +1204,15 @@ export class WorkspaceController implements WorkspaceApi {
   }
 
   private async importSvg(text: string): Promise<void> {
-    const { objects, options } = await loadSVGFromString(text);
+    const prep = prepareSvgForImport(text);
+    // Visible in DevTools: shows what the source SVG declared and the size we
+    // apply, which makes scaling issues easy to diagnose.
+    console.info(
+      '[OpenBurn] SVG import:',
+      `${prep.widthMm?.toFixed(2) ?? '?'} × ${prep.heightMm?.toFixed(2) ?? '?'} mm`,
+      text.match(/<svg\b[^>]*>/i)?.[0] ?? '(no root tag)',
+    );
+    const { objects, options } = await loadSVGFromString(prep.svg);
     const valid = objects.filter((o): o is FabricObject => !!o);
     if (valid.length === 0) {
       this.setStatus('No shapes found in SVG');
@@ -1210,6 +1225,8 @@ export class WorkspaceController implements WorkspaceApi {
     } else {
       target = util.groupSVGElements(valid, options);
     }
+    target.setCoords();
+    this.scaleToPhysicalSize(target, prep.widthMm, prep.heightMm);
     this.canvas.add(target);
     this.assignLayerDeep(target, layer.id);
     this.fitImported(target);
@@ -1218,7 +1235,10 @@ export class WorkspaceController implements WorkspaceApi {
     this.zoomToFitSelection();
     this.afterChange();
     this.syncSelection();
-    this.setStatus('SVG imported');
+    const size = target.getBoundingRect();
+    this.setStatus(
+      `SVG imported — ${size.width.toFixed(1)} × ${size.height.toFixed(1)} mm`,
+    );
   }
 
   private importDxf(text: string): void {
@@ -1264,6 +1284,39 @@ export class WorkspaceController implements WorkspaceApi {
     this.setStatus('Image imported');
   }
 
+  /**
+   * Force an imported object to a physical size in mm. The SVG is parsed at
+   * viewBox scale (1) so this is the only scaling applied to the artwork.
+   */
+  private scaleToPhysicalSize(obj: FabricObject, widthMm: number | null, heightMm: number | null): void {
+    if (!widthMm || !heightMm || widthMm <= 0 || heightMm <= 0) return;
+    obj.setCoords();
+    const before = obj.getBoundingRect();
+    if (before.width <= 0 || before.height <= 0) return;
+
+    const sx = widthMm / before.width;
+    const sy = heightMm / before.height;
+    if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx <= 0 || sy <= 0) return;
+
+    // Keep the artwork's aspect ratio if the declared size disagrees with it.
+    const scale = Math.min(sx, sy);
+    if (Math.abs(scale - 1) < 1e-6) return;
+
+    obj.set({
+      scaleX: (obj.scaleX ?? 1) * scale,
+      scaleY: (obj.scaleY ?? 1) * scale,
+    });
+    obj.setCoords();
+
+    // Scaling happens around the origin; restore the original top-left corner.
+    const after = obj.getBoundingRect();
+    obj.set({
+      left: (obj.left ?? 0) + (before.left - after.left),
+      top: (obj.top ?? 0) + (before.top - after.top),
+    });
+    obj.setCoords();
+  }
+
   private fitImported(obj: FabricObject): void {
     const bed = store.getState().doc.bed;
     const b = obj.getBoundingRect();
@@ -1298,7 +1351,7 @@ export class WorkspaceController implements WorkspaceApi {
   }
 
   async exportSvg(): Promise<void> {
-    const svg = this.canvas.toSVG();
+    const svg = applySvgPhysicalSize(this.canvas.toSVG());
     const name = (store.getState().doc.meta.name || 'openburn').replace(/\s+/g, '_');
     const ok = await saveTextFile(`${name}.svg`, svg, 'svg', 'image/svg+xml', [
       { name: 'SVG', extensions: ['svg'] },
@@ -1324,7 +1377,7 @@ export class WorkspaceController implements WorkspaceApi {
     this.setStatus(`Copied ${objs.length} object(s)`);
   }
 
-  async pasteClipboard(): Promise<void> {
+  async pasteClipboard(offset = 10): Promise<void> {
     if (this.clipboard.length === 0) return;
     const enlivened = (await util.enlivenObjects(
       this.clipboard as never[],
@@ -1333,8 +1386,8 @@ export class WorkspaceController implements WorkspaceApi {
     this.canvas.discardActiveObject();
     for (const o of enlivened) {
       o.set({
-        left: (o.left ?? 0) + 10,
-        top: (o.top ?? 0) + 10,
+        left: (o.left ?? 0) + offset,
+        top: (o.top ?? 0) + offset,
       });
       (o as FabricObject & { layerId?: string }).layerId =
         (o as FabricObject & { layerId?: string }).layerId ?? layer.id;
@@ -1344,7 +1397,12 @@ export class WorkspaceController implements WorkspaceApi {
     }
     this.reselect(enlivened);
     this.afterChange();
-    this.setStatus('Pasted');
+    this.setStatus(offset === 0 ? 'Pasted in place' : 'Pasted');
+  }
+
+  /** Paste the internal clipboard keeping the original position (Alt+V). */
+  async pasteInPlace(): Promise<void> {
+    await this.pasteClipboard(0);
   }
 
   duplicateSelection(): void {
@@ -1876,7 +1934,7 @@ export class WorkspaceController implements WorkspaceApi {
     this.setStatus('Generating toolpath preview…');
   }
 
-  generateJob(cutSelectionOnly: boolean): JobPlan {
+  async generateJob(cutSelectionOnly: boolean): Promise<JobPlan> {
     const s = store.getState();
     const objs = (cutSelectionOnly ? this.canvas.getActiveObjects() : this.canvas.getObjects()).filter(
       (o) => !this.isNodeHandle(o),
@@ -1905,7 +1963,7 @@ export class WorkspaceController implements WorkspaceApi {
   }
 
   async exportGcode(cutSelectionOnly = false): Promise<void> {
-    const plan = this.generateJob(cutSelectionOnly);
+    const plan = await this.generateJob(cutSelectionOnly);
     if (plan.gcode.length === 0) {
       this.setStatus('Nothing to export — check layer output');
       return;
@@ -2558,12 +2616,14 @@ export class WorkspaceController implements WorkspaceApi {
     const imageFile = files.length === 0 && imageItem ? imageItem.getAsFile() : null;
     const text = data.getData('text/plain');
     const html = data.getData('text/html');
-    if (files.length === 0 && !imageFile && !text.trim() && !html) return;
+    const svg = data.getData('image/svg+xml');
+    if (files.length === 0 && !imageFile && !svg && !text.trim() && !html) return;
 
     e.preventDefault();
     void this.handlePastedPayload({
       text,
       html,
+      svg,
       files: imageFile ? [...files, imageFile] : files,
     });
   };
@@ -2579,15 +2639,24 @@ export class WorkspaceController implements WorkspaceApi {
 
       if (navigator.clipboard?.read) {
         const items = await navigator.clipboard.read();
-        const payload: { text?: string; html?: string; image?: string } = {};
+        const payload: { text?: string; html?: string; image?: string; svg?: string } = {};
         for (const item of items) {
           for (const type of item.types) {
-            if (type.startsWith('image/')) {
+            if (type === 'image/svg+xml') {
+              payload.svg = await (await item.getType(type)).text();
+            } else if (type === 'image/x-inkscape-compressed-svg') {
+              // Inkscape stores the vector payload compressed on the clipboard.
+              try {
+                const blob = await item.getType(type);
+                const decoded = await this.decompressSvgBlob(blob);
+                if (decoded) payload.svg = decoded;
+              } catch {
+                /* ignore malformed payloads */
+              }
+            } else if (type.startsWith('image/')) {
               const blob = await item.getType(type);
-              payload.image = await this.blobToDataUrl(blob);
-              break;
-            }
-            if (type === 'text/plain') {
+              if (!payload.image) payload.image = await this.blobToDataUrl(blob);
+            } else if (type === 'text/plain') {
               payload.text = await (await item.getType(type)).text();
             } else if (type === 'text/html') {
               payload.html = await (await item.getType(type)).text();
@@ -2613,10 +2682,27 @@ export class WorkspaceController implements WorkspaceApi {
     });
   }
 
+  /** Decompress an Inkscape clipboard SVG (gzip / zlib / raw deflate). */
+  private async decompressSvgBlob(blob: Blob): Promise<string> {
+    if (typeof DecompressionStream === 'undefined') return '';
+    const formats: CompressionFormat[] = ['gzip', 'deflate', 'deflate-raw'];
+    for (const format of formats) {
+      try {
+        const stream = blob.stream().pipeThrough(new DecompressionStream(format));
+        const text = await new Response(stream).text();
+        if (/<svg[\s>]/i.test(text)) return text;
+      } catch {
+        /* try the next compression variant */
+      }
+    }
+    return '';
+  }
+
   private async handlePastedPayload(payload: {
     text?: string | null;
     html?: string | null;
     image?: string | null;
+    svg?: string | null;
     files?: File[];
   }): Promise<boolean> {
     for (const file of payload.files ?? []) {
@@ -2625,6 +2711,34 @@ export class WorkspaceController implements WorkspaceApi {
         this.setStatus('Pasted SVG from clipboard');
         return true;
       }
+    }
+
+    // Vector formats win over the raster snapshot that editors (e.g. Inkscape)
+    // put on the clipboard alongside the SVG.
+    const htmlSvg = payload.html?.match(/<svg[\s\S]*?<\/svg>/i)?.[0] ?? null;
+    // When copying prose from a page that merely contains an inline icon, the
+    // HTML also has an <svg>. Ignore it unless the vector is the whole payload.
+    const htmlHasProse = htmlSvg
+      ? payload.html!
+          .replace(htmlSvg, '')
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/&nbsp;/gi, ' ')
+          .trim().length > 0
+      : false;
+    const svgCandidates = [
+      payload.svg,
+      /^<svg[\s>]/i.test((payload.text ?? '').trim()) ? payload.text : null,
+      htmlHasProse || (payload.text ?? '').trim() ? null : htmlSvg,
+    ];
+    for (const candidate of svgCandidates) {
+      if (candidate && /<svg[\s>]/i.test(candidate) && /<\/svg>/i.test(candidate)) {
+        await this.importSvg(candidate);
+        this.setStatus('Pasted SVG from clipboard');
+        return true;
+      }
+    }
+
+    for (const file of payload.files ?? []) {
       if (file.type.startsWith('image/')) {
         await this.importImage(await this.blobToDataUrl(file));
         this.setStatus('Pasted image from clipboard');
@@ -2638,20 +2752,7 @@ export class WorkspaceController implements WorkspaceApi {
       return true;
     }
 
-    const htmlSvg = payload.html?.match(/<svg[\s\S]*?<\/svg>/i)?.[0];
-    if (htmlSvg) {
-      await this.importSvg(htmlSvg);
-      this.setStatus('Pasted SVG from clipboard');
-      return true;
-    }
-
     const text = payload.text ?? '';
-    if (/^<svg[\s>]/i.test(text.trim()) && /<\/svg>/i.test(text)) {
-      await this.importSvg(text);
-      this.setStatus('Pasted SVG from clipboard');
-      return true;
-    }
-
     if (text.trim()) {
       this.addTextFromClipboard(text);
       return true;
@@ -2727,6 +2828,22 @@ export class WorkspaceController implements WorkspaceApi {
       return;
     }
 
+    // LightBurn-style Alt/Option shortcuts.
+    if (e.altKey && !e.ctrlKey && !e.metaKey) {
+      switch (e.key.toLowerCase()) {
+        case 'b':
+          e.preventDefault();
+          this.breakApart();
+          return;
+        case 'v':
+          e.preventDefault();
+          void this.pasteInPlace();
+          return;
+        default:
+          break;
+      }
+    }
+
     const mod = e.ctrlKey || e.metaKey;
     if (mod) {
       switch (e.key.toLowerCase()) {
@@ -2738,6 +2855,16 @@ export class WorkspaceController implements WorkspaceApi {
         case 'y':
           e.preventDefault();
           this.redo();
+          return;
+        case 'h':
+          // LightBurn: Flip Horizontal
+          e.preventDefault();
+          this.flip('h');
+          return;
+        case 'u':
+          // LightBurn: Ungroup
+          e.preventDefault();
+          this.ungroup();
           return;
         case 'c':
           e.preventDefault();
@@ -2764,7 +2891,9 @@ export class WorkspaceController implements WorkspaceApi {
           return;
         case 'a':
           e.preventDefault();
-          this.selectAll();
+          // LightBurn: Ctrl+Shift+A = Frame Selection
+          if (e.shiftKey) this.zoomToFitSelection();
+          else this.selectAll();
           return;
         case 'g':
           e.preventDefault();
@@ -2838,8 +2967,41 @@ export class WorkspaceController implements WorkspaceApi {
       return;
     }
 
+    // LightBurn-style single-key shortcuts (edit window in focus).
+    if (!e.altKey) {
+      const plain = e.key.toLowerCase();
+      const hasSelection = this.canvas.getActiveObjects().length > 0;
+      if (hasSelection) {
+        if (plain === 'h') {
+          e.preventDefault();
+          this.flip('h');
+          return;
+        }
+        if (plain === 'v') {
+          e.preventDefault();
+          this.flip('v');
+          return;
+        }
+        if (e.key === '.') {
+          e.preventDefault();
+          this.rotate(90);
+          return;
+        }
+        if (e.key === ',') {
+          e.preventDefault();
+          this.rotate(-90);
+          return;
+        }
+      }
+      if (e.key === '+' || e.key === '-') {
+        e.preventDefault();
+        this.zoomBy(e.key === '+' ? 1.25 : 0.8);
+        return;
+      }
+    }
+
     const toolKeys: Record<string, ToolId> = {
-      v: 'select',
+      s: 'select',
       n: 'node',
       l: 'line',
       r: 'rect',
@@ -2847,7 +3009,6 @@ export class WorkspaceController implements WorkspaceApi {
       p: 'polygon',
       t: 'text',
       m: 'measure',
-      h: 'pan',
     };
     const key = e.key.toLowerCase();
     if (toolKeys[key] && !e.altKey) {
@@ -2870,10 +3031,6 @@ export class WorkspaceController implements WorkspaceApi {
   getSelectedSnapshot() {
     return store.getState().selection;
   }
-}
-
-function recategorizeFill(obj: FabricObject): boolean {
-  return obj.type !== 'image';
 }
 
 function anchorCoords(cmd: unknown[]): { x: number; y: number } | null {

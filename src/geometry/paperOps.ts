@@ -12,17 +12,21 @@ function collectPaths(item: paper.Item, out: paper.PathItem[]): void {
   if (Array.isArray(children)) children.forEach((child) => collectPaths(child, out));
 }
 
-/** Convert a Fabric object (in scene coordinates) into a single paper path item. */
-function fabricToPaper(obj: FabricObject): paper.PathItem | null {
+function fabricToPaths(obj: FabricObject): paper.PathItem[] {
   ensurePaper();
   const svg = obj.toSVG();
   const imported = paper.project.importSVG(svg, { expandShapes: true });
   const paths: paper.PathItem[] = [];
   collectPaths(imported, paths);
-  if (paths.length === 0) {
-    imported.remove();
-    return null;
-  }
+  imported.remove();
+  return paths;
+}
+
+/** Convert a Fabric object (in scene coordinates) into a single paper path item. */
+function fabricToPaper(obj: FabricObject): paper.PathItem | null {
+  ensurePaper();
+  const paths = fabricToPaths(obj);
+  if (paths.length === 0) return null;
 
   // Normalise stroke/fill so boolean results behave predictably.
   let result: paper.PathItem | null = null;
@@ -32,7 +36,6 @@ function fabricToPaper(obj: FabricObject): paper.PathItem | null {
     const cloned = p.clone({ insert: false }) as paper.PathItem;
     result = result ? (result.unite(cloned, { insert: false }) as paper.PathItem) : cloned;
   }
-  imported.remove();
   return result;
 }
 
@@ -102,6 +105,78 @@ export function objectToScenePathData(obj: FabricObject): string | null {
     return out ?? null;
   } catch {
     return null;
+  }
+}
+
+/** Import a Fabric object's geometry as scene-space Paper items (holes kept). */
+export function objectToScenePathItems(obj: FabricObject): paper.PathItem[] {
+  ensurePaper();
+  clearPaperProject();
+  try {
+    const svg = obj.toSVG();
+    const imported = paper.project.importSVG(svg, { expandShapes: true });
+    const paths: paper.PathItem[] = [];
+    collectPaths(imported, paths);
+    if (paths.length === 0) return [];
+    const bounds = imported.bounds;
+    const target = obj.getBoundingRect();
+    const dx = target.left - bounds.x;
+    const dy = target.top - bounds.y;
+    const out: paper.PathItem[] = [];
+    for (const p of paths) {
+      p.fillColor = new paper.Color('black');
+      p.strokeColor = null;
+      // Even-odd keeps letter counters / holes empty regardless of the winding
+      // direction used by the source file (Inkscape, Illustrator, fonts…).
+      p.fillRule = 'evenodd';
+      const cloned = p.clone({ insert: false }) as paper.PathItem;
+      cloned.fillRule = 'evenodd';
+      cloned.translate(new paper.Point(dx, dy));
+      out.push(cloned);
+    }
+    imported.remove();
+    return out;
+  } catch {
+    return [];
+  } finally {
+    clearPaperProject();
+  }
+}
+
+/**
+ * Scene-space path data that keeps every sub-path separate (no union), so
+ * holes stay as holes. Used by fill/hatch, which apply the even-odd rule.
+ */
+export function objectToSceneCompoundPathData(obj: FabricObject): string | null {
+  ensurePaper();
+  clearPaperProject();
+  try {
+    const imported = paper.project.importSVG(obj.toSVG(), { expandShapes: true });
+    const paths: paper.PathItem[] = [];
+    collectPaths(imported, paths);
+    if (paths.length === 0) return null;
+
+    const bounds = imported.bounds;
+    const target = obj.getBoundingRect();
+    const dx = target.left - bounds.x;
+    const dy = target.top - bounds.y;
+
+    const data = paths
+      .map((p) => (p as unknown as { pathData?: string }).pathData ?? '')
+      .filter(Boolean)
+      .join(' ');
+    if (!data) return null;
+
+    const item = new paper.CompoundPath(data);
+    item.fillRule = 'evenodd';
+    item.translate(new paper.Point(dx, dy));
+    const out = item.pathData ?? null;
+    item.remove();
+    return out;
+  } catch {
+    return null;
+  } finally {
+    clearPaperProject();
   }
 }
 

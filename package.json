@@ -36,6 +36,7 @@
   "build": {
     "appId": "com.openburn.app",
     "productName": "OpenBurn",
+    "icon": "build/icon.png",
     "directories": {
       "output": "release"
     },

@@ -10,7 +10,12 @@ declare global {
     readFile(filePath: string, encoding?: string): Promise<string>;
     readBinary(filePath: string): Promise<{ data: string; mime?: string }>;
     readAppAsset(relativePath: string): Promise<string>;
-    readClipboard(): Promise<{ text?: string; html?: string; image?: string | null }>;
+    readClipboard(): Promise<{
+      text?: string;
+      html?: string;
+      image?: string | null;
+      svg?: string | null;
+    }>;
     writeFile(filePath: string, content: string, encoding?: string): Promise<boolean>;
     platform: string;
     isElectron: boolean;

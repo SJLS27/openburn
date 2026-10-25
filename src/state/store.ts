@@ -233,6 +233,7 @@ export interface WorkspaceApi {
   duplicateSelection(): void;
   copySelection(): void;
   pasteClipboard(): Promise<void>;
+  pasteInPlace(): Promise<void>;
   pasteFromSystem(): Promise<void>;
   selectAll(): void;
   group(): void;
@@ -266,7 +267,7 @@ export interface WorkspaceApi {
   setStartPoint(): void;
   traceImage(): void;
   applyCutPreview(): void;
-  generateJob(cutSelectionOnly: boolean): JobPlan;
+  generateJob(cutSelectionOnly: boolean): Promise<JobPlan>;
   generateFrameJob(): JobPlan | null;
   exportGcode(cutSelectionOnly?: boolean): Promise<void>;
   clearCutOverride(): void;

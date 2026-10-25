@@ -46,9 +46,9 @@ export default function App() {
     const onPreview = () => {
       if (!controller) return;
       controller.setStatus('Generating toolpath preview…');
-      window.setTimeout(() => {
+      window.setTimeout(async () => {
         try {
-          const plan = controller.generateJob(false);
+          const plan = await controller.generateJob(false);
           setPreviewPlan(plan);
           controller.setStatus(
             plan.warnings.length

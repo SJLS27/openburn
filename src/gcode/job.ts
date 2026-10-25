@@ -1,9 +1,12 @@
-import { FabricImage, type FabricObject } from 'fabric';
+import { FabricImage, Textbox, type FabricObject } from 'fabric';
 import type { CutSettings, LayerDef } from '@/types/document';
 import { optimizeSegments } from './optimize';
 import { offsetPolygonPoints, polygonArea } from '@/geometry/offset';
+import { textToScenePath } from '@/text/outline';
 import {
+  contoursFromPathData,
   hatchContours,
+  hatchPathData,
   objectContours,
   offsetContours,
   rasterRows,
@@ -75,7 +78,7 @@ function pushContour(
   }
 }
 
-export function buildJob(input: BuildJobInput): JobPlan {
+export async function buildJob(input: BuildJobInput): Promise<JobPlan> {
   const { objects, layers, bed, device } = input;
   const segments: PlanSegment[] = [];
   const warnings: string[] = [];
@@ -147,7 +150,38 @@ export function buildJob(input: BuildJobInput): JobPlan {
 
       let contours: Contour[] = [];
 
-      if (s.mode === 'fill') {
+      // Like LightBurn, text is outlined on the fly so it cuts without the
+      // user having to run Tools → Convert to Path first.
+      let textPathData: string | null = null;
+      if (isTextObject(obj)) {
+        const traced = await textToScenePath(obj as Textbox);
+        textPathData = traced?.pathData ?? null;
+      }
+
+      if (textPathData) {
+        if (s.mode === 'fill') {
+          contours = hatchPathData(
+            textPathData,
+            s.interval,
+            s.overscan,
+            s.angle,
+            s.crossHatch,
+            s.scanOffset,
+          );
+        } else if (s.mode === 'offsetFill') {
+          const base = contoursFromPathData(textPathData);
+          contours = base.length
+            ? offsetContours(
+                obj,
+                s.offsetDistance > 0 ? s.offsetDistance : s.interval,
+                base,
+                textPathData,
+              )
+            : [];
+        } else {
+          contours = contoursFromPathData(textPathData);
+        }
+      } else if (s.mode === 'fill') {
         contours = hatchContours(obj, s.interval, s.overscan, s.angle, s.crossHatch, s.scanOffset);
       } else if (s.mode === 'offsetFill') {
         const base = objectContours(obj);
@@ -161,7 +195,7 @@ export function buildJob(input: BuildJobInput): JobPlan {
       if (contours.length === 0) {
         if (isTextObject(obj)) {
           warnings.push(
-            `${layer.name}: text is not converted to a path — use Tools → Convert to Path`,
+            `${layer.name}: text could not be outlined — check the font or convert it to a path`,
           );
         } else {
           warnings.push(`${layer.name}: ${obj.type} skipped (no usable geometry)`);

@@ -40,7 +40,7 @@
 - **Offset** de contornos, arrays en cuadrícula/circulares y **edición de nodos**.
 - **Texto a contornos** con opentype.js (fuente Inter incluida) para cortar o grabar sin depender de fuentes.
 - **Add Tabs**: puentes en contornos para que las piezas no se suelten.
-- **Pegado desde el portapapeles del sistema**: texto, SVG e imágenes, además de menú contextual en el lienzo.
+- **Pegado desde el portapapeles del sistema**: texto, SVG (incluido el SVG comprimido de Inkscape) e imágenes, además de menú contextual en el lienzo.
 
 ### Capas y operaciones
 - Paleta de colores tipo LightBurn (`C00`, `C01`, …), cada color es una capa.
@@ -143,13 +143,17 @@ npm run build:app      # instalador (AppImage / NSIS / DMG) con electron-builder
 | --- | --- |
 | Nuevo / Abrir / Guardar | `Ctrl+N` / `Ctrl+O` / `Ctrl+S` |
 | Importar artwork / Exportar GCode | `Ctrl+I` / `Ctrl+E` |
-| Deshacer / Rehacer | `Ctrl+Z` / `Ctrl+Y` |
+| Deshacer / Rehacer | `Ctrl+Z` / `Ctrl+Shift+Z` (`Ctrl+Y` también) |
 | Copiar / Cortar / Pegar / Duplicar | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Ctrl+D` |
+| Pegar en su sitio | `Alt+V` |
 | Seleccionar todo / Eliminar | `Ctrl+A` / `Supr` |
-| Agrupar / Desagrupar | `Ctrl+G` / `Ctrl+Shift+G` |
-| Herramientas | `V` seleccionar · `N` nodos · `L` línea · `R` rectángulo · `E` elipse · `P` polígono · `T` texto · `M` medir |
+| Agrupar / Desagrupar | `Ctrl+G` / `Ctrl+U` (`Ctrl+Shift+G` también) |
+| Voltear horizontal / vertical | `H` / `V` |
+| Rotar 90° horario / antihorario | `.` / `,` |
+| Herramientas | `S` seleccionar · `N` nodos · `L` línea · `R` rectángulo · `E` elipse · `P` polígono · `T` texto · `M` medir |
 | Preview | `Alt+P` |
-| Zoom a página / a selección | `Ctrl+0` / `Ctrl+=` |
+| Zoom a página / a selección | `Ctrl+0` / `Ctrl+Shift+A` |
+| Zoom in / out | `+` / `-` |
 | Paneo | `Espacio` + arrastrar, o botón central |
 | Pegar desde el sistema (con portapapeles interno lleno) | `Ctrl+Shift+V` |
 

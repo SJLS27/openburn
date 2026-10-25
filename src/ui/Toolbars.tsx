@@ -51,7 +51,7 @@ export function ArrangeToolbar() {
       <ToolButton icon="distribute-v" title="Distribute vertically" disabled={(state.selection?.count ?? 0) < 3} onClick={() => ws?.distribute('v')} />
       <div className="tb-sep" />
       <ToolButton icon="group" title="Group (Ctrl+G)" disabled={(state.selection?.count ?? 0) < 2} onClick={() => ws?.group()} />
-      <ToolButton icon="ungroup" title="Ungroup (Ctrl+Shift+G)" disabled={disabled} onClick={() => ws?.ungroup()} />
+      <ToolButton icon="ungroup" title="Ungroup (Ctrl+U)" disabled={disabled} onClick={() => ws?.ungroup()} />
     </div>
   );
 }
@@ -245,7 +245,7 @@ export function LeftToolbar() {
 
   return (
     <div className="toolbar-left">
-      <ToolButton icon="select" title="Select (V)" active={state.tool === 'select'} onClick={() => setTool('select')} />
+      <ToolButton icon="select" title="Select (S)" active={state.tool === 'select'} onClick={() => setTool('select')} />
       <ToolButton icon="node" title="Edit nodes (N)" active={state.tool === 'node'} onClick={() => setTool('node')} />
       <div className="tb-sep" />
       <ToolButton icon="line" title="Line (L)" active={state.tool === 'line'} onClick={() => setTool('line')} />

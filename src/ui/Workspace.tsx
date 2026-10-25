@@ -101,6 +101,9 @@ export function Workspace({ onReady }: Props) {
           <button type="button" onClick={() => run(() => void controller?.pasteClipboard())}>
             <span>Paste</span><span className="shortcut">Ctrl+V</span>
           </button>
+          <button type="button" onClick={() => run(() => void controller?.pasteInPlace())}>
+            <span>Paste in place</span><span className="shortcut">Alt+V</span>
+          </button>
           <button type="button" onClick={() => run(() => void controller?.pasteFromSystem())}>
             <span>Paste from clipboard</span>
           </button>

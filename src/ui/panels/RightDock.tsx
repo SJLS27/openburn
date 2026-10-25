@@ -387,9 +387,9 @@ function LaserPanel() {
     }
   };
 
-  const start = () => {
+  const start = async () => {
     if (!ws) return;
-    const plan = ws.generateJob(cutSelected);
+    const plan = await ws.generateJob(cutSelected);
     if (plan.segments.length === 0) {
       ws.setStatus('Nothing to send — check layer output and geometry');
       return;
@@ -501,7 +501,7 @@ function LaserPanel() {
           <button
             className="btn primary"
             disabled={!m.connected || m.jobActive}
-            onClick={start}
+            onClick={() => void start()}
             title="Start job"
           >
             <Icon name="play" size={12} /> Start

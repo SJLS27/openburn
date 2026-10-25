@@ -48,6 +48,23 @@ Estado actual: **v0.6.1**. Esta lista se actualiza con cada bloque de trabajo.
 - [x] Imágenes exportadas como `Bitmap`
 - [x] Validación round-trip con archivos reales de ejemplo
 
+### Portapapeles
+- [x] Pegar vectores de Inkscape como paths editables (prioridad SVG sobre la miniatura raster; soporte de `image/x-inkscape-compressed-svg`)
+- [x] Pegar en su sitio (`Alt+V`)
+- [x] SVG pegado/importado como **solo trazo** (se descarta el relleno original), igual que el modo Line de LightBurn
+- [x] Tamaño físico correcto al pegar/importar SVG (se normalizan `mm`/`cm`/`in`/`pt` y el `style` del root; la escala se aplica tras parsear a escala 1)
+- [x] Texto trazado automáticamente al generar el GCode/Preview (no hace falta *Convert to Path*), como LightBurn
+- [x] Relleno (Fill) con agujeros: letras y vectores importados respetan los contracaracteres (regla even-odd), dejando en blanco el interior de "e", "o", "a"…
+- [x] Fill de un path con **subpaths anidados** (rectángulo con vectores dentro): los interiores actúan como agujeros del mismo path, como en LightBurn
+
+### Atajos estilo LightBurn
+- [x] Flip horizontal/vertical con `H` / `V` (y `Ctrl+H`)
+- [x] Rotar 90° con `.` / `,`
+- [x] Agrupar/desagrupar (`Ctrl+G` / `Ctrl+U`), rehacer (`Ctrl+Shift+Z`)
+- [x] Break apart (`Alt+B`), zoom (`+` / `-`), encuadrar selección (`Ctrl+Shift+A`)
+- [x] Herramienta de selección movida a `S`; paneo solo con espacio/botón central
+- [ ] Mirror across line (`Ctrl+Shift+M`), delete duplicates (`Alt+D`), invert selection (`Ctrl+Shift+I`), two-point rotate (`Ctrl+2`)
+
 ---
 
 ## 🚧 Próximos pasos

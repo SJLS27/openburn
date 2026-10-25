@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatDuration, type JobPlan, type PlanSegment, type Pt } from '@/gcode/types';
 import { Icon } from './icons';
 import { Modal } from './common';
@@ -15,6 +15,13 @@ interface Props {
 const W = 780;
 const H = 500;
 const MARGIN = 34;
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 50;
+const ZOOM_STEP = 1.25;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
 function polyLength(points: Pt[]): number {
   let d = 0;
@@ -31,7 +38,15 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(10);
   const [showTravel, setShowTravel] = useState(false);
+  const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 });
+  const [dragging, setDragging] = useState(false);
+  const viewRef = useRef(view);
+  viewRef.current = view;
   const startRef = useRef(0);
+
+  const userZoom = view.zoom;
+  const panX = view.panX;
+  const panY = view.panY;
 
   const colorByLayer = useMemo(() => {
     const map = new Map<string, string>();
@@ -50,10 +65,117 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
     return { cumulative: distances, totalDistance: total };
   }, [plan]);
 
-  const scale = Math.min((W - MARGIN * 2) / bed.width, (H - MARGIN * 2) / bed.height);
-  const offsetX = (W - bed.width * scale) / 2;
-  const offsetY = (H - bed.height * scale) / 2;
+  const baseScale = Math.min((W - MARGIN * 2) / bed.width, (H - MARGIN * 2) / bed.height);
+  const scale = baseScale * userZoom;
+  const offsetX = (W - bed.width * scale) / 2 + panX;
+  const offsetY = (H - bed.height * scale) / 2 + panY;
   const toScreen = (p: Pt) => ({ x: offsetX + p.x * scale, y: offsetY + p.y * scale });
+
+  /** Zoom keeping the given canvas point fixed under the cursor. */
+  const applyZoomAt = useCallback(
+    (nextZoomInput: number, cx: number, cy: number) => {
+      const v = viewRef.current;
+      const nextZoom = clamp(nextZoomInput, MIN_ZOOM, MAX_ZOOM);
+      if (Math.abs(nextZoom - v.zoom) < 1e-9) return;
+      const bs = Math.min((W - MARGIN * 2) / bed.width, (H - MARGIN * 2) / bed.height);
+      const prevScale = bs * v.zoom;
+      const prevOffX = (W - bed.width * prevScale) / 2 + v.panX;
+      const prevOffY = (H - bed.height * prevScale) / 2 + v.panY;
+      const worldX = (cx - prevOffX) / prevScale;
+      const worldY = (cy - prevOffY) / prevScale;
+      const nextScale = bs * nextZoom;
+      const nextOffX = cx - worldX * nextScale;
+      const nextOffY = cy - worldY * nextScale;
+      const next = {
+        zoom: nextZoom,
+        panX: nextOffX - (W - bed.width * nextScale) / 2,
+        panY: nextOffY - (H - bed.height * nextScale) / 2,
+      };
+      viewRef.current = next;
+      setView(next);
+    },
+    [bed.width, bed.height],
+  );
+
+  const resetView = useCallback(() => {
+    const next = { zoom: 1, panX: 0, panY: 0 };
+    viewRef.current = next;
+    setView(next);
+  }, []);
+
+  const zoomBy = (factor: number) => {
+    applyZoomAt(viewRef.current.zoom * factor, W / 2, H / 2);
+  };
+
+  // Wheel zoom anchored at the cursor (native listener so preventDefault works).
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      const cx = ((e.clientX - rect.left) * W) / rect.width;
+      const cy = ((e.clientY - rect.top) * H) / rect.height;
+      const v = viewRef.current;
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      applyZoomAt(v.zoom * factor, cx, cy);
+    };
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheel);
+  }, [applyZoomAt]);
+
+  // Drag to pan with the left or middle mouse button.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    let active = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    const onDown = (e: MouseEvent) => {
+      if (e.button !== 0 && e.button !== 1) return;
+      e.preventDefault();
+      active = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      setDragging(true);
+    };
+    const onMove = (e: MouseEvent) => {
+      if (!active) return;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      const kx = W / rect.width;
+      const ky = H / rect.height;
+      const dx = (e.clientX - lastX) * kx;
+      const dy = (e.clientY - lastY) * ky;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      const v = viewRef.current;
+      const next = { ...v, panX: v.panX + dx, panY: v.panY + dy };
+      viewRef.current = next;
+      setView(next);
+    };
+    const onUp = () => {
+      if (!active) return;
+      active = false;
+      setDragging(false);
+    };
+    const onAuxClick = (e: MouseEvent) => {
+      if (e.button === 1) e.preventDefault();
+    };
+
+    canvas.addEventListener('mousedown', onDown);
+    canvas.addEventListener('auxclick', onAuxClick);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      canvas.removeEventListener('mousedown', onDown);
+      canvas.removeEventListener('auxclick', onAuxClick);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
 
   // Build the static background (bed, dim toolpaths, travel moves).
   useEffect(() => {
@@ -123,7 +245,7 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
     bgRef.current = off;
     draw(progress);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, scale, showTravel, bed.width, bed.height]);
+  }, [plan, scale, offsetX, offsetY, showTravel, bed.width, bed.height]);
 
   const draw = (value: number) => {
     const canvas = canvasRef.current;
@@ -248,7 +370,15 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
             ref={canvasRef}
             width={W}
             height={H}
-            style={{ borderRadius: 3, border: '1px solid #1a1b1e', display: 'block', maxWidth: '100%' }}
+            style={{
+              borderRadius: 3,
+              border: '1px solid #1a1b1e',
+              display: 'block',
+              maxWidth: '100%',
+              cursor: dragging ? 'grabbing' : 'grab',
+              touchAction: 'none',
+            }}
+            title="Rueda: zoom · Arrastrar (izq./central): mover"
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
             <button className="btn" onClick={() => setPlaying((v) => !v)} style={{ width: 84 }}>
@@ -291,6 +421,25 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
               />
               Travel
             </label>
+            <span style={{ width: 1, height: 18, background: '#3a3d42' }} />
+            <button className="btn" title="Zoom out" onClick={() => zoomBy(1 / ZOOM_STEP)}>
+              <Icon name="zoom-out" size={12} />
+            </button>
+            <span
+              style={{
+                width: 46,
+                textAlign: 'center',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {Math.round(userZoom * 100)}%
+            </span>
+            <button className="btn" title="Zoom in" onClick={() => zoomBy(ZOOM_STEP)}>
+              <Icon name="zoom-in" size={12} />
+            </button>
+            <button className="btn" title="Fit bed" onClick={resetView}>
+              <Icon name="zoom-page" size={12} />
+            </button>
           </div>
         </div>
 

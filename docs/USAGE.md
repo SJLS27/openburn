@@ -10,8 +10,8 @@ Esta guía cubre el flujo completo: diseñar, asignar capas, previsualizar, cali
 
 - **Cama**: tamaño configurable en *Settings → Workspace* (mm o pulgadas). El origen se dibuja en la esquina superior izquierda del lienzo.
 - **Grid y snap**: toggles en la barra de estado. El tamaño de grid se cambia en *Settings*.
-- **Zoom**: rueda del ratón, botones de la esquina inferior derecha, `Ctrl+0` (página) y `Ctrl+=` (selección).
-- **Paneo**: `Espacio` + arrastrar, botón central del ratón o herramienta de mano.
+- **Zoom**: rueda del ratón, botones de la esquina inferior derecha, `Ctrl+0` (página), `Ctrl+Shift+A` (selección) y `+` / `-`.
+- **Paneo**: `Espacio` + arrastrar o botón central del ratón.
 
 ---
 
@@ -19,7 +19,7 @@ Esta guía cubre el flujo completo: diseñar, asignar capas, previsualizar, cali
 
 | Herramienta | Atajo | Nota |
 | --- | --- | --- |
-| Seleccionar | `V` | Mover/escalar/rotar con controles |
+| Seleccionar | `S` | Mover/escalar/rotar con controles |
 | Nodos | `N` | Requiere un trazado; arrastra anclas |
 | Línea | `L` | Arrastrar de inicio a fin |
 | Rectángulo | `R` | `Shift` mantiene proporciones |
@@ -208,11 +208,16 @@ Detalles técnicos y limitaciones: [FILE-FORMATS.md](FILE-FORMATS.md).
 
 ## 9. Portapapeles
 
-- **Dentro de OpenBurn**: `Ctrl+C` / `Ctrl+X` / `Ctrl+V` copian y pegan formas.
+- **Dentro de OpenBurn**: `Ctrl+C` / `Ctrl+X` / `Ctrl+V` copian y pegan formas; `Alt+V` pega en su sitio (misma posición original).
 - **Desde otros programas**: `Ctrl+V` pega:
   - **texto** como un `Textbox` en el centro de la vista,
-  - **SVG** (texto o HTML con `<svg>`) como vectores editables,
+  - **SVG** (texto, HTML con `<svg>`, o el formato vectorial comprimido de **Inkscape**) como vectores editables,
   - **imágenes** (PNG/JPG) como raster.
+- Cuando el portapapeles trae un vector **y** una miniatura raster a la vez (caso típico de Inkscape), tiene prioridad el vector.
+- Los SVG pegados/importados se convierten a **solo trazo** (se descarta el relleno original) y se colorean con la capa activa, como el modo *Line* de LightBurn.
+- El tamaño físico se respeta: un objeto de 50 mm en Inkscape se pega midiendo 50 mm (se normalizan las unidades `mm`/`cm`/`in`/`pt`, también en el atributo `style`). La barra de estado muestra el tamaño importado.
+- El **texto se traza automáticamente** al generar Preview/GCode (con la fuente Inter incluida); no hace falta convertir a trazado.
+- En modo **Fill** se respetan los agujeros de las letras y de cualquier vector (regla *even-odd*): se rellena la silueta y queda en blanco el interior de "e", "o", "a", etc. Un path con subpaths anidados (un rectángulo con vectores dentro) se rellena alternando exterior/interior, igual que en LightBurn.
 - Si hay formas en el portapapeles interno y quieres pegar lo del sistema, usa **`Ctrl+Shift+V`** o el menú contextual → *Paste from clipboard*.
 - **Clic derecho en el lienzo** abre un menú con Cut / Copy / Paste / Paste from clipboard / Duplicate / Delete / Select all.
 - **Clic derecho en campos de texto** (consola, ajustes) abre el menú nativo con Undo / Redo / Cut / Copy / Paste / Select all.

@@ -1,7 +1,11 @@
 import paper from 'paper';
 import { FabricImage, type FabricObject } from 'fabric';
 import { ensurePaper } from '@/geometry/paperSetup';
-import { objectToScenePathData } from '@/geometry/paperOps';
+import {
+  objectToSceneCompoundPathData,
+  objectToScenePathData,
+  objectToScenePathItems,
+} from '@/geometry/paperOps';
 import { offsetPathData } from '@/geometry/offset';
 import type { DitherMode, ImageAdjust } from '@/types/document';
 import { applyImageAdjust } from '@/image/adjust';
@@ -52,12 +56,18 @@ function flattenItem(item: paper.PathItem, tolerance = 0.15): Contour[] {
   return out;
 }
 
-function sceneItem(obj: FabricObject): paper.CompoundPath | null {
+/**
+ * A single compound path for the whole object. All sub-paths are kept together
+ * so the even-odd rule turns nested sub-paths into holes (letter counters, a
+ * rectangle with vectors inside, etc.).
+ */
+function sceneCompoundItem(obj: FabricObject): paper.CompoundPath | null {
   try {
-    const data = objectToScenePathData(obj);
+    const data = objectToSceneCompoundPathData(obj);
     if (!data) return null;
     ensurePaper();
     const item = new paper.CompoundPath(data);
+    item.fillRule = 'evenodd';
     item.fillColor = new paper.Color('black');
     item.strokeColor = null;
     return item;
@@ -68,18 +78,20 @@ function sceneItem(obj: FabricObject): paper.CompoundPath | null {
 
 export function objectContours(obj: FabricObject): Contour[] {
   try {
-    ensurePaper();
-    const item = sceneItem(obj);
-    if (!item) return [];
-    const contours = flattenItem(item);
-    item.remove();
+    const items = objectToScenePathItems(obj);
+    if (items.length === 0) return [];
+    const contours: Contour[] = [];
+    for (const item of items) {
+      contours.push(...flattenItem(item));
+      item.remove();
+    }
     return contours;
   } catch {
     return [];
   }
 }
 
-/** Scanline fill clipped to the object's filled silhouette. */
+/** Scanline fill clipped to the object's filled silhouette (even-odd holes). */
 export function hatchContours(
   obj: FabricObject,
   interval: number,
@@ -89,11 +101,12 @@ export function hatchContours(
   scanOffset = 0,
 ): Contour[] {
   try {
-    const step = Math.max(0.02, interval);
-    const item = sceneItem(obj);
+    // One compound path for the whole object: nested sub-paths act as holes.
+    const item = sceneCompoundItem(obj);
     if (!item) return [];
-    const out: Contour[] = [];
+    const step = Math.max(0.02, interval);
     const angles = crossHatch ? [angle, angle + 90] : [angle];
+    const out: Contour[] = [];
     for (const a of angles) {
       out.push(...hatchAtAngle(item, step, overscan, a, scanOffset));
     }
@@ -105,7 +118,7 @@ export function hatchContours(
 }
 
 function hatchAtAngle(
-  item: paper.CompoundPath,
+  item: paper.PathItem,
   step: number,
   overscan: number,
   angle: number,
@@ -170,17 +183,61 @@ function hatchAtAngle(
   return out;
 }
 
+/** Flatten scene-space path data into cut contours (used for traced text). */
+export function contoursFromPathData(pathData: string): Contour[] {
+  try {
+    ensurePaper();
+    const item = new paper.CompoundPath(pathData);
+    item.fillRule = 'evenodd';
+    item.fillColor = new paper.Color('black');
+    item.strokeColor = null;
+    const contours = flattenItem(item);
+    item.remove();
+    return contours;
+  } catch {
+    return [];
+  }
+}
+
+/** Scanline fill of scene-space path data (traced text in Fill mode). */
+export function hatchPathData(
+  pathData: string,
+  interval: number,
+  overscan: number,
+  angle = 0,
+  crossHatch = false,
+  scanOffset = 0,
+): Contour[] {
+  try {
+    ensurePaper();
+    const item = new paper.CompoundPath(pathData);
+    item.fillRule = 'evenodd';
+    item.fillColor = new paper.Color('black');
+    item.strokeColor = null;
+    const out: Contour[] = [];
+    const angles = crossHatch ? [angle, angle + 90] : [angle];
+    for (const a of angles) {
+      out.push(...hatchAtAngle(item, Math.max(0.02, interval), overscan, a, scanOffset));
+    }
+    item.remove();
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 /** Concentric inward offsets, used for Offset Fill mode. */
 export function offsetContours(
   obj: FabricObject,
   distance: number,
   baseContours: Contour[],
+  pathData?: string,
 ): Contour[] {
   try {
     ensurePaper();
     const step = Math.max(0.05, distance);
     const out: Contour[] = [];
-    let current = objectToScenePathData(obj);
+    let current = pathData ?? objectToScenePathData(obj);
     if (!current) return out;
 
   const box = obj.getBoundingRect();
