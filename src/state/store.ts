@@ -283,6 +283,7 @@ export interface WorkspaceApi {
   applyImageAdjust(adjust: ImageAdjust): void;
   getSelectedImageInfo(): { dataUrl: string; adjust: ImageAdjust } | null;
   traceSelectedImage(options: TraceOptions): Promise<void>;
+  applyMaskToImage(): Promise<void>;
   addTabs(tabWidth: number, spacing: number): void;
   updateCursor(x: number, y: number): void;
   setStatus(text: string): void;

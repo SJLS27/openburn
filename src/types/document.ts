@@ -52,6 +52,12 @@ export interface CutOverride {
   dither?: DitherMode;
 }
 
+/** Control point of a tone curve, in normalised 0..1 image space. */
+export interface CurvePoint {
+  x: number;
+  y: number;
+}
+
 /** Tone adjustments applied to raster images before engraving. */
 export interface ImageAdjust {
   /** -100 .. 100 */
@@ -63,6 +69,10 @@ export interface ImageAdjust {
   /** -1 disables thresholding, 0 .. 255 otherwise */
   threshold: number;
   invert: boolean;
+  /** Input levels in 0..255; omitted or null = no level remapping. */
+  levels?: { black: number; white: number } | null;
+  /** Tone curve control points; omitted, null or identity = no curve. */
+  curve?: CurvePoint[] | null;
 }
 
 export const DEFAULT_IMAGE_ADJUST: ImageAdjust = {

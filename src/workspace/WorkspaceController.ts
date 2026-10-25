@@ -45,7 +45,7 @@ import type { JobPlan, Pt } from '@/gcode/types';
 import { DEFAULT_IMAGE_ADJUST, type ImageAdjust, type LayerDef } from '@/types/document';
 import { textToScenePath } from '@/text/outline';
 import { addTabsToContour } from '@/geometry/tabs';
-import { traceImageObject, type TraceOptions } from '@/image/trace';
+import { traceImageByColor, traceImageObject, type TraceOptions } from '@/image/trace';
 import {
   parseLightBurn,
   serializeLightBurn,
@@ -2845,12 +2845,24 @@ export class WorkspaceController implements WorkspaceApi {
 
     for (const img of images) {
       try {
-        const group = await traceImageObject(img, options);
-        if (!group) continue;
-        this.assignLayerDeep(group, layer.id);
-        this.canvas.add(group);
-        group.setCoords();
-        created.push(group);
+        if (options.mode === 'color' && options.separateColors) {
+          const groups = await traceImageByColor(img, options);
+          if (groups.length === 0) continue;
+          for (const { color, object } of groups) {
+            const colorLayer = this.ensureTraceLayer(color);
+            this.assignLayerDeep(object, colorLayer.id);
+            this.canvas.add(object);
+            object.setCoords();
+            created.push(object);
+          }
+        } else {
+          const group = await traceImageObject(img, options);
+          if (!group) continue;
+          this.assignLayerDeep(group, layer.id);
+          this.canvas.add(group);
+          group.setCoords();
+          created.push(group);
+        }
       } catch (err) {
         this.setStatus(`Trace failed: ${(err as Error).message}`);
       }
@@ -2863,6 +2875,112 @@ export class WorkspaceController implements WorkspaceApi {
     } else {
       this.setStatus('Trace produced no contours — adjust threshold / colors');
     }
+  }
+
+  /** Find or create a layer named after a traced colour. */
+  private ensureTraceLayer(color: string): LayerDef {
+    const name = `Trace ${color.toUpperCase()}`;
+    const existing = store.getState().doc.layers.find((l) => l.name === name);
+    if (existing) return existing;
+
+    const previous = store.getState().activeLayerId;
+    const created = store.addLayer();
+    store.updateLayer(created.id, { name, color });
+    const current = store.getState().doc.layers.find((l) => l.id === created.id) ?? created;
+    store.setState({ activeLayerId: previous });
+    return current;
+  }
+
+  /**
+   * Clip one selected image with the selected vector shape(s) (even-odd), then
+   * replace it with the masked bitmap and consume the mask shape.
+   */
+  async applyMaskToImage(): Promise<void> {
+    const objs = this.canvas.getActiveObjects().filter((o) => !this.isNodeHandle(o));
+    const images = objs.filter((o): o is FabricImage => o instanceof FabricImage);
+    const masks = objs.filter((o) => !(o instanceof FabricImage));
+    if (images.length !== 1 || masks.length === 0) {
+      this.setStatus('Select one image plus the shape to use as a mask');
+      return;
+    }
+
+    const image = images[0];
+    const contours = masks
+      .flatMap((mask) => objectContours(mask))
+      .filter((contour) => contour.closed && contour.points.length >= 3);
+    if (contours.length === 0) {
+      this.setStatus('The mask needs at least one closed shape');
+      return;
+    }
+
+    const element = image.getElement() as
+      | HTMLImageElement
+      | HTMLCanvasElement
+      | HTMLVideoElement
+      | null;
+    const naturalW =
+      (element as HTMLImageElement)?.naturalWidth || (element as HTMLCanvasElement)?.width || 0;
+    const naturalH =
+      (element as HTMLImageElement)?.naturalHeight || (element as HTMLCanvasElement)?.height || 0;
+    if (!element || !naturalW || !naturalH) {
+      this.setStatus('The image has no bitmap data to mask');
+      return;
+    }
+
+    const bounds = image.getBoundingRect();
+    if (bounds.width <= 0 || bounds.height <= 0) return;
+
+    const maxSide = 2048;
+    const scale = Math.min(1, maxSide / Math.max(naturalW, naturalH));
+    const width = Math.max(1, Math.round(naturalW * scale));
+    const height = Math.max(1, Math.round(naturalH * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(element as CanvasImageSource, 0, 0, width, height);
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.beginPath();
+    const sx = width / bounds.width;
+    const sy = height / bounds.height;
+    for (const contour of contours) {
+      contour.points.forEach((point, index) => {
+        const x = (point.x - bounds.left) * sx;
+        const y = (point.y - bounds.top) * sy;
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+    }
+    ctx.fill('evenodd');
+    ctx.globalCompositeOperation = 'source-over';
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const masked = await FabricImage.fromURL(dataUrl);
+    const layerId =
+      (image as FabricObject & { layerId?: string }).layerId ?? this.activeLayer().id;
+    masked.set({
+      left: bounds.left,
+      top: bounds.top,
+      scaleX: bounds.width / width,
+      scaleY: bounds.height / height,
+    });
+    (masked as FabricObject & { imageAdjust?: ImageAdjust }).imageAdjust = (
+      image as FabricObject & { imageAdjust?: ImageAdjust }
+    ).imageAdjust;
+    this.assignLayer(masked, layerId);
+    masked.setCoords();
+
+    this.canvas.discardActiveObject();
+    this.canvas.remove(image);
+    masks.forEach((mask) => this.canvas.remove(mask));
+    this.canvas.add(masked);
+    this.reselect([masked]);
+    this.afterChange();
+    this.setStatus(image.angle ? 'Masked image (rotation reset)' : 'Masked image');
   }
 
   addTabs(tabWidth: number, spacing: number): void {

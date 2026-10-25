@@ -151,6 +151,7 @@ const MENUS: MenuDef[] = [
       { separator: true },
       { label: 'Adjust Image…', dialog: 'image-adjust' },
       { label: 'Trace Image…', dialog: 'trace' },
+      { label: 'Apply Mask to Image', action: () => void ws?.applyMaskToImage() },
       { label: 'Add Tabs…', dialog: 'tabs' },
       { separator: true },
       { label: 'Edit Nodes', disabled: true, shortcut: 'Soon' },
