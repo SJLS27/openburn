@@ -3,6 +3,11 @@ import { useAppState, store, type ToolId, type WorkspaceApi } from '@/state/stor
 import { Icon } from './icons';
 import { Modal, NumberField, useUnits, useWorkspace } from './common';
 import { ImageAdjustDialog, TabsDialog, TraceDialog } from './ImageToolsDialogs';
+import {
+  MATERIALS_UPDATED_EVENT,
+  loadMaterials,
+  saveMaterials,
+} from '@/core/materials';
 
 type DialogKind =
   | 'offset'
@@ -12,6 +17,7 @@ type DialogKind =
   | 'material'
   | 'interval'
   | 'focus'
+  | 'kerf'
   | 'image-adjust'
   | 'trace'
   | 'tabs';
@@ -136,6 +142,7 @@ const MENUS: MenuDef[] = [
       { label: 'Material Test…', dialog: 'material' },
       { label: 'Interval Test…', dialog: 'interval' },
       { label: 'Focus Test…', dialog: 'focus' },
+      { label: 'Kerf Test…', dialog: 'kerf' },
       { separator: true },
       { label: 'Adjust Image…', dialog: 'image-adjust' },
       { label: 'Trace Image…', dialog: 'trace' },
@@ -201,6 +208,7 @@ export function MenuBar() {
   const [matLabels, setMatLabels] = useState(true);
   const [matAngle, setMatAngle] = useState(0);
   const [matCrossHatch, setMatCrossHatch] = useState(false);
+  const [matSublayers, setMatSublayers] = useState(false);
 
   const [intMin, setIntMin] = useState(0.05);
   const [intMax, setIntMax] = useState(0.3);
@@ -220,6 +228,23 @@ export function MenuBar() {
   const [focusPower, setFocusPower] = useState(40);
   const [focusPasses, setFocusPasses] = useState(1);
   const [focusLabels, setFocusLabels] = useState(true);
+
+  const [kerfMethod, setKerfMethod] = useState<'slot' | 'span'>('slot');
+  const [kerfNominal, setKerfNominal] = useState(1);
+  const [kerfSpacing, setKerfSpacing] = useState(5);
+  const [kerfCount, setKerfCount] = useState(10);
+  const [kerfLength, setKerfLength] = useState(20);
+  const [kerfLabels, setKerfLabels] = useState(true);
+  const [kerfMeasured, setKerfMeasured] = useState(0);
+  const [kerfTarget, setKerfTarget] = useState<'part' | 'hole'>('part');
+  const [kerfMaterialId, setKerfMaterialId] = useState('');
+  const [materials, setMaterials] = useState(() => loadMaterials());
+
+  useEffect(() => {
+    const reload = () => setMaterials(loadMaterials());
+    window.addEventListener(MATERIALS_UPDATED_EVENT, reload);
+    return () => window.removeEventListener(MATERIALS_UPDATED_EVENT, reload);
+  }, []);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -245,6 +270,40 @@ export function MenuBar() {
       window.removeEventListener('openburn:array-circular', onCircular);
     };
   }, []);
+
+  useEffect(() => {
+    if (dialog === 'kerf') setMaterials(loadMaterials());
+  }, [dialog]);
+
+  const kerfNominalSpan =
+    kerfMethod === 'slot'
+      ? kerfNominal
+      : Math.max(1, Math.round(kerfCount) - 1) * kerfSpacing;
+  const kerfFull = kerfMeasured - kerfNominalSpan;
+  // Slot: a slot is a hole, so a wider-than-nominal slot needs a negative offset.
+  // Span: the measured span only gives the full kerf; the sign depends on the feature.
+  const kerfOffset =
+    kerfMethod === 'slot'
+      ? -kerfFull / 2
+      : (kerfTarget === 'hole' ? -1 : 1) * kerfFull / 2;
+  const kerfRounded = Math.round(kerfOffset * 1000) / 1000;
+  const kerfActiveLayer = state.doc.layers.find((l) => l.id === state.activeLayerId);
+
+  const applyKerf = () => {
+    if (!kerfActiveLayer) return;
+    store.updateCutSettings(kerfActiveLayer.id, { kerf: kerfRounded });
+    if (kerfMaterialId) {
+      const list = loadMaterials().map((m) =>
+        m.id === kerfMaterialId ? { ...m, kerf: kerfRounded } : m,
+      );
+      saveMaterials(list);
+      setMaterials(list);
+      window.dispatchEvent(new CustomEvent(MATERIALS_UPDATED_EVENT));
+    }
+    ws?.setStatus(
+      `Kerf ${Math.abs(kerfFull).toFixed(2)} mm applied as ${kerfRounded >= 0 ? '+' : ''}${kerfRounded.toFixed(2)} mm offset to ${kerfActiveLayer.name}`,
+    );
+  };
 
   const ctx: MenuContext = {
     ws,
@@ -438,6 +497,7 @@ export function MenuBar() {
                       labels: matLabels,
                       angle: matAngle,
                       crossHatch: matCrossHatch,
+                      sublayers: matSublayers,
                     });
                   } else {
                     ws?.generateIntervalTest({
@@ -509,10 +569,17 @@ export function MenuBar() {
                   Cross-hatch
                 </label>
               </div>
+              <label className="checkbox" style={{ marginTop: 6 }}>
+                <input type="checkbox" checked={matSublayers} onChange={(e) => setMatSublayers(e.target.checked)} />
+                Create one sublayer per cell
+              </label>
               <p className="hint" style={{ marginTop: 8 }}>
                 Creates {Math.max(1, Math.min(12, Math.round(matPowerSteps)))} ×{' '}
-                {Math.max(1, Math.min(12, Math.round(matSpeedSteps)))} squares on the active layer.
-                Each cell carries its own speed/power override; labels go on a non-output NOTES layer.
+                {Math.max(1, Math.min(12, Math.round(matSpeedSteps)))} squares.{' '}
+                {matSublayers
+                  ? `Each cell gets its own layer with its speed/power (${Math.max(1, Math.min(12, Math.round(matPowerSteps))) * Math.max(1, Math.min(12, Math.round(matSpeedSteps)))} layers).`
+                  : 'Each cell carries its own speed/power override on the active layer.'}{' '}
+                Labels go on a non-output NOTES layer.
               </p>
             </>
           ) : (
@@ -617,6 +684,145 @@ export function MenuBar() {
         </Modal>
       )}
 
+      {dialog === 'kerf' && (
+        <Modal
+          title="Kerf Test"
+          onClose={() => setDialog(null)}
+          width={520}
+          footer={
+            <>
+              <button className="btn" onClick={() => setDialog(null)}>Cancel</button>
+              <button
+                className="btn primary"
+                onClick={() => {
+                  ws?.generateKerfTest({
+                    method: kerfMethod,
+                    nominalWidth: kerfNominal,
+                    spacing: kerfSpacing,
+                    length: kerfLength,
+                    count: kerfCount,
+                    labels: kerfLabels,
+                  });
+                  setDialog(null);
+                }}
+              >
+                Create kerf test
+              </button>
+            </>
+          }
+        >
+          <p className="hint" style={{ margin: 0 }}>
+            Cut a pattern with kerf set to 0, measure it with calipers and enter the result here.
+            The measured full kerf is converted to a radial offset for the active layer.
+          </p>
+
+          <div className="field-row" style={{ marginTop: 10 }}>
+            <span className="field-label" style={{ minWidth: 58 }}>Method</span>
+            <select
+              className="input"
+              value={kerfMethod}
+              onChange={(e) => setKerfMethod(e.target.value as 'slot' | 'span')}
+            >
+              <option value="slot">Slot — measure slot width</option>
+              <option value="span">Line span — measure outer-to-outer</option>
+            </select>
+          </div>
+
+          {kerfMethod === 'slot' ? (
+            <div className="field-row">
+              <span className="field-label" style={{ minWidth: 58 }}>Nominal</span>
+              <NumberField value={kerfNominal} onChange={setKerfNominal} units={units} />
+              <span className="field-label">Length</span>
+              <NumberField value={kerfLength} onChange={setKerfLength} units={units} />
+            </div>
+          ) : (
+            <div className="field-row">
+              <span className="field-label" style={{ minWidth: 58 }}>Spacing</span>
+              <NumberField value={kerfSpacing} onChange={setKerfSpacing} units={units} />
+              <span className="field-label">Lines</span>
+              <input className="input narrow" type="number" min={2} max={40} value={kerfCount} onChange={(e) => setKerfCount(Number(e.target.value))} />
+              <span className="field-label">Length</span>
+              <NumberField value={kerfLength} onChange={setKerfLength} units={units} />
+            </div>
+          )}
+
+          <label className="checkbox" style={{ marginTop: 6 }}>
+            <input type="checkbox" checked={kerfLabels} onChange={(e) => setKerfLabels(e.target.checked)} />
+            Add labels on a non-output NOTES layer
+          </label>
+
+          <h4 style={{ margin: '12px 0 6px' }}>Measurement</h4>
+          <div className="field-row">
+            <span className="field-label" style={{ minWidth: 58 }}>Measured</span>
+            <NumberField value={kerfMeasured} onChange={setKerfMeasured} units={units} />
+            <span className="hint">
+              {kerfMethod === 'slot' ? 'slot width' : 'outer edge to outer edge'}
+            </span>
+          </div>
+          {kerfMethod === 'span' ? (
+            <div className="field-row">
+              <span className="field-label" style={{ minWidth: 58 }}>Compensate</span>
+              <select
+                className="input"
+                value={kerfTarget}
+                onChange={(e) => setKerfTarget(e.target.value as 'part' | 'hole')}
+              >
+                <option value="part">Outer parts (+ offset, expands path)</option>
+                <option value="hole">Holes / slots (− offset, shrinks path)</option>
+              </select>
+            </div>
+          ) : (
+            <p className="hint" style={{ marginTop: 4 }}>
+              Slot measurements compensate holes automatically (negative offset when the slot is
+              wider than nominal).
+            </p>
+          )}
+          <div className="field-row">
+            <span className="field-label" style={{ minWidth: 58 }}>Material</span>
+            <select
+              className="input"
+              value={kerfMaterialId}
+              onChange={(e) => setKerfMaterialId(e.target.value)}
+            >
+              <option value="">— Active layer only —</option>
+              {materials.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}{m.thickness ? ` — ${m.thickness}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="kerf-result">
+            <div>
+              <span className="hint">Nominal span</span>
+              <strong>{kerfNominalSpan.toFixed(2)} mm</strong>
+            </div>
+            <div>
+              <span className="hint">Full kerf</span>
+              <strong>{kerfMeasured > 0 ? `${kerfFull.toFixed(2)} mm` : '—'}</strong>
+            </div>
+            <div>
+              <span className="hint">Offset to apply</span>
+              <strong>{kerfMeasured > 0 ? `${kerfRounded >= 0 ? '+' : ''}${kerfRounded.toFixed(2)} mm` : '—'}</strong>
+            </div>
+          </div>
+
+          <button
+            className="btn primary"
+            style={{ width: '100%', marginTop: 8 }}
+            disabled={kerfMeasured <= 0}
+            onClick={applyKerf}
+          >
+            Apply to active layer{kerfMaterialId ? ' and material' : ''}
+          </button>
+          <p className="hint" style={{ marginTop: 6 }}>
+            Tip: for a layer that contains both holes and outer parts, duplicate the layer and use
+            opposite offsets. The measured value is saved in mm.
+          </p>
+        </Modal>
+      )}
+
       {dialog === 'image-adjust' && <ImageAdjustDialog onClose={() => setDialog(null)} />}
       {dialog === 'trace' && <TraceDialog onClose={() => setDialog(null)} />}
       {dialog === 'tabs' && <TabsDialog onClose={() => setDialog(null)} />}
@@ -626,7 +832,7 @@ export function MenuBar() {
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <Icon name="flame" size={40} style={{ color: 'var(--accent)' }} />
             <div>
-              <h3 style={{ margin: '0 0 6px' }}>OpenBurn 0.6.0</h3>
+              <h3 style={{ margin: '0 0 6px' }}>OpenBurn 0.6.1</h3>
               <p className="hint" style={{ margin: 0 }}>
                 Open-source laser cutting &amp; engraving software inspired by the LightBurn
                 workflow. Built with Electron, React, Fabric.js and a GRBL controller. Not

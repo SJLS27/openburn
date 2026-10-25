@@ -1,6 +1,6 @@
 # OpenBurn — TODO & Roadmap
 
-Estado actual: **v0.6.0**. Esta lista se actualiza con cada bloque de trabajo.
+Estado actual: **v0.6.1**. Esta lista se actualiza con cada bloque de trabajo.
 
 ## ✅ Completado
 
@@ -57,7 +57,8 @@ Estado actual: **v0.6.0**. Esta lista se actualiza con cada bloque de trabajo.
 - [x] Kerf compensation por capa y en la biblioteca de materiales
 - [x] Ángulo de scan, cross-hatch y scan offset
 - [x] Biblioteca de materiales editable con persistencia
-- [ ] Material Test con subcapas y más parámetros por celda
+- [x] Material Test con sublayers reales (una capa por celda)
+- [x] Kerf Test (slot y span de líneas) con cálculo y aplicación del offset
 
 ### Imagen / vector
 - [ ] Trace por capas de color (una capa por color)
@@ -104,7 +105,6 @@ Estado actual: **v0.6.0**. Esta lista se actualiza con cada bloque de trabajo.
 
 - Presets de proyecto y plantillas de material.
 - Biblioteca de arte (SVG) integrada.
-- Medición de kerf y compensación automática.
 - Comparador de trabajos y versionado del diseño.
 - Exportación directa a `.lbrn2` con subcapas y colores exactos.
 - REST API / CLI para automatización.

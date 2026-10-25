@@ -160,6 +160,7 @@ Al importar:
 OpenBurn exporta:
 
 - Una `<CutSetting>` por capa (índices contiguos 0..N-1).
+- Los Material Test con sublayers crean una capa por celda; al exportar se emite un `CutSetting` independiente por celda (velocidad y potencia incluidas).
 - Una `<Shape Type="Path">` por contorno, con coordenadas absolutas en mm y `XForm` identidad.
 - Texto → contornos (no depende de fuentes en LightBurn).
 - Imágenes → `<Shape Type="Bitmap">` con PNG base64.

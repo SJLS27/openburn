@@ -5,7 +5,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="https://github.com/SJLS27/openburn/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SJLS27/openburn/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.6.0-orange.svg">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.6.1-orange.svg">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="GRBL" src="https://img.shields.io/badge/GRBL-ready-brightgreen.svg">
   <img alt="LightBurn" src="https://img.shields.io/badge/LightBurn-.lbrn%20%7C%20.lbrn2-8a63d2.svg">
@@ -64,8 +64,8 @@
 - Estado en vivo: posición, feed, spindle, progreso y tiempo restante.
 
 ### Calibración
-- **Material Test** potencia × velocidad, **Interval Test** y **Focus Test** con rampa de eje Z.
-- Materiales guardables y reutilizables con un clic.
+- **Material Test** potencia × velocidad con **sublayers reales** (una capa por celda), **Interval Test**, **Focus Test** con rampa de eje Z y **Kerf Test** (ranura o span de líneas).
+- **Biblioteca de materiales** guardable y reutilizable con un clic, incluido el kerf medido.
 - Eje **Z** configurable: offsets por objeto y movimientos `G1 Z` en el GCode.
 
 ### Imágenes
@@ -224,7 +224,7 @@ Más en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - [x] Fase 1 — Núcleo de diseño vectorial y capas
 - [x] Fase 2 — Preview, GCode y control GRBL
 - [x] Fase 3 — Texto a contornos, Material/Interval/Focus Test, imágenes (ajuste/trace), tabs y optimización
-- [x] Calibración fina — kerf, ángulo/cross-hatch, scan offset, biblioteca de materiales y eje Z
+- [x] Calibración fina — kerf, ángulo/cross-hatch, scan offset, biblioteca de materiales, eje Z y Kerf Test
 - [x] Compatibilidad LightBurn (lectura y escritura `.lbrn`/`.lbrn2`)
 - [ ] Rotary, cámaras y Print & Cut
 - [ ] Ruida/DSP y galvo (EZCad)

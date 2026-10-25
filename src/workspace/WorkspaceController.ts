@@ -23,6 +23,7 @@ import {
   type BooleanOp,
   type FocusTestOptions,
   type IntervalTestOptions,
+  type KerfTestOptions,
   type MaterialTestOptions,
   type ToolId,
   type WorkspaceApi,
@@ -2013,27 +2014,50 @@ export class WorkspaceController implements WorkspaceApi {
         const left = startX + c * (cell + gap);
         const top = startY + r * (cell + gap);
 
+        // Sublayer mode: one real layer per cell so both speed and power live in
+        // layer settings and survive LightBurn/GRBL export without overrides.
+        let cellLayer = layer;
+        if (options.sublayers) {
+          const child = store.addLayer();
+          store.updateLayer(child.id, { name: `${layer.name} P${power} S${speed}` });
+          store.updateCutSettings(child.id, {
+            ...layer.settings,
+            mode: options.mode,
+            speed,
+            power,
+            passes: Math.max(1, options.passes),
+            interval: options.interval,
+            angle: options.angle,
+            crossHatch: options.crossHatch,
+          });
+          cellLayer = store.getState().doc.layers.find((l) => l.id === child.id) ?? child;
+        }
+
         const rect = new Rect({
           left,
           top,
           width: cell,
           height: cell,
           fill: 'transparent',
-          stroke: layer.color,
+          stroke: cellLayer.color,
           strokeUniform: true,
           strokeWidth: 1.15 / zoom,
           objectCaching: false,
         });
-        (rect as FabricObject & { cutOverride?: unknown }).cutOverride = {
-          mode: options.mode,
-          speed,
-          power,
-          passes: Math.max(1, options.passes),
-          interval: options.interval,
-          angle: options.angle,
-          crossHatch: options.crossHatch,
-        };
-        this.assignLayer(rect, layer.id);
+        if (options.sublayers) {
+          this.assignLayer(rect, cellLayer.id);
+        } else {
+          (rect as FabricObject & { cutOverride?: unknown }).cutOverride = {
+            mode: options.mode,
+            speed,
+            power,
+            passes: Math.max(1, options.passes),
+            interval: options.interval,
+            angle: options.angle,
+            crossHatch: options.crossHatch,
+          };
+          this.assignLayer(rect, layer.id);
+        }
         this.canvas.add(rect);
         rect.setCoords();
         created.push(rect);
@@ -2054,8 +2078,15 @@ export class WorkspaceController implements WorkspaceApi {
       }
     }
 
+    // Keep the original layer active instead of the last generated sublayer.
+    store.setState({ activeLayerId: layer.id });
+
     if (startX + gridWidth > state.doc.bed.width || startY + gridHeight > state.doc.bed.height) {
       this.setStatus('Material test exceeds the bed — move or resize it before cutting');
+    } else if (options.sublayers) {
+      this.setStatus(
+        `Material test: ${rows * cols} sublayers (${rows} power × ${cols} speed)`,
+      );
     } else {
       this.setStatus(
         `Material test: ${rows} power × ${cols} speed (${rows * cols} cells) on ${layer.name}`,
@@ -2226,6 +2257,112 @@ export class WorkspaceController implements WorkspaceApi {
         ? `Focus test: ${steps} Z steps (${options.zMin}–${options.zMax} mm) on ${layer.name}`
         : 'Focus test created — enable the Z axis in Settings → Machine to emit Z moves',
     );
+    this.reselect(created);
+    this.afterChange();
+    this.zoomToPage(false);
+  }
+
+  generateKerfTest(options: KerfTestOptions): void {
+    const state = store.getState();
+    const layer = this.activeLayer();
+    const notes = options.labels ? this.ensureAnnotationLayer() : null;
+    const zoom = this.canvas.getZoom();
+    const created: FabricObject[] = [];
+
+    // Kerf tests must cut exactly on the nominal geometry.
+    const baseOverride = {
+      mode: 'line' as const,
+      speed: layer.settings.speed,
+      power: layer.settings.power,
+      passes: Math.max(1, layer.settings.passes),
+      kerf: 0,
+    };
+
+    if (options.method === 'span') {
+      const count = Math.max(2, Math.min(40, Math.round(options.count)));
+      const spacing = Math.max(0.5, options.spacing);
+      const length = Math.max(5, options.length);
+      const span = (count - 1) * spacing;
+      const startX = Math.max(10, (state.doc.bed.width - span) / 2);
+      const top = Math.max(10, (state.doc.bed.height - length) / 2);
+
+      if (notes) {
+        created.push(
+          this.makeNote(
+            `KERF TEST — ${count} lines · ${spacing} mm spacing · ${length} mm long · kerf 0`,
+            startX - 5,
+            Math.max(2, top - 12),
+            Math.max(span + 10, 60),
+            3,
+            notes,
+          ),
+        );
+      }
+
+      for (let i = 0; i < count; i += 1) {
+        const x = startX + i * spacing;
+        const line = new Line([x, top, x, top + length], {
+          stroke: layer.color,
+          strokeUniform: true,
+          strokeWidth: 1.15 / zoom,
+          objectCaching: false,
+        });
+        (line as FabricObject & { cutOverride?: unknown }).cutOverride = { ...baseOverride };
+        this.assignLayer(line, layer.id);
+        this.canvas.add(line);
+        line.setCoords();
+        created.push(line);
+      }
+
+      this.setStatus(
+        `Kerf span test: ${count} lines, ${spacing} mm apart. Measure outer edge to outer edge and enter it in Tools → Kerf Test.`,
+      );
+    } else {
+      const width = Math.max(0.2, options.nominalWidth);
+      const length = Math.max(5, options.length);
+      const left = Math.max(10, (state.doc.bed.width - width) / 2);
+      const top = Math.max(10, (state.doc.bed.height - length) / 2);
+
+      if (notes) {
+        created.push(
+          this.makeNote(
+            `KERF TEST — slot nominal ${width} mm × ${length} mm · kerf 0`,
+            left - 10,
+            Math.max(2, top - 12),
+            Math.max(width + 20, 60),
+            3,
+            notes,
+          ),
+        );
+      }
+
+      const rect = new Rect({
+        left,
+        top,
+        width,
+        height: length,
+        fill: 'transparent',
+        stroke: layer.color,
+        strokeUniform: true,
+        strokeWidth: 1.15 / zoom,
+        objectCaching: false,
+      });
+      (rect as FabricObject & { cutOverride?: unknown }).cutOverride = { ...baseOverride };
+      this.assignLayer(rect, layer.id);
+      this.canvas.add(rect);
+      rect.setCoords();
+      created.push(rect);
+
+      this.setStatus(
+        `Kerf slot test: nominal ${width} mm. Measure the slot width and enter it in Tools → Kerf Test.`,
+      );
+    }
+
+    const widthUsed = options.method === 'span' ? (options.count - 1) * options.spacing : options.nominalWidth;
+    if (widthUsed + 40 > state.doc.bed.width && options.method === 'span') {
+      this.setStatus('Kerf test exceeds the bed — reduce the line count or spacing');
+    }
+
     this.reselect(created);
     this.afterChange();
     this.zoomToPage(false);

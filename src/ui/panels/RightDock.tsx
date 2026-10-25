@@ -6,6 +6,13 @@ import { formatDuration } from '@/gcode/types';
 import { Icon } from '../icons';
 import { Field, NumberField, Panel, ToolButton, useUnits, useWorkspace } from '../common';
 import { CutsLayersPanel } from './CutsLayersPanel';
+import {
+  MATERIALS_UPDATED_EVENT,
+  loadMaterials,
+  materialFromLayer,
+  saveMaterials,
+  type MaterialEntry,
+} from '@/core/materials';
 
 export function RightDock() {
   return (
@@ -175,45 +182,6 @@ function ColorPalettePanel() {
   );
 }
 
-interface MaterialEntry {
-  id: string;
-  name: string;
-  thickness: string;
-  speed: number;
-  power: number;
-  passes: number;
-  mode: 'line' | 'fill';
-  kerf: number;
-}
-
-const MATERIAL_STORAGE_KEY = 'openburn.materials.v1';
-
-const DEFAULT_MATERIALS: MaterialEntry[] = [
-  { id: 'ply-3', name: 'Plywood', thickness: '3 mm', speed: 18, power: 55, passes: 1, mode: 'line', kerf: 0 },
-  { id: 'ply-6', name: 'Plywood', thickness: '6 mm', speed: 10, power: 75, passes: 2, mode: 'line', kerf: 0 },
-  { id: 'acry-3', name: 'Acrylic (cast)', thickness: '3 mm', speed: 15, power: 60, passes: 1, mode: 'line', kerf: 0 },
-  { id: 'acry-3-fill', name: 'Acrylic (cast)', thickness: '3 mm', speed: 120, power: 45, passes: 1, mode: 'fill', kerf: 0 },
-  { id: 'mdf-3', name: 'MDF', thickness: '3 mm', speed: 22, power: 50, passes: 1, mode: 'line', kerf: 0 },
-  { id: 'leather-2', name: 'Leather', thickness: '2 mm', speed: 90, power: 25, passes: 1, mode: 'fill', kerf: 0 },
-  { id: 'steel-mark', name: 'Stainless (marking)', thickness: '—', speed: 200, power: 40, passes: 1, mode: 'fill', kerf: 0 },
-];
-
-function loadMaterials(): MaterialEntry[] {
-  try {
-    const raw = localStorage.getItem(MATERIAL_STORAGE_KEY);
-    if (!raw) return DEFAULT_MATERIALS;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return DEFAULT_MATERIALS;
-    const valid = parsed.filter(
-      (m): m is MaterialEntry =>
-        m && typeof m.name === 'string' && Number.isFinite(m.speed) && Number.isFinite(m.power),
-    );
-    return valid.length > 0 ? valid : DEFAULT_MATERIALS;
-  } catch {
-    return DEFAULT_MATERIALS;
-  }
-}
-
 function MaterialPanel() {
   const state = useAppState();
   const units = useUnits();
@@ -223,12 +191,14 @@ function MaterialPanel() {
   const current = materials[Math.min(selected, materials.length - 1)];
 
   useEffect(() => {
-    try {
-      localStorage.setItem(MATERIAL_STORAGE_KEY, JSON.stringify(materials));
-    } catch {
-      /* storage may be unavailable */
-    }
+    saveMaterials(materials);
   }, [materials]);
+
+  useEffect(() => {
+    const reload = () => setMaterials(loadMaterials());
+    window.addEventListener(MATERIALS_UPDATED_EVENT, reload);
+    return () => window.removeEventListener(MATERIALS_UPDATED_EVENT, reload);
+  }, []);
 
   const updateCurrent = (patch: Partial<MaterialEntry>) => {
     if (!current) return;
@@ -239,17 +209,7 @@ function MaterialPanel() {
 
   const addFromLayer = () => {
     if (!active) return;
-    const entry: MaterialEntry = {
-      id: `mat-${Date.now()}`,
-      name: active.name,
-      thickness: '',
-      speed: active.settings.speed,
-      power: active.settings.power,
-      passes: active.settings.passes,
-      mode: active.settings.mode === 'fill' ? 'fill' : 'line',
-      kerf: active.settings.kerf ?? 0,
-    };
-    setMaterials((list) => [...list, entry]);
+    setMaterials((list) => [...list, materialFromLayer(active)]);
     setSelected(materials.length);
   };
 

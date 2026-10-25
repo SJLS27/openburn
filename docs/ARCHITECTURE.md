@@ -103,6 +103,7 @@ GCode + estadísticas (tiempo, distancia, bounds)
 - Los segmentos raster llevan `powers[]` y emiten `G1 X Y S…` para variar potencia punto a punto.
 - El kerf se aplica al contorno antes de cerrarlo; los offsets que colapsan se descartan.
 - Con `zAxisEnabled`, cada cambio de `zOffset` emite un `G1 Z…` con el feed configurado y el job vuelve a `Z0` al terminar.
+- Los Material Tests con *sublayers* crean una capa por celda; el job las procesa como capas normales y la exportación LightBurn genera un `CutSetting` por celda.
 - El control de flujo del envío usa una ventana de 120 bytes y acks de GRBL.
 
 ---

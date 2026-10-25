@@ -273,6 +273,7 @@ export interface WorkspaceApi {
   generateMaterialTest(options: MaterialTestOptions): void;
   generateIntervalTest(options: IntervalTestOptions): void;
   generateFocusTest(options: FocusTestOptions): void;
+  generateKerfTest(options: KerfTestOptions): void;
   setSelectionZOffset(z: number): void;
   applyImageAdjust(adjust: ImageAdjust): void;
   getSelectedImageInfo(): { dataUrl: string; adjust: ImageAdjust } | null;
@@ -310,6 +311,7 @@ export interface MaterialTestOptions {
   labels: boolean;
   angle: number;
   crossHatch: boolean;
+  sublayers: boolean;
 }
 
 export interface FocusTestOptions {
@@ -322,6 +324,15 @@ export interface FocusTestOptions {
   speed: number;
   power: number;
   passes: number;
+  labels: boolean;
+}
+
+export interface KerfTestOptions {
+  method: 'slot' | 'span';
+  nominalWidth: number;
+  spacing: number;
+  length: number;
+  count: number;
   labels: boolean;
 }
 

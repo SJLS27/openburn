@@ -104,7 +104,8 @@ Cada color de la paleta es una capa (C00, C01, …).
 
 - Potencia mín/máx/pasos y velocidad mín/máx/pasos.
 - Crea una matriz de celdas (potencia × velocidad) en la capa activa.
-- Cada celda lleva un **override** de velocidad/potencia; el resto de la capa no se altera.
+- Por defecto cada celda lleva un **override** de velocidad/potencia; el resto de la capa no se altera.
+- Opción **Create one sublayer per cell**: crea una capa real por celda (nombre `C00 P40 S50`), con velocidad y potencia en sus ajustes. Útil para conservar ambos valores al exportar a LightBurn y para ajustar cada celda desde *Cuts / Layers*.
 - Las etiquetas (`S…/P…`) y la cabecera van a una capa **NOTES** con *Output* desactivado: se ven en el editor pero **no se graban**.
 - Al seleccionar el test, *Shape Properties* muestra *“N cut overrides”* y un botón **Clear**.
 
@@ -124,10 +125,30 @@ Los valores de Z también se pueden fijar por objeto en **Shape Properties → Z
 
 ![Focus Test](screenshots/focus-test.png)
 
+### Kerf Test
+*Tools → Kerf Test…*
+
+1. Elige el método:
+   - **Slot**: corta una ranura rectangular de ancho nominal (p. ej. 1 mm) y largo conocido.
+   - **Line span**: corta N líneas verticales separadas una distancia fija y mide de borde exterior a borde exterior (más preciso con calibre).
+2. El patrón se crea con **kerf 0** y etiquetas en la capa `NOTES`.
+3. Córtalo y mide:
+   - Slot → ancho real de la ranura.
+   - Span → distancia entre el borde exterior de la primera y la última línea.
+4. Introduce la medida en el mismo diálogo. OpenBurn calcula:
+   - **Slot**: **offset** = (nominal − medido) / 2. Si la ranura sale más ancha que lo nominal, el offset es negativo (contrae el contorno).
+   - **Line span**: **full kerf** = medido − span nominal; **offset** = full kerf / 2, con signo según el objetivo:
+     - **Outer parts (+)** expande el contorno (piezas exteriores).
+     - **Holes / slots (−)** contrae el contorno (agujeros).
+5. Pulsa **Apply to active layer**. Si seleccionas un material de la biblioteca, también actualiza su kerf.
+6. Para una capa con agujeros y piezas exteriores, duplica la capa y usa offsets opuestos.
+
+![Kerf Test](screenshots/kerf-test.png)
+
 ### Kerf, ángulo y scan offset
 En *Cuts / Layers → (editar capa)*:
 
-- **Kerf** (solo Line): compensa el ancho del haz. Positivo expande los contornos cerrados, negativo los contrae. Ej.: para una ranura de 0,2 mm usa `+0.1`.
+- **Kerf** (solo Line): compensa el ancho del haz. Positivo expande los contornos cerrados (piezas exteriores), negativo los contrae (agujeros/ranuras). Ej.: con un ancho de haz de 0,2 mm usa `+0.1` para piezas y `-0.1` para agujeros.
 - **Angle** (Fill/Image): dirección del relleno en grados (`0` horizontal, `45` diagonal).
 - **Cross-hatch**: añade una segunda pasada a `angle + 90°` para rellenos cruzados.
 - **Scan offset**: desplaza las líneas de scan a lo largo de su dirección para compensar el retardo del láser.
@@ -138,6 +159,7 @@ En *Cuts / Layers → (editar capa)*:
 - Selecciona un material, edita sus valores (incluido **kerf**) y pulsa **Apply to layer**.
 - **Save layer** añade la capa activa como material nuevo.
 - **Delete** elimina el material seleccionado.
+- El **Kerf Test** puede guardar el offset medido directamente en el material seleccionado.
 - Los cambios se guardan automáticamente en el navegador/equipo (`localStorage`).
 
 ---
