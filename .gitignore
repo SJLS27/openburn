@@ -6,3 +6,5 @@ release/
 .DS_Store
 .vite/
 *.tsbuildinfo
+
+.flatpak-builder/

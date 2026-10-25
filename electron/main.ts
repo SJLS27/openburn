@@ -117,43 +117,62 @@ ipcMain.handle('fs:readBinary', async (_e, filePath) => {
 });
 
 // Read the system clipboard, including the vector payload that Inkscape (and
-// other vector editors) place next to the raster snapshot.
-ipcMain.handle('clipboard:read', () => {
-  const image = clipboard.readImage();
-  const formats = clipboard.availableFormats();
+// other vector editors) place next to the raster snapshot. Electron 45+ uses
+// the async W3C-style clipboard API.
+ipcMain.handle('clipboard:read', async () => {
+  let text = '';
+  try {
+    text = await clipboard.readText();
+  } catch {
+    /* clipboard unavailable */
+  }
 
+  let html = '';
+  let image: string | null = null;
   let svg: string | null = null;
 
-  if (formats.includes('image/svg+xml')) {
+  const blobOf = async (item: Electron.ClipboardItem, type: string): Promise<Blob | null> => {
     try {
-      const text = clipboard.read('image/svg+xml');
-      if (/<svg[\s>]/i.test(text ?? '')) {
-        svg = text;
-      } else {
-        const buffer = clipboard.readBuffer('image/svg+xml');
-        const decoded = buffer?.toString('utf-8') ?? '';
-        if (/<svg[\s>]/i.test(decoded)) svg = decoded;
-      }
+      const value = await item.getType(type as never);
+      return value instanceof Blob ? value : null;
     } catch {
-      /* format not readable on this platform */
+      return null;
     }
-  }
-
-  if (!svg && formats.includes('image/x-inkscape-compressed-svg')) {
-    try {
-      const buffer = clipboard.readBuffer('image/x-inkscape-compressed-svg');
-      if (buffer.length > 0) svg = decodeCompressedSvg(buffer);
-    } catch {
-      /* fall through to the raster snapshot */
-    }
-  }
-
-  return {
-    text: clipboard.readText(),
-    html: clipboard.readHTML(),
-    image: image.isEmpty() ? null : image.toDataURL(),
-    svg,
   };
+
+  try {
+    const items = await clipboard.read();
+    for (const item of items) {
+      if (!html && item.types.includes('text/html')) {
+        const blob = await blobOf(item, 'text/html');
+        if (blob) html = await blob.text();
+      }
+
+      if (!image && item.types.includes('image/png')) {
+        const blob = await blobOf(item, 'image/png');
+        if (blob) {
+          const buffer = Buffer.from(await blob.arrayBuffer());
+          image = `data:image/png;base64,${buffer.toString('base64')}`;
+        }
+      }
+
+      if (!svg) {
+        const svgType = item.types.find((type) => /svg/i.test(type));
+        if (svgType) {
+          const blob = await blobOf(item, svgType);
+          if (blob) {
+            const buffer = Buffer.from(await blob.arrayBuffer());
+            const decoded = buffer.toString('utf-8');
+            svg = /<svg[\s>]/i.test(decoded) ? decoded : decodeCompressedSvg(buffer);
+          }
+        }
+      }
+    }
+  } catch {
+    /* clipboard format not readable on this platform */
+  }
+
+  return { text, html, image, svg };
 });
 
 /**

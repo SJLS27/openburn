@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=OpenBurn
+GenericName=Laser Cutting and Engraving
+Comment=Design, preview and control laser cutters
+Exec=openburn %F
+Icon=io.github.SJLS27.OpenBurn
+Terminal=false
+Type=Application
+Categories=Graphics;Engineering;
+Keywords=laser;cutter;engraver;grbl;lightburn;cad;
+StartupNotify=true
+StartupWMClass=io.github.SJLS27.OpenBurn
