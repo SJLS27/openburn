@@ -46,6 +46,7 @@
 - Paleta de colores tipo LightBurn (`C00`, `C01`, …), cada color es una capa.
 - Modos **Line**, **Fill**, **Offset Fill** e **Image** con velocidad, potencia, pasadas, intervalo, overscan y dithering.
 - **Kerf compensation** por capa (expande o contrae cortes cerrados), **ángulo de scan**, **cross-hatch** y **scan offset**.
+- Trazos **hairline** de 1 px como LightBurn, independientes del zoom (también en grupos anidados y en la exportación SVG).
 - **Biblioteca de materiales editable** (nombre, espesor, velocidad, potencia, pasadas, modo y kerf) con persistencia local.
 - Overrides de corte por objeto (usados por los tests de material).
 - Capa de anotaciones `NOTES` que nunca se envía al láser.
@@ -70,8 +71,9 @@
 
 ### Imágenes
 - Importación de PNG/JPG/GIF/BMP/WebP.
-- **Adjust Image**: brillo, contraste, gamma, umbral e invertir, con previsualización en vivo.
-- **Trace Image**: vectorización monochrome o color con control de umbral y detalle.
+- **Adjust Image**: brillo, contraste, gamma, niveles, curva de tonos, umbral e invertir, con previsualización en vivo.
+- **Trace Image**: vectorización monochrome o color con control de umbral y detalle, **preview antes de aplicar** y opción de **una capa por color**.
+- **Apply Mask to Image**: recorta una imagen con una forma vectorial.
 
 ### Compatibilidad LightBurn
 - **Abre** proyectos `.lbrn` y `.lbrn2` (rectángulos, elipses, polígonos, paths con Bézier, grupos, texto con *backup path*, bitmaps y cut settings).
@@ -150,6 +152,8 @@ npm run build:app      # instalador (AppImage / NSIS / DMG) con electron-builder
 | Agrupar / Desagrupar | `Ctrl+G` / `Ctrl+U` (`Ctrl+Shift+G` también) |
 | Voltear horizontal / vertical | `H` / `V` |
 | Rotar 90° horario / antihorario | `.` / `,` |
+| Espejo respecto a una línea / rotar por dos puntos | `Ctrl+Shift+M` / `Ctrl+2` |
+| Invertir selección / eliminar duplicados | `Ctrl+Shift+I` / `Alt+D` |
 | Herramientas | `S` seleccionar · `N` nodos · `L` línea · `R` rectángulo · `E` elipse · `P` polígono · `T` texto · `M` medir |
 | Preview | `Alt+P` |
 | Zoom a página / a selección | `Ctrl+0` / `Ctrl+Shift+A` |

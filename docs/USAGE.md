@@ -172,7 +172,8 @@ En *Cuts / Layers → (editar capa)*:
 ### Adjust Image
 *Tools → Adjust Image…*
 
-- Brillo, contraste, gamma, umbral e invertir.
+- Brillo, contraste, gamma, **niveles** (punto negro/blanco) y **curva de tonos** (clic para añadir puntos, arrastra para mover, doble clic para quitarlos).
+- Umbral e invertir.
 - Previsualización en escala de grises (lo que verá el láser).
 - Los ajustes se guardan en el objeto y se aplican en Preview y GCode sin modificar el archivo original.
 
@@ -182,10 +183,17 @@ Para grabar una imagen, la capa debe estar en modo **Image**, con intervalo/pote
 *Tools → Trace Image…*
 
 - **Monochrome**: umbral + contornos.
-- **Colour**: cuantización a N colores.
+- **Colour**: cuantización a N colores, con opción **Split colours into separate layers** (crea una capa `Trace #RRGGBB` por color).
+- **Preview** en vivo antes de aplicar; se actualiza al cambiar los ajustes.
 - Ajusta *path omit* para descartar detalles pequeños.
 - El resultado se añade en la capa activa, ajustado al rectángulo de la imagen; la imagen original se conserva.
 - Si no te gusta el resultado, `Ctrl+Z` y prueba otro umbral/detalle.
+
+### Apply Mask to Image
+*Tools → Apply Mask to Image*
+
+- Selecciona **una imagen** y **una o más formas cerradas** y aplícalo: la imagen queda recortada a la intersección con la máscara.
+- La forma de máscara se consume y la imagen enmascarada reemplaza a la original (se conservan capa y ajustes de imagen).
 
 ---
 

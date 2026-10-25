@@ -13,6 +13,7 @@ Estado actual: **v0.6.1**. Esta lista se actualiza con cada bloque de trabajo.
 - [x] Undo/redo con historial
 - [x] Import SVG/DXF/ráster; export SVG
 - [x] Formato nativo `.obrn` (lectura de `.ovbrn` legado)
+- [x] Trazos hairline de 1 px como LightBurn (independientes del zoom, también en grupos anidados y en export SVG)
 
 ### Fase 2 — Preview + GRBL
 - [x] Planificador de trayectorias por capa (Line/Fill/Offset Fill/Image)
@@ -63,7 +64,7 @@ Estado actual: **v0.6.1**. Esta lista se actualiza con cada bloque de trabajo.
 - [x] Agrupar/desagrupar (`Ctrl+G` / `Ctrl+U`), rehacer (`Ctrl+Shift+Z`)
 - [x] Break apart (`Alt+B`), zoom (`+` / `-`), encuadrar selección (`Ctrl+Shift+A`)
 - [x] Herramienta de selección movida a `S`; paneo solo con espacio/botón central
-- [ ] Mirror across line (`Ctrl+Shift+M`), delete duplicates (`Alt+D`), invert selection (`Ctrl+Shift+I`), two-point rotate (`Ctrl+2`)
+- [x] Mirror across line (`Ctrl+Shift+M`), delete duplicates (`Alt+D`), invert selection (`Ctrl+Shift+I`), two-point rotate (`Ctrl+2`)
 
 ---
 
@@ -78,11 +79,11 @@ Estado actual: **v0.6.1**. Esta lista se actualiza con cada bloque de trabajo.
 - [x] Kerf Test (slot y span de líneas) con cálculo y aplicación del offset
 
 ### Imagen / vector
-- [ ] Trace por capas de color (una capa por color)
-- [ ] Preview del trazado antes de aplicar
-- [ ] Apply Mask to Image
-- [ ] Optimización de imágenes grandes (tiles)
-- [ ] Ajuste de imagen con curvas y niveles
+- [x] Trace por capas de color (una capa por color)
+- [x] Preview del trazado antes de aplicar
+- [x] Apply Mask to Image
+- [x] Optimización de imágenes grandes (tiles)
+- [x] Ajuste de imagen con curvas y niveles
 
 ### Control y hardware
 - [ ] Rotary mode (cilindro, pasos/mm)
@@ -112,7 +113,7 @@ Estado actual: **v0.6.1**. Esta lista se actualiza con cada bloque de trabajo.
 - Texto sin `BackupPath` al importar se aproxima con un `Textbox` (tamaño/fuente pueden diferir).
 - Imágenes rotadas se exportan sin rotación.
 - Trace limitado a 700 px de lado mayor.
-- El raster de GCode se limita a 360 muestras por eje.
+- El raster de GCode se limita a 360 muestras por eje y muestrea la imagen por tiles (máx. 1600 px de lado).
 - Rotary, cámaras, Print & Cut y DSP están pendientes.
 - El puerto serie en Electron auto-selecciona el primer dispositivo (mejorable con un selector nativo).
 
