@@ -316,18 +316,57 @@ export function rasterRows(
   const stepX = Math.max(interval, bbox.width / maxSamples);
   const stepY = Math.max(interval, bbox.height / maxSamples);
 
-  const canvas = document.createElement('canvas');
-  canvas.width = naturalW;
-  canvas.height = naturalH;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return [];
-  ctx.drawImage(element as CanvasImageSource, 0, 0, naturalW, naturalH);
-  let pixels: Uint8ClampedArray;
-  try {
-    pixels = ctx.getImageData(0, 0, naturalW, naturalH).data;
-  } catch {
-    return [];
-  }
+  // Large images are sampled in horizontal tiles so we never allocate a
+  // full-resolution ImageData (which can be hundreds of MB).
+  const MAX_RASTER_SIDE = 1600;
+  const TILE_HEIGHT = 256;
+  const rasterScale = Math.min(1, MAX_RASTER_SIDE / Math.max(naturalW, naturalH));
+  const rasterW = Math.max(1, Math.round(naturalW * rasterScale));
+  const rasterH = Math.max(1, Math.round(naturalH * rasterScale));
+  const tileHeight = Math.min(TILE_HEIGHT, rasterH);
+
+  const tileCanvas = document.createElement('canvas');
+  tileCanvas.width = rasterW;
+  tileCanvas.height = tileHeight;
+  const tileCtx = tileCanvas.getContext('2d', { willReadFrequently: true });
+  if (!tileCtx) return [];
+
+  let tileTop = -1;
+  let tilePixels: Uint8ClampedArray | null = null;
+  const sample = (px: number, py: number): [number, number, number, number] | null => {
+    const top = Math.floor(py / tileHeight) * tileHeight;
+    if (top !== tileTop) {
+      const srcY = top / rasterScale;
+      const rows = Math.min(tileHeight, rasterH - top);
+      const srcH = Math.min(naturalH - srcY, rows / rasterScale);
+      tileCtx.clearRect(0, 0, rasterW, tileHeight);
+      try {
+        tileCtx.drawImage(
+          element as CanvasImageSource,
+          0,
+          srcY,
+          naturalW,
+          srcH,
+          0,
+          0,
+          rasterW,
+          rows,
+        );
+        tilePixels = tileCtx.getImageData(0, 0, rasterW, rows).data;
+      } catch {
+        return null;
+      }
+      tileTop = top;
+    }
+    if (!tilePixels) return null;
+    const offset = ((py - top) * rasterW + px) * 4;
+    return [
+      tilePixels[offset],
+      tilePixels[offset + 1],
+      tilePixels[offset + 2],
+      tilePixels[offset + 3],
+    ];
+  };
 
   const rows = Math.max(1, Math.floor(bbox.height / stepY));
   const cols = Math.max(1, Math.floor(bbox.width / stepX));
@@ -335,7 +374,7 @@ export function rasterRows(
 
   for (let row = 0; row <= rows; row += 1) {
     const y = bbox.top + row * stepY;
-    const py = Math.min(naturalH - 1, Math.floor((row * stepY * naturalH) / bbox.height));
+    const py = Math.min(rasterH - 1, Math.floor((row * stepY * rasterH) / bbox.height));
     const reverse = row % 2 === 1;
     const points: Pt[] = [];
     const powers: number[] = [];
@@ -343,12 +382,11 @@ export function rasterRows(
 
     for (let i = 0; i <= cols; i += 1) {
       const col = reverse ? cols - i : i;
-      const px = Math.min(naturalW - 1, Math.floor((col * stepX * naturalW) / bbox.width));
-      const idx = (py * naturalW + px) * 4;
-      const r = pixels[idx];
-      const g = pixels[idx + 1];
-      const b = pixels[idx + 2];
-      const alpha = pixels[idx + 3] / 255;
+      const px = Math.min(rasterW - 1, Math.floor((col * stepX * rasterW) / bbox.width));
+      const rgba = sample(px, py);
+      if (!rgba) return out;
+      const [r, g, b, alphaByte] = rgba;
+      const alpha = alphaByte / 255;
       const rawGray = (0.299 * r + 0.587 * g + 0.114 * b) * alpha + 255 * (1 - alpha);
       const adjust = (obj as FabricObject & { imageAdjust?: ImageAdjust }).imageAdjust;
       const gray = applyImageAdjust(rawGray, adjust);
