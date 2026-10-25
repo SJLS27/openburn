@@ -89,6 +89,8 @@ const MENUS: MenuDef[] = [
       { label: 'Delete', shortcut: 'Del', disabled: !hasSelection, action: () => ws?.deleteSelection() },
       { separator: true },
       { label: 'Select All', shortcut: 'Ctrl+A', action: () => ws?.selectAll() },
+      { label: 'Invert Selection', shortcut: 'Ctrl+Shift+I', action: () => ws?.invertSelection() },
+      { label: 'Delete Duplicates', shortcut: 'Alt+D', action: () => ws?.deleteDuplicates() },
     ],
   },
   {
@@ -110,6 +112,8 @@ const MENUS: MenuDef[] = [
       { label: 'Flip Vertical', shortcut: 'V', action: () => ws?.flip('v'), disabled: !hasSelection },
       { label: 'Rotate 90° CW', shortcut: '.', action: () => ws?.rotate(90), disabled: !hasSelection },
       { label: 'Rotate 90° CCW', shortcut: ',', action: () => ws?.rotate(-90), disabled: !hasSelection },
+      { label: 'Mirror Across Line', shortcut: 'Ctrl+Shift+M', action: () => ws?.mirrorAcrossLine(), disabled: !hasSelection },
+      { label: 'Rotate by Two Points', shortcut: 'Ctrl+2', action: () => ws?.rotateByTwoPoints(), disabled: !hasSelection },
       { separator: true },
       { label: 'Distribute Horizontally', action: () => ws?.distribute('h'), disabled: selectionCount < 3 },
       { label: 'Distribute Vertically', action: () => ws?.distribute('v'), disabled: selectionCount < 3 },

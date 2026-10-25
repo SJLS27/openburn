@@ -236,6 +236,10 @@ export interface WorkspaceApi {
   pasteInPlace(): Promise<void>;
   pasteFromSystem(): Promise<void>;
   selectAll(): void;
+  invertSelection(): void;
+  deleteDuplicates(): void;
+  mirrorAcrossLine(): void;
+  rotateByTwoPoints(): void;
   group(): void;
   ungroup(): void;
   bringToFront(): void;

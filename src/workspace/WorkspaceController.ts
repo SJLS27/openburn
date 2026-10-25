@@ -89,6 +89,22 @@ export class WorkspaceController implements WorkspaceApi {
   private lastPan = { x: 0, y: 0 };
   private disposed = false;
 
+  /** Interactive "mirror across a line" tool (Ctrl+Shift+M). */
+  private mirrorMode: {
+    start: Point | null;
+    end: Point | null;
+    targets: FabricObject[];
+    guide?: Line;
+  } | null = null;
+
+  /** Interactive "rotate by two points" tool (Ctrl+2). */
+  private rotate2Mode: {
+    base: Point | null;
+    end: Point | null;
+    targets: FabricObject[];
+    guide?: Line;
+  } | null = null;
+
   private nodeTarget: FabricPath | null = null;
   private nodeHandles: { circle: Circle; commandIndex: number }[] = [];
   private nodeDragging = false;
@@ -245,6 +261,10 @@ export class WorkspaceController implements WorkspaceApi {
         return;
       }
       if (e.button === 2) return;
+      if (this.mirrorMode || this.rotate2Mode) {
+        if (e.button === 0) this.handleTransformClick(this.canvas.getScenePoint(e));
+        return;
+      }
       const tool = store.getState().tool;
       if (this.isDrawTool(tool)) {
         this.beginDraw(tool, this.canvas.getScenePoint(e));
@@ -267,6 +287,7 @@ export class WorkspaceController implements WorkspaceApi {
         return;
       }
       const p = this.canvas.getScenePoint(e);
+      if (this.mirrorMode || this.rotate2Mode) this.handleTransformMove(p);
       if (this.drawing) this.updateDraw(p);
       const now = performance.now();
       if (now - this.lastCursorPush > 50) {
@@ -281,6 +302,7 @@ export class WorkspaceController implements WorkspaceApi {
         this.updateCursorStyle();
         return;
       }
+      if (this.mirrorMode || this.rotate2Mode) return;
       if (this.nodeDragging) {
         this.nodeDragging = false;
         this.afterChange();
@@ -1064,6 +1086,7 @@ export class WorkspaceController implements WorkspaceApi {
     doc: ReturnType<typeof parseDocument>,
     filePath: string | null,
   ): Promise<void> {
+    this.cancelTransformMode();
     this.suppressHistory = true;
     try {
       store.replaceDocument(doc, filePath);
@@ -1470,6 +1493,253 @@ export class WorkspaceController implements WorkspaceApi {
     this.reselect(objs);
   }
 
+  /** Ctrl+Shift+I — select everything that is not currently selected. */
+  invertSelection(): void {
+    const selected = new Set(this.canvas.getActiveObjects());
+    const inverted = this.canvas
+      .getObjects()
+      .filter((o) => !this.isNodeHandle(o) && !selected.has(o));
+    if (inverted.length === 0) {
+      this.canvas.discardActiveObject();
+      this.canvas.requestRenderAll();
+      this.syncSelection();
+      this.setStatus('Inverted selection — nothing else to select');
+      return;
+    }
+    this.reselect(inverted);
+    this.setStatus(`Inverted selection — ${inverted.length} object(s)`);
+  }
+
+  /** Alt+D — remove objects whose geometry and position are identical. */
+  deleteDuplicates(): void {
+    const seen = new Set<string>();
+    const duplicates: FabricObject[] = [];
+    for (const obj of this.canvas.getObjects()) {
+      if (this.isNodeHandle(obj)) continue;
+      const fingerprint = this.objectFingerprint(obj);
+      if (seen.has(fingerprint)) duplicates.push(obj);
+      else seen.add(fingerprint);
+    }
+
+    if (duplicates.length === 0) {
+      this.setStatus('No duplicates found');
+      return;
+    }
+
+    this.canvas.discardActiveObject();
+    duplicates.forEach((o) => this.canvas.remove(o));
+    this.canvas.requestRenderAll();
+    this.afterChange();
+    this.syncSelection();
+    this.setStatus(`Removed ${duplicates.length} duplicate(s)`);
+  }
+
+  private objectFingerprint(obj: FabricObject): string {
+    const r = (value: number | undefined): string =>
+      (Math.round((value ?? 0) * 1000) / 1000).toFixed(3);
+    const any = obj as FabricObject & Record<string, unknown>;
+    const parts: unknown[] = [
+      obj.type,
+      r(obj.left),
+      r(obj.top),
+      r(obj.width),
+      r(obj.height),
+      r(obj.scaleX),
+      r(obj.scaleY),
+      r(obj.angle),
+      r(obj.skewX),
+      r(obj.skewY),
+      obj.flipX ? 1 : 0,
+      obj.flipY ? 1 : 0,
+    ];
+
+    if (obj instanceof FabricPath) parts.push(any.pathData ?? JSON.stringify(any.path));
+    if (obj instanceof Group) {
+      parts.push(obj.getObjects().map((child) => this.objectFingerprint(child)).join(';'));
+    }
+    if (obj instanceof Line) parts.push(r(any.x1 as number), r(any.y1 as number), r(any.x2 as number), r(any.y2 as number));
+    if (obj instanceof Polygon) parts.push(JSON.stringify(any.points));
+    if (obj instanceof Ellipse) parts.push(r(any.rx as number), r(any.ry as number));
+    if (obj instanceof Rect) parts.push(r(any.rx as number), r(any.ry as number));
+    if (this.isText(obj)) parts.push(any.text, r(any.fontSize as number), any.fontFamily);
+    if (obj.type === 'image') parts.push(any.src ?? '', r(any.cropX as number), r(any.cropY as number));
+    parts.push(obj.fill ?? '', obj.stroke ?? '');
+
+    return parts.map((p) => String(p)).join('|');
+  }
+
+  // -------------------------------------------------------------------------
+  // Interactive transform tools (mirror line, two-point rotate)
+  // -------------------------------------------------------------------------
+
+  private beginTransformMode(kind: 'mirror' | 'rotate2'): void {
+    const targets = this.canvas.getActiveObjects().filter((o) => !this.isNodeHandle(o));
+    if (targets.length === 0) {
+      this.setStatus('Select objects first');
+      return;
+    }
+    this.cancelTransformMode();
+    this.canvas.selection = false;
+    this.canvas.skipTargetFind = true;
+    this.canvas.defaultCursor = 'crosshair';
+    this.canvas.requestRenderAll();
+
+    if (kind === 'mirror') {
+      this.mirrorMode = { start: null, end: null, targets };
+      this.setStatus('Mirror: click two points for the axis, Enter to apply, Esc to cancel');
+    } else {
+      this.rotate2Mode = { base: null, end: null, targets };
+      this.setStatus('Rotate: click two points, Enter to apply, Esc to cancel');
+    }
+  }
+
+  private makeGuide(start: Point): Line {
+    const guide = new Line([start.x, start.y, start.x, start.y], {
+      stroke: SELECTION_ACCENT,
+      strokeWidth: this.hairlineWidth(),
+      strokeUniform: true,
+      strokeDashArray: [6, 4],
+      selectable: false,
+      evented: false,
+      excludeFromExport: true,
+      objectCaching: false,
+    });
+    (guide as FabricObject & { isGuide?: boolean }).isGuide = true;
+    this.canvas.add(guide);
+    return guide;
+  }
+
+  private handleTransformClick(point: Point): void {
+    if (this.mirrorMode) {
+      const mode = this.mirrorMode;
+      if (!mode.start) {
+        mode.start = point;
+        mode.guide = this.makeGuide(point);
+        this.setStatus('Mirror: click the second point of the axis');
+      } else {
+        mode.end = point;
+        mode.guide?.set({ x2: point.x, y2: point.y });
+        this.canvas.requestRenderAll();
+        this.setStatus('Mirror: press Enter to apply, Esc to cancel');
+      }
+      return;
+    }
+    if (this.rotate2Mode) {
+      const mode = this.rotate2Mode;
+      if (!mode.base) {
+        mode.base = point;
+        mode.guide = this.makeGuide(point);
+        this.setStatus('Rotate: click the second point');
+      } else {
+        mode.end = point;
+        mode.guide?.set({ x2: point.x, y2: point.y });
+        this.canvas.requestRenderAll();
+        const deg = this.twoPointAngle(mode.base, point);
+        this.setStatus(`Rotate: ${deg.toFixed(1)}° — press Enter to apply, Esc to cancel`);
+      }
+    }
+  }
+
+  private handleTransformMove(point: Point): void {
+    const guide = this.mirrorMode?.guide ?? this.rotate2Mode?.guide;
+    const started = this.mirrorMode?.start ?? this.rotate2Mode?.base;
+    if (!guide || !started) return;
+    const hasEnd = this.mirrorMode ? this.mirrorMode.end : this.rotate2Mode?.end;
+    if (hasEnd) return;
+    guide.set({ x2: point.x, y2: point.y });
+    this.canvas.requestRenderAll();
+  }
+
+  private twoPointAngle(a: Point, b: Point): number {
+    // Absolute X axis reference, like LightBurn's two-point rotate.
+    return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+  }
+
+  private applyTransformMode(): void {
+    if (this.mirrorMode?.start && this.mirrorMode.end) {
+      this.applyMirror();
+      return;
+    }
+    if (this.rotate2Mode?.base && this.rotate2Mode.end) {
+      const degrees = this.twoPointAngle(this.rotate2Mode.base, this.rotate2Mode.end);
+      const targets = this.rotate2Mode.targets;
+      this.cancelTransformMode();
+      this.rotateObjects(targets, degrees);
+      this.setStatus(`Rotated ${degrees.toFixed(1)}°`);
+      return;
+    }
+    this.setStatus('Click two points first');
+  }
+
+  private applyMirror(): void {
+    const mode = this.mirrorMode;
+    if (!mode?.start || !mode.end) return;
+    const { start, end } = mode;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    if (Math.hypot(dx, dy) < 0.001) {
+      this.setStatus('The mirror axis needs two different points');
+      return;
+    }
+    const targets = mode.targets;
+    const theta = Math.atan2(dy, dx);
+    const twiceDeg = (theta * 2 * 180) / Math.PI;
+
+    this.cancelTransformMode();
+    this.canvas.discardActiveObject();
+
+    for (const obj of targets) {
+      const center = obj.getCenterPoint();
+      const mirrored = reflectPoint(center, start, end);
+      obj.set({
+        angle: twiceDeg - (obj.angle ?? 0),
+        scaleY: -(obj.scaleY ?? 1),
+      });
+      obj.setCoords();
+      const current = obj.getCenterPoint();
+      obj.set({
+        left: (obj.left ?? 0) + (mirrored.x - current.x),
+        top: (obj.top ?? 0) + (mirrored.y - current.y),
+      });
+      obj.setCoords();
+    }
+
+    this.reselect(targets);
+    this.afterChange();
+    this.setStatus('Mirrored across line');
+  }
+
+  cancelTransformMode(): void {
+    const guide = this.mirrorMode?.guide ?? this.rotate2Mode?.guide;
+    if (guide) this.canvas.remove(guide);
+    this.mirrorMode = null;
+    this.rotate2Mode = null;
+    this.canvas.selection = true;
+    this.canvas.skipTargetFind = false;
+    this.canvas.defaultCursor = 'default';
+    this.canvas.requestRenderAll();
+  }
+
+  private rotateObjects(targets: FabricObject[], degrees: number): void {
+    if (targets.length === 0) return;
+    const bounds = this.selectionBounds(targets);
+    const cx = bounds.left + bounds.width / 2;
+    const cy = bounds.top + bounds.height / 2;
+    const rad = (degrees * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    this.canvas.discardActiveObject();
+    for (const obj of targets) {
+      obj.set({ angle: (obj.angle ?? 0) + degrees });
+      const dx = (obj.left ?? 0) - cx;
+      const dy = (obj.top ?? 0) - cy;
+      obj.set({ left: cx + dx * cos - dy * sin, top: cy + dx * sin + dy * cos });
+      obj.setCoords();
+    }
+    this.reselect(targets);
+    this.afterChange();
+  }
+
   group(): void {
     const objs = this.canvas.getActiveObjects();
     if (objs.length < 2) return;
@@ -1512,6 +1782,14 @@ export class WorkspaceController implements WorkspaceApi {
     this.canvas.requestRenderAll();
     this.afterChange();
     this.setStatus('Sent to back');
+  }
+
+  mirrorAcrossLine(): void {
+    this.beginTransformMode('mirror');
+  }
+
+  rotateByTwoPoints(): void {
+    this.beginTransformMode('rotate2');
   }
 
   flip(axis: 'h' | 'v'): void {
@@ -2871,6 +3149,22 @@ export class WorkspaceController implements WorkspaceApi {
     // Dialogs own their keyboard handling; don't fire canvas shortcuts.
     if (document.querySelector('.dialog-backdrop')) return;
 
+    // Interactive transform tools own the keyboard until confirmed/cancelled.
+    if (this.mirrorMode || this.rotate2Mode) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.applyTransformMode();
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.cancelTransformMode();
+        this.setStatus('Cancelled');
+        return;
+      }
+      return;
+    }
+
     if (e.code === 'Space') {
       this.spaceDown = true;
       this.canvas.defaultCursor = 'grab';
@@ -2885,7 +3179,10 @@ export class WorkspaceController implements WorkspaceApi {
 
     // LightBurn-style Alt/Option shortcuts.
     if (e.altKey && !e.ctrlKey && !e.metaKey) {
-      switch (e.key.toLowerCase()) {
+      // On macOS Option+letter yields a special character in e.key, so prefer
+      // the physical key code when available.
+      const letter = /^Key([A-Z])$/.exec(e.code)?.[1].toLowerCase() ?? e.key.toLowerCase();
+      switch (letter) {
         case 'b':
           e.preventDefault();
           this.breakApart();
@@ -2893,6 +3190,10 @@ export class WorkspaceController implements WorkspaceApi {
         case 'v':
           e.preventDefault();
           void this.pasteInPlace();
+          return;
+        case 'd':
+          e.preventDefault();
+          this.deleteDuplicates();
           return;
         default:
           break;
@@ -2915,6 +3216,19 @@ export class WorkspaceController implements WorkspaceApi {
           // LightBurn: Flip Horizontal
           e.preventDefault();
           this.flip('h');
+          return;
+        case 'm':
+          // LightBurn: Mirror across line
+          if (e.shiftKey) {
+            e.preventDefault();
+            this.beginTransformMode('mirror');
+            return;
+          }
+          return;
+        case '2':
+          // LightBurn: Rotate by two points
+          e.preventDefault();
+          this.beginTransformMode('rotate2');
           return;
         case 'u':
           // LightBurn: Ungroup
@@ -2969,7 +3283,9 @@ export class WorkspaceController implements WorkspaceApi {
           return;
         case 'i':
           e.preventDefault();
-          void this.importFile();
+          // LightBurn: Ctrl+Shift+I = Invert selection
+          if (e.shiftKey) this.invertSelection();
+          else void this.importFile();
           return;
         case 'e':
           e.preventDefault();
@@ -3086,6 +3402,18 @@ export class WorkspaceController implements WorkspaceApi {
   getSelectedSnapshot() {
     return store.getState().selection;
   }
+}
+
+/** Reflect a scene point across the line through `a` and `b`. */
+function reflectPoint(p: Point, a: Point, b: Point): { x: number; y: number } {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const length2 = dx * dx + dy * dy;
+  if (length2 === 0) return { x: p.x, y: p.y };
+  const t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2;
+  const projX = a.x + t * dx;
+  const projY = a.y + t * dy;
+  return { x: 2 * projX - p.x, y: 2 * projY - p.y };
 }
 
 function anchorCoords(cmd: unknown[]): { x: number; y: number } | null {
