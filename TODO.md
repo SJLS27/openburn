@@ -93,6 +93,7 @@ y (6) hardware (rotary/cámaras/DSP) cuando haya máquinas para probar. Detalle 
 - [ ] 🟡 Gate de release sobre CI verde (hoy `release.yml` se publica con independencia de CI)
 - [ ] Canales beta/stable y rollback de versiones
 - [x] Repin del Flatpak a la última release (manifest apuntando a `v0.8.0`); seguimiento de Flathub pendiente
+- [ ] Regenerar `flatpak/node-sources.json` para v0.8.0 (nuevas deps: `electron-updater`, `vitest`, `playwright`, `jsdom`…) con `flatpak-node-generator npm package-lock.json -o flatpak/node-sources.json`; el build offline de Flatpak fallará hasta entonces
 
 ### 🧪 Tests automatizados
 Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
