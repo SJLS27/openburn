@@ -5,11 +5,11 @@
 <p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="https://github.com/SJLS27/openburn/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SJLS27/openburn/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.7.1-orange.svg">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.8.0-orange.svg">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="GRBL" src="https://img.shields.io/badge/GRBL-ready-brightgreen.svg">
   <img alt="LightBurn" src="https://img.shields.io/badge/LightBurn-.lbrn%20%7C%20.lbrn2-8a63d2.svg">
-  <img alt="Electron" src="https://img.shields.io/badge/Electron-33-47848f.svg">
+  <img alt="Electron" src="https://img.shields.io/badge/Electron-45-47848f.svg">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178c6.svg">
 </p>
 
@@ -28,6 +28,19 @@
 </p>
 
 ![Vista general de OpenBurn](docs/screenshots/overview.png)
+
+---
+
+## 🆕 Novedades 0.8.0
+
+- **Actualizaciones automáticas** (`electron-updater`): comprobación al arrancar, descarga en segundo plano, progreso y **Restart & install**. Manual desde **Help → Check for Updates…**.
+- **Pegado de Inkscape como vectores editables** en Windows, macOS y Linux: lectura del portapapeles **por contenido**, compatible con el formato comprimido de Inkscape y con Electron 45+.
+- **Capa de imagen automática**: las imágenes pegadas o importadas van a una capa en modo **Image**, aparecen en la Preview y se graban sin configuración manual.
+- **Paneo con el botón central** del ratón.
+- **Pegado consistente**: `Ctrl+V`, la barra, **Edit → Paste / Paste in Place** y el menú contextual usan el portapapeles interno y, si está vacío, el del sistema.
+- **Base de tests y CI**: Vitest + Testing Library, Playwright/Electron, CI con `xvfb` y workflow de release por tag.
+
+Detalle completo en [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -67,6 +80,11 @@
 - Jog (`$J`), homing (`$H`), unlock (`$X`), set origin (`G10 L20`).
 - Consola bidireccional y macros persistentes.
 - Estado en vivo: posición, feed, spindle, progreso y tiempo restante.
+
+### Actualizaciones
+- **Auto-update** con `electron-updater`: comprueba al arrancar, descarga en segundo plano y ofrece **Restart & install**.
+- Release manual desde **Help → Check for Updates…**.
+- Artefactos publicados automáticamente en GitHub Releases al crear un tag `v*` (AppImage, NSIS y DMG/ZIP).
 
 ### Calibración
 - **Material Test** potencia × velocidad con **sublayers reales** (una capa por celda), **Interval Test**, **Focus Test** con rampa de eje Z y **Kerf Test** (ranura o span de líneas).
@@ -122,6 +140,8 @@ npm install
 ```bash
 npm run dev            # navegador con recarga en caliente
 npm run dev:electron   # app de escritorio (Electron + Vite)
+npm run test           # tests unitarios y de componentes (Vitest)
+npm run test:e2e       # tests end-to-end (Playwright + Electron)
 ```
 
 ### Producción
@@ -209,7 +229,7 @@ Más detalles en [docs/FILE-FORMATS.md](docs/FILE-FORMATS.md).
 
 ```
 openburn/
-├─ electron/           # proceso principal y preload (IPC, diálogos, assets)
+├─ electron/           # proceso principal, preload y auto-update (IPC, diálogos, assets)
 ├─ src/
 │  ├─ core/            # .obrn, unidades, DXF, acceso a archivos
 │  ├─ geometry/        # booleanos, offset, tabs (Paper.js)
@@ -222,9 +242,9 @@ openburn/
 │  ├─ types/           # modelo de documento y tipos
 │  ├─ ui/              # menús, toolbars, paneles, diálogos, iconos
 │  └─ workspace/       # controlador Fabric.js (herramientas, historial)
+├─ e2e/                # tests end-to-end (Playwright + Electron)
 ├─ public/fonts/       # Inter (OFL) para contornos
-├─ docs/               # documentación y capturas
-└─ tests manuales/     # scripts de validación (no incluidos)
+└─ docs/               # documentación y capturas
 ```
 
 Puntos clave: el documento vive en un **store observable**, el lienzo en **Fabric.js**, la geometría de mecanizado en **Paper.js**, y el envío a la máquina en un **controlador GRBL** con transporte intercambiable (Web Serial o simulador).
@@ -241,12 +261,16 @@ Más en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | [docs/FILE-FORMATS.md](docs/FILE-FORMATS.md) | `.obrn` y mapeo detallado `.lbrn`/`.lbrn2` |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Módulos, flujo de datos y pipeline de GCode |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Entorno, scripts, pruebas y empaquetado |
+| [CHANGELOG.md](CHANGELOG.md) | Novedades por versión |
+| [AGENTS.md](AGENTS.md) | Política de tests, convenciones y checklist para agentes/contribuidores |
 | [TODO.md](TODO.md) | Lista de tareas y roadmap |
 
 ---
 
 ## 🗺️ Roadmap
 
+- [x] **Auto-update** — comprobación al arrancar, descarga en segundo plano, aviso de reinicio y publicación automática en GitHub Releases
+- [x] **Testing** — Vitest + Testing Library, Playwright/Electron, CI y política en [`AGENTS.md`](AGENTS.md)
 - [x] Fase 1 — Núcleo de diseño vectorial y capas
 - [x] Fase 2 — Preview, GCode y control GRBL
 - [x] Fase 3 — Texto a contornos, Material/Interval/Focus Test, imágenes (ajuste/trace), tabs y optimización
@@ -254,7 +278,7 @@ Más en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - [x] Compatibilidad LightBurn (lectura y escritura `.lbrn`/`.lbrn2`)
 - [ ] Rotary, cámaras y Print & Cut
 - [ ] Ruida/DSP y galvo (EZCad)
-- [ ] Empaquetado firmado y auto-update
+- [ ] Empaquetado firmado (certificados Windows/macOS)
 
 Detalle y estado en [TODO.md](TODO.md).
 

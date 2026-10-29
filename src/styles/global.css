@@ -1087,6 +1087,65 @@ input[type='color'].layer-swatch::-webkit-color-swatch {
   transition: width 0.16s linear;
 }
 
+/* ------------------------------------------------------------------ updates */
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: #3a2b1c;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  min-height: 28px;
+}
+
+.update-banner .update-icon {
+  color: var(--accent-soft);
+  flex: none;
+}
+
+.update-banner .update-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-progress {
+  width: 180px;
+  flex: none;
+}
+
+.dialog .update-progress {
+  width: 100%;
+  margin: 8px 0;
+}
+
+.update-notes {
+  margin-top: 10px;
+  max-height: 140px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: #1e2023;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  white-space: pre-wrap;
+}
+
+.update-error {
+  padding: 6px;
+  border: 1px solid #5a2f28;
+  border-radius: 3px;
+  background: #33211f;
+  color: #e8a99f;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  white-space: pre-wrap;
+}
+
 .badge-dot.run {
   background: var(--select);
   box-shadow: 0 0 4px rgba(63, 143, 221, 0.7);

@@ -67,6 +67,7 @@ export type IconName =
   | 'rotary'
   | 'print-cut'
   | 'repeat'
+  | 'download'
   | 'frame'
   | 'lock'
   | 'unlock'
@@ -418,6 +419,13 @@ const paths: Record<IconName, ReactNode> = {
   repeat: (
     <>
       <path d="M4 9a5 5 0 0 1 5-5h9l-3-3M20 15a5 5 0 0 1-5 5H6l3 3" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M12 3v11" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M4 20h16" />
     </>
   ),
   frame: (

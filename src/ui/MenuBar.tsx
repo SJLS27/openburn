@@ -83,8 +83,9 @@ const MENUS: MenuDef[] = [
         },
       },
       { label: 'Copy', shortcut: 'Ctrl+C', disabled: !hasSelection, action: () => ws?.copySelection() },
-      { label: 'Paste', shortcut: 'Ctrl+V', action: () => void ws?.pasteClipboard() },
+      { label: 'Paste', shortcut: 'Ctrl+V', action: () => void ws?.pasteSmart() },
       { label: 'Paste in Place', shortcut: 'Alt+V', action: () => void ws?.pasteInPlace() },
+      { label: 'Paste from Clipboard', action: () => void ws?.pasteFromSystem() },
       { label: 'Duplicate', shortcut: 'Ctrl+D', disabled: !hasSelection, action: () => ws?.duplicateSelection() },
       { label: 'Delete', shortcut: 'Del', disabled: !hasSelection, action: () => ws?.deleteSelection() },
       { separator: true },
@@ -172,6 +173,12 @@ const MENUS: MenuDef[] = [
   {
     label: 'Help',
     entries: () => [
+      {
+        label: 'Check for Updates…',
+        action: () =>
+          window.dispatchEvent(new CustomEvent('openburn:check-updates')),
+      },
+      { separator: true },
       { label: 'Help and Notes', disabled: true, shortcut: 'F1' },
       { separator: true },
       { label: 'About OpenBurn', dialog: 'about' },
@@ -838,7 +845,7 @@ export function MenuBar() {
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <Icon name="flame" size={40} style={{ color: 'var(--accent)' }} />
             <div>
-              <h3 style={{ margin: '0 0 6px' }}>OpenBurn 0.6.1</h3>
+              <h3 style={{ margin: '0 0 6px' }}>OpenBurn {__APP_VERSION__}</h3>
               <p className="hint" style={{ margin: 0 }}>
                 Open-source laser cutting &amp; engraving software inspired by the LightBurn
                 workflow. Built with Electron, React, Fabric.js and a GRBL controller. Not

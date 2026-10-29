@@ -15,6 +15,8 @@ import { RightDock } from '@/ui/panels/RightDock';
 import { StatusBar } from '@/ui/StatusBar';
 import { Modal, NumberField, UnitsContext, WorkspaceContext } from '@/ui/common';
 import { PreviewDialog } from '@/ui/PreviewDialog';
+import { UpdateBanner, UpdateDialog } from '@/ui/UpdateDialog';
+import { checkForUpdates } from '@/state/updateStore';
 import { machine, useMachineSelector } from '@/serial/machine';
 import type { JobPlan } from '@/gcode/types';
 
@@ -25,6 +27,7 @@ export default function App() {
   const [deviceOpen, setDeviceOpen] = useState(false);
   const [layoutKey, setLayoutKey] = useState(0);
   const [previewPlan, setPreviewPlan] = useState<JobPlan | null>(null);
+  const [updateOpen, setUpdateOpen] = useState(false);
   const machineConnected = useMachineSelector((s) => s.connected);
   const machineName = useMachineSelector((s) => s.transportName);
 
@@ -39,6 +42,20 @@ export default function App() {
       window.removeEventListener('openburn:settings', onSettings);
       window.removeEventListener('openburn:device-settings', onDevice);
       window.removeEventListener('openburn:reset-layout', onReset);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onCheckUpdates = () => {
+      setUpdateOpen(true);
+      void checkForUpdates(true);
+    };
+    const onOpenDialog = () => setUpdateOpen(true);
+    window.addEventListener('openburn:check-updates', onCheckUpdates);
+    window.addEventListener('openburn:update-dialog-open', onOpenDialog);
+    return () => {
+      window.removeEventListener('openburn:check-updates', onCheckUpdates);
+      window.removeEventListener('openburn:update-dialog-open', onOpenDialog);
     };
   }, []);
 
@@ -92,6 +109,7 @@ export default function App() {
             <TextToolbar />
             <ModesToolbar />
           </div>
+          <UpdateBanner onOpen={() => setUpdateOpen(true)} />
           <div className="body">
             <LeftToolbar />
             <Workspace onReady={setController} />
@@ -102,6 +120,7 @@ export default function App() {
 
         {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
         {deviceOpen && <DeviceSettingsDialog onClose={() => setDeviceOpen(false)} />}
+        {updateOpen && <UpdateDialog onClose={() => setUpdateOpen(false)} />}
         {previewPlan && (
           <PreviewDialog
             plan={previewPlan}

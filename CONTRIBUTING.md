@@ -19,13 +19,26 @@
    npm install
    ```
 3. Implementa el cambio manteniendo el estilo y la arquitectura existente.
-4. Verifica:
+4. Añade tests que cubran el cambio (ver [AGENTS.md](AGENTS.md)).
+5. Verifica:
    ```bash
    npm run typecheck
+   npm run test
    npm run build
    ```
-5. Prueba manualmente el flujo afectado (crear formas, importar/exportar, preview, simulador GRBL).
-6. Abre un Pull Request describiendo el cambio, capturas si aplica y limitaciones.
+   Para cambios de escritorio, ejecuta también `npm run test:e2e`.
+6. Prueba manualmente el flujo afectado (crear formas, importar/exportar, preview, simulador GRBL).
+7. Abre un Pull Request describiendo el cambio, capturas si aplica y limitaciones.
+
+## Tests
+
+La política completa está en [AGENTS.md](AGENTS.md). En resumen:
+
+- **Unitarios/componentes**: Vitest (`npm run test`), archivos `*.test.ts(x)`
+  junto al módulo.
+- **End-to-end**: Playwright lanzando Electron (`npm run test:e2e`), en `e2e/`.
+- Toda feature nueva debe traer tests y todo bug fix un test de regresión.
+- No se acepta un PR con `typecheck`, `test` o `build` en rojo.
 
 ## Estilo
 

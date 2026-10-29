@@ -1,0 +1,56 @@
+name: Release
+
+# Push a tag such as v0.7.2 to build every platform and publish the artifacts
+# (plus latest.yml / latest-*.yml) to GitHub Releases. electron-updater reads
+# those files to deliver automatic updates.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build & publish (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            args: --linux
+          - os: windows-latest
+            platform: win
+            args: --win
+          - os: macos-latest
+            platform: mac
+            # Intel + Apple Silicon so auto-update also reaches older Macs.
+            args: --mac --x64 --arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Unlike CI, packaging needs the actual Electron binary, so do not skip
+      # ELECTRON_SKIP_BINARY_DOWNLOAD here.
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Publish to GitHub Releases
+        run: npx electron-builder ${{ matrix.args }} --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Set to false when no signing certificate is available. Remove this
+          # once macOS/Windows code-signing secrets are configured.
+          CSC_IDENTITY_AUTO_DISCOVERY: false

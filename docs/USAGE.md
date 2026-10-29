@@ -181,7 +181,7 @@ En *Cuts / Layers → (editar capa)*:
 - Previsualización en escala de grises (lo que verá el láser).
 - Los ajustes se guardan en el objeto y se aplican en Preview y GCode sin modificar el archivo original.
 
-Para grabar una imagen, la capa debe estar en modo **Image**, con intervalo/potencia/dither adecuados.
+Para grabar una imagen, la capa debe estar en modo **Image**, con intervalo/potencia/dither adecuados. Al pegar o importar una imagen, OpenBurn la coloca automáticamente en una capa **Image** (reutiliza una existente o crea `C00`, `C01`…), así que ya aparece en la Preview y se graba sin pasos manuales.
 
 ### Trace Image
 *Tools → Trace Image…*
@@ -226,12 +226,15 @@ Detalles técnicos y limitaciones: [FILE-FORMATS.md](FILE-FORMATS.md).
   - **SVG** (texto, HTML con `<svg>`, o el formato vectorial comprimido de **Inkscape**) como vectores editables,
   - **imágenes** (PNG/JPG) como raster.
 - Cuando el portapapeles trae un vector **y** una miniatura raster a la vez (caso típico de Inkscape), tiene prioridad el vector.
+- Electron 45+ expone los formatos propios de cada sistema (Inkscape en Linux/macOS/Windows) bajo `electron application/osclipboard;format="…"`; OpenBurn los detecta y decodifica el SVG en UTF-8, UTF-16LE, gzip, zlib o deflate, así que el pegado funciona igual en las tres plataformas.
+- Las **imágenes** pegadas o importadas van a una capa en modo **Image** (se reutiliza una existente o se crea `C00`, `C01`…), como LightBurn; de ese modo aparecen en la Preview y se graban sin cambiar la capa a mano.
 - Los SVG pegados/importados se convierten a **solo trazo** (se descarta el relleno original) y se colorean con la capa activa, como el modo *Line* de LightBurn.
 - El tamaño físico se respeta: un objeto de 50 mm en Inkscape se pega midiendo 50 mm (se normalizan las unidades `mm`/`cm`/`in`/`pt`, también en el atributo `style`). La barra de estado muestra el tamaño importado.
 - El **texto se traza automáticamente** al generar Preview/GCode (con la fuente Inter incluida); no hace falta convertir a trazado.
 - En modo **Fill** se respetan los agujeros de las letras y de cualquier vector (regla *even-odd*): se rellena la silueta y queda en blanco el interior de "e", "o", "a", etc. Un path con subpaths anidados (un rectángulo con vectores dentro) se rellena alternando exterior/interior, igual que en LightBurn.
-- Si hay formas en el portapapeles interno y quieres pegar lo del sistema, usa **`Ctrl+Shift+V`** o el menú contextual → *Paste from clipboard*.
-- **Clic derecho en el lienzo** abre un menú con Cut / Copy / Paste / Paste from clipboard / Duplicate / Delete / Select all.
+- Si hay formas en el portapapeles interno y quieres pegar lo del sistema, usa **`Ctrl+Shift+V`**, **Edit → Paste from Clipboard** o el menú contextual → *Paste from clipboard*.
+- **Todos los "Paste" se comportan igual**: si el portapapeles interno tiene contenido lo pegan; si está vacío, leen el portapapeles del sistema. Esto aplica a `Ctrl+V`, el botón de la barra, **Edit → Paste / Paste in Place** y el menú contextual del lienzo.
+- **Clic derecho en el lienzo** abre un menú con Cut / Copy / Paste / Paste in place / Paste from clipboard / Duplicate / Delete / Select all.
 - **Clic derecho en campos de texto** (consola, ajustes) abre el menú nativo con Undo / Redo / Cut / Copy / Paste / Select all.
 - En macOS/Linux, el menú de edición nativo de Electron garantiza los atajos `Cmd/Ctrl+C/V/X` en todos los campos.
 

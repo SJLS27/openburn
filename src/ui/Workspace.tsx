@@ -98,7 +98,7 @@ export function Workspace({ onReady }: Props) {
           <button type="button" disabled={!hasSelection} onClick={() => run(() => controller?.copySelection())}>
             <span>Copy</span><span className="shortcut">Ctrl+C</span>
           </button>
-          <button type="button" onClick={() => run(() => void controller?.pasteClipboard())}>
+          <button type="button" onClick={() => run(() => void controller?.pasteSmart())}>
             <span>Paste</span><span className="shortcut">Ctrl+V</span>
           </button>
           <button type="button" onClick={() => run(() => void controller?.pasteInPlace())}>

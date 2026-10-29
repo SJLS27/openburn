@@ -18,7 +18,7 @@ export function MainToolbar() {
       <div className="tb-sep" />
       <ToolButton icon="copy" title="Copy (Ctrl+C)" onClick={() => ws?.copySelection()} />
       <ToolButton icon="cut" title="Cut (Ctrl+X)" onClick={() => { ws?.copySelection(); ws?.deleteSelection(); }} />
-      <ToolButton icon="paste" title="Paste (Ctrl+V)" onClick={() => void ws?.pasteClipboard()} />
+      <ToolButton icon="paste" title="Paste (Ctrl+V)" onClick={() => void ws?.pasteSmart()} />
       <ToolButton icon="delete" title="Delete" onClick={() => ws?.deleteSelection()} />
       <div className="tb-sep" />
       <ToolButton icon="pan" title="Pan view (Space / middle mouse)" active={state.tool === 'pan'} onClick={() => setTool('pan')} />

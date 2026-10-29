@@ -38,7 +38,7 @@ flowchart LR
 
 | Carpeta | Responsabilidad |
 | --- | --- |
-| `electron/` | Ventana, IPC (diálogos, fs, assets), permisos Web Serial |
+| `electron/` | Ventana, IPC (diálogos, fs, assets), permisos Web Serial y auto-update |
 | `src/core/` | `.obrn`, unidades, DXF, acceso a archivos |
 | `src/state/` | Store observable + interfaz `WorkspaceApi` |
 | `src/workspace/` | `WorkspaceController`: herramientas, selección, historial, zoom, nodos |
@@ -126,7 +126,29 @@ UI (Laser/Move/Console)
 
 ---
 
-## 6. Texto e imágenes
+## 6. Auto-update
+
+```
+electron/updater.ts          autoUpdater (electron-updater)
+   │  checking · update-available · download-progress · update-downloaded · error
+   ▼  IPC 'updater:event'
+electron/preload.ts          window.openburn.updater { check, download, install, onEvent }
+   ▼
+src/state/updateStore.ts     store observable (useSyncExternalStore)
+   ▼
+src/ui/UpdateDialog.tsx      banner de progreso + diálogo "Restart & install"
+```
+
+- Solo se activa con `app.isPackaged`. En Linux exige la build **AppImage** (`APPIMAGE` definido); Flatpak y los paquetes de distro se actualizan desde su propia tienda.
+- `autoDownload = true` y `autoInstallOnAppQuit = true`: la descarga arranca al detectar la versión y el usuario decide cuándo reiniciar. `quitAndInstall(false, true)` reabre la app tras instalar.
+- El feed se define en `build.publish` (GitHub Releases). `.github/workflows/release.yml` compila y publica al empujar un tag `v*`, incluidos `latest.yml` / `latest-*.yml`.
+- La comprobación de arranque se retrasa 5 s para no competir con el primer render; **Help → Check for Updates…** (menú nativo y menú in-app) lanza una comprobación manual y abre el diálogo.
+- El main cachea el último estado: si el renderer se suscribe tarde, `updater:get-state` hidrata el store.
+- La firma de código (Windows/macOS) es independiente del mecanismo y queda pendiente; sin ella macOS no puede aplicar actualizaciones en producción.
+
+---
+
+## 7. Texto e imágenes
 
 - **Texto a contornos**: opentype.js carga Inter (fetch en dev, IPC en producción), reconstruye líneas/alineación/rotación con la matriz de Fabric y devuelve un `pathData` en escena.
 - **Adjust Image**: `applyImageAdjust` se comparte entre el rasterizador y la previsualización para que el resultado sea idéntico.
@@ -134,7 +156,7 @@ UI (Laser/Move/Console)
 
 ---
 
-## 7. Import/export LightBurn
+## 8. Import/export LightBurn
 
 `src/io/lightburn.ts` implementa:
 
@@ -147,14 +169,28 @@ No usa el código de LightBurn; se basa en el formato XML y en archivos de ejemp
 
 ---
 
-## 8. Pruebas
+## 9. Pruebas
 
-- Tipos: `npm run typecheck`.
-- Build: `npm run build` (renderer + Electron).
-- Pruebas funcionales manuales con Chrome headless/Puppeteer durante el desarrollo:
-  - creación/transformación de formas,
-  - booleanos/offset/tabs,
-  - ajuste/trace,
-  - round-trip de `.obrn` y `.lbrn2`,
-  - jobs contra el simulador GRBL (pause/resume/stop).
-- La carpeta de tests automatizados está pendiente de incorporar al repo (ver [TODO.md](../TODO.md)).
+La política completa está en [AGENTS.md](../AGENTS.md).
+
+- **Unitarios/componentes**: Vitest + jsdom + Testing Library
+  (`vitest.config.ts`, setup en `src/test/setup.ts`).
+  - Lógica pura: `src/core/units.test.ts`, `src/core/serialize.test.ts`,
+    `src/gcode/types.test.ts`, `src/gcode/optimize.test.ts`.
+  - Estado: `src/state/updateStore.test.ts`.
+  - Componentes: `src/ui/UpdateDialog.test.tsx`.
+  - Proceso principal: `electron/updater.test.ts` (mockea `electron` y
+    `electron-updater`, entorno `node`).
+- **End-to-end**: Playwright `_electron` sobre `dist/` + `dist-electron/`
+  (`playwright.config.ts`, specs en `e2e/`). Cubre arranque de la ventana,
+  versión del proceso principal y el diálogo de actualizaciones.
+- **Estáticos**: `npm run typecheck` y `npm run build`.
+- **CI**: `.github/workflows/ci.yml` ejecuta typecheck + tests + build, y un job
+  separado de e2e con `xvfb-run`.
+
+Los tests se excluyen de los builds: `electron/tsconfig.json` ignora
+`*.test.ts` / `*.spec.ts` y `vitest.config.ts` no incluye `e2e/`.
+
+Siguen existiendo pruebas manuales con Chrome headless/Puppeteer para flujos
+que requieren interacción real con Fabric (booleanos, tabs, ajuste/trace,
+round-trip de `.lbrn2` y jobs contra el simulador GRBL).

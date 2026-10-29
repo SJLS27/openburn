@@ -96,7 +96,7 @@ export function StatusBar() {
       </select>
 
       <span className="status-item" style={{ color: 'var(--text-faint)' }}>
-        OpenBurn 0.6.1
+        OpenBurn {__APP_VERSION__}
       </span>
     </div>
   );

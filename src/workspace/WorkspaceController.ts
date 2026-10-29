@@ -40,6 +40,7 @@ import { offsetPathData } from '@/geometry/offset';
 import { objectContours } from '@/gcode/geometry';
 import { parseDxf } from '@/core/dxf';
 import { prepareSvgForImport, applySvgPhysicalSize } from '@/io/svg';
+import { findImageLayer } from './layers';
 import { buildFramePlan, buildJob, planToText } from '@/gcode/job';
 import type { JobPlan, Pt } from '@/gcode/types';
 import {
@@ -152,6 +153,9 @@ export class WorkspaceController implements WorkspaceApi {
       selectionBorderColor: 'rgba(63,143,221,0.75)',
       selectionLineWidth: 1,
       fireRightClick: true,
+      // Fabric defaults this to false, which hides middle-button mouse:down
+      // events and breaks panning with the mouse wheel button.
+      fireMiddleClick: true,
       stopContextMenu: false,
       uniformScaling: true,
     });
@@ -261,6 +265,8 @@ export class WorkspaceController implements WorkspaceApi {
     this.canvas.on('mouse:down', (opt) => {
       const e = opt.e as MouseEvent;
       if (this.isPanTrigger(e)) {
+        // Middle-click would otherwise start the browser's autoscroll.
+        if (e.button === 1) e.preventDefault();
         this.panning = true;
         this.lastPan = { x: e.clientX, y: e.clientY };
         this.canvas.defaultCursor = 'grabbing';
@@ -1341,14 +1347,17 @@ export class WorkspaceController implements WorkspaceApi {
       scaleY: scale,
       objectCaching: false,
     });
-    this.assignLayerDeep(img, this.activeLayer().id);
+    // Like LightBurn, images belong on an Image-mode layer; otherwise the job
+    // skips them as "image in line mode" and they never reach the preview.
+    const layer = this.ensureImageLayer();
+    this.assignLayerDeep(img, layer.id);
     this.canvas.add(img);
     img.setCoords();
     this.canvas.setActiveObject(img);
     this.zoomToFitSelection();
     this.afterChange();
     this.syncSelection();
-    this.setStatus('Image imported');
+    this.setStatus(`Image imported on ${layer.name}`);
   }
 
   /**
@@ -1462,6 +1471,19 @@ export class WorkspaceController implements WorkspaceApi {
     this.setStatus(`Copied ${objs.length} object(s)`);
   }
 
+  /**
+   * LightBurn-style paste: use the internal clipboard when it has content,
+   * otherwise fall back to the system clipboard. Shared by Ctrl+V and every
+   * "Paste" entry in the menus, so they all behave the same.
+   */
+  async pasteSmart(offset = 10): Promise<void> {
+    if (this.clipboard.length > 0) {
+      await this.pasteClipboard(offset);
+      return;
+    }
+    await this.pasteFromSystem();
+  }
+
   async pasteClipboard(offset = 10): Promise<void> {
     if (this.clipboard.length === 0) return;
     const enlivened = (await util.enlivenObjects(
@@ -1487,7 +1509,7 @@ export class WorkspaceController implements WorkspaceApi {
 
   /** Paste the internal clipboard keeping the original position (Alt+V). */
   async pasteInPlace(): Promise<void> {
-    await this.pasteClipboard(0);
+    await this.pasteSmart(0);
   }
 
   duplicateSelection(): void {
@@ -2406,6 +2428,22 @@ export class WorkspaceController implements WorkspaceApi {
     this.setStatus(cleared ? `Cleared ${cleared} cut override(s)` : 'No cut overrides in selection');
   }
 
+  /**
+   * Pick the layer that raster images should live on, mirroring LightBurn's
+   * "Image" layer mode: reuse the active layer when it is already an image
+   * layer, otherwise reuse the first image layer, otherwise create one with the
+   * usual C00/C01 palette naming so images are visible and cut immediately.
+   */
+  private ensureImageLayer(): LayerDef {
+    const state = store.getState();
+    const existing = findImageLayer(state.doc.layers, state.activeLayerId);
+    if (existing) return existing;
+
+    const created = store.addLayer();
+    store.updateCutSettings(created.id, { mode: 'image', output: true, visible: true });
+    return store.getState().doc.layers.find((l) => l.id === created.id) ?? created;
+  }
+
   private ensureAnnotationLayer(): LayerDef {
     const state = store.getState();
     const existing = state.doc.layers.find((l) => l.name === 'NOTES');
@@ -3210,8 +3248,15 @@ export class WorkspaceController implements WorkspaceApi {
     });
   }
 
-  /** Decompress an Inkscape clipboard SVG (gzip / zlib / raw deflate). */
+  /** Decode an Inkscape clipboard SVG (plain text, gzip, zlib or raw deflate). */
   private async decompressSvgBlob(blob: Blob): Promise<string> {
+    // Some platforms hand over the SVG uncompressed under the compressed type.
+    try {
+      const plain = await blob.text();
+      if (/<svg[\s>]/i.test(plain)) return plain;
+    } catch {
+      /* fall through to decompression */
+    }
     if (typeof DecompressionStream === 'undefined') return '';
     const formats: CompressionFormat[] = ['gzip', 'deflate', 'deflate-raw'];
     for (const format of formats) {
@@ -3255,8 +3300,10 @@ export class WorkspaceController implements WorkspaceApi {
       : false;
     const svgCandidates = [
       payload.svg,
-      /^<svg[\s>]/i.test((payload.text ?? '').trim()) ? payload.text : null,
-      htmlHasProse || (payload.text ?? '').trim() ? null : htmlSvg,
+      // Plain-text fallback (some editors put the SVG source in text/plain).
+      /^\s*(?:<\?xml[^>]*>\s*)?<svg[\s>]/i.test(payload.text ?? '') ? payload.text : null,
+      // HTML fallback: only when the vector is effectively the whole payload.
+      htmlHasProse ? null : htmlSvg,
     ];
     for (const candidate of svgCandidates) {
       if (candidate && /<svg[\s>]/i.test(candidate) && /<\/svg>/i.test(candidate)) {
@@ -3440,12 +3487,15 @@ export class WorkspaceController implements WorkspaceApi {
           this.deleteSelection();
           return;
         case 'v':
-          if (this.clipboard.length > 0 && !e.shiftKey) {
+          if (e.shiftKey) {
+            // Ctrl+Shift+V always reads the system clipboard.
+            if (window.openburn?.readClipboard) {
+              e.preventDefault();
+              void this.pasteFromSystem();
+            }
+          } else if (this.clipboard.length > 0 || window.openburn?.readClipboard) {
             e.preventDefault();
-            void this.pasteClipboard();
-          } else if (window.openburn?.readClipboard) {
-            e.preventDefault();
-            void this.pasteFromSystem();
+            void this.pasteSmart();
           }
           // In the browser without internal content, let the paste event fire.
           return;

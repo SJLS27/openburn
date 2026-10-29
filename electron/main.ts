@@ -5,11 +5,17 @@ import {
   dialog,
   Menu,
   clipboard,
+  shell,
   type MenuItemConstructorOptions,
 } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
-import zlib from 'node:zlib';
+import {
+  checkForUpdates,
+  initUpdater,
+  scheduleUpdateCheck,
+} from './updater';
+import { readClipboardPayload } from './clipboard';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -118,83 +124,8 @@ ipcMain.handle('fs:readBinary', async (_e, filePath) => {
 
 // Read the system clipboard, including the vector payload that Inkscape (and
 // other vector editors) place next to the raster snapshot. Electron 45+ uses
-// the async W3C-style clipboard API.
-ipcMain.handle('clipboard:read', async () => {
-  let text = '';
-  try {
-    text = await clipboard.readText();
-  } catch {
-    /* clipboard unavailable */
-  }
-
-  let html = '';
-  let image: string | null = null;
-  let svg: string | null = null;
-
-  const blobOf = async (item: Electron.ClipboardItem, type: string): Promise<Blob | null> => {
-    try {
-      const value = await item.getType(type as never);
-      return value instanceof Blob ? value : null;
-    } catch {
-      return null;
-    }
-  };
-
-  try {
-    const items = await clipboard.read();
-    for (const item of items) {
-      if (!html && item.types.includes('text/html')) {
-        const blob = await blobOf(item, 'text/html');
-        if (blob) html = await blob.text();
-      }
-
-      if (!image && item.types.includes('image/png')) {
-        const blob = await blobOf(item, 'image/png');
-        if (blob) {
-          const buffer = Buffer.from(await blob.arrayBuffer());
-          image = `data:image/png;base64,${buffer.toString('base64')}`;
-        }
-      }
-
-      if (!svg) {
-        const svgType = item.types.find((type) => /svg/i.test(type));
-        if (svgType) {
-          const blob = await blobOf(item, svgType);
-          if (blob) {
-            const buffer = Buffer.from(await blob.arrayBuffer());
-            const decoded = buffer.toString('utf-8');
-            svg = /<svg[\s>]/i.test(decoded) ? decoded : decodeCompressedSvg(buffer);
-          }
-        }
-      }
-    }
-  } catch {
-    /* clipboard format not readable on this platform */
-  }
-
-  return { text, html, image, svg };
-});
-
-/**
- * Inkscape stores the vector payload gzip-compressed. Tolerate the zlib and
- * raw deflate variants too, and reject anything that is not UTF-8 SVG.
- */
-function decodeCompressedSvg(buffer: Buffer): string | null {
-  const attempts = [
-    () => zlib.gunzipSync(buffer),
-    () => zlib.inflateSync(buffer),
-    () => zlib.inflateRawSync(buffer),
-  ];
-  for (const attempt of attempts) {
-    try {
-      const text = attempt().toString('utf-8');
-      if (/<svg[\s>]/i.test(text)) return text;
-    } catch {
-      /* try the next compression variant */
-    }
-  }
-  return null;
-}
+// the async W3C-style clipboard API; see ./clipboard.ts for the format handling.
+ipcMain.handle('clipboard:read', () => readClipboardPayload(clipboard));
 
 ipcMain.handle('app:readAsset', async (_e, relativePath) => {
   const safe = String(relativePath ?? '')
@@ -228,13 +159,35 @@ function installApplicationMenu(): void {
   const template: MenuItemConstructorOptions[] = [
     ...(isMac ? [appMenu] : []),
     { role: 'editMenu' },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'Check for Updates…',
+          click: () => {
+            // Let the renderer open its update dialog for manual checks.
+            mainWindow?.webContents.send('updater:open-dialog');
+            checkForUpdates(true);
+          },
+        },
+        { type: 'separator' },
+        {
+          label: 'OpenBurn on GitHub',
+          click: () => {
+            void shell.openExternal('https://github.com/SJLS27/openburn');
+          },
+        },
+      ],
+    },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 app.whenReady().then(() => {
   installApplicationMenu();
+  initUpdater();
   createWindow();
+  scheduleUpdateCheck();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

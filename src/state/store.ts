@@ -334,6 +334,7 @@ export interface WorkspaceApi {
   duplicateSelection(): void;
   copySelection(): void;
   pasteClipboard(): Promise<void>;
+  pasteSmart(): Promise<void>;
   pasteInPlace(): Promise<void>;
   pasteFromSystem(): Promise<void>;
   selectAll(): void;

@@ -68,6 +68,18 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.8.0" date="2026-10-28">
+      <description>
+        <p>Automatic updates, Inkscape clipboard paste as editable vectors, image layers and middle-button panning.</p>
+        <ul>
+          <li>Automatic updates with electron-updater (background check, download progress, restart and install).</li>
+          <li>Paste Inkscape SVG as editable paths on Windows, macOS and Linux (content-based clipboard detection).</li>
+          <li>Pasted or imported images go to an Image-mode layer, so they show in the preview and engrave.</li>
+          <li>Pan the canvas by dragging with the middle mouse button.</li>
+          <li>Consistent paste from Ctrl+V, the toolbar and the Edit/context menus.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.1" date="2026-10-25">
       <description>
         <p>Update to Electron 45 and add Flatpak packaging.</p>
