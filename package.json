@@ -57,6 +57,7 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
+    "npmRebuild": false,
     "publish": [
       {
         "provider": "github",
@@ -83,6 +84,9 @@
   },
   "license": "MIT",
   "author": "Santiago Leal (SJLS27)",
+  "engines": {
+    "node": ">=22.22.0"
+  },
   "homepage": "https://github.com/SJLS27/openburn#readme",
   "repository": {
     "type": "git",

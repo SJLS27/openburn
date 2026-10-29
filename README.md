@@ -125,7 +125,7 @@ Detalle completo en [CHANGELOG.md](CHANGELOG.md).
 ## 🚀 Inicio rápido
 
 ### Requisitos
-- Node.js **20+** y npm **10+**
+- Node.js **22.22+** y npm **10+**
 - Linux, macOS o Windows
 - Opcional: máquina GRBL conectada por USB/serie
 

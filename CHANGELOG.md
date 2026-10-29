@@ -47,6 +47,9 @@ configuración manual y una base sólida de tests y CI.
 
 ### Cambiado
 - Flatpak repineado al tag `v0.8.0`.
+- **Node.js 22.22+** requerido (lo exige `jsdom` 30); CI y release usan Node 22.
+- Las builds de escritorio ya no recompilan la dependencia nativa opcional `canvas`
+  de Fabric (`npmRebuild: false`), que no se usa en Electron.
 
 ### Limitaciones conocidas
 - **Sin firma de código** (Windows/macOS): el sistema puede mostrar avisos y la

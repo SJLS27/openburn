@@ -2,7 +2,7 @@
 
 ## Requisitos
 
-- Node.js **20+**
+- Node.js **22.22+**
 - npm **10+**
 - Linux, macOS o Windows
 

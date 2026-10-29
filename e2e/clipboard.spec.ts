@@ -49,8 +49,9 @@ test.afterAll(async () => {
 
 /**
  * Write raw bytes under the given clipboard types. Returns false when the
- * platform refuses to own a raw format, so the test can skip instead of failing
- * on an environment limitation.
+ * platform cannot own a raw format or does not publish it back (common on
+ * headless CI), so the test can skip instead of failing on an environment
+ * limitation.
  */
 async function writeClipboard(entries: Record<string, number[]>): Promise<boolean> {
   const ok = await app.evaluate(async ({ clipboard, ClipboardItem }, payload) => {
@@ -60,7 +61,17 @@ async function writeClipboard(entries: Record<string, number[]>): Promise<boolea
         items[type] = new Blob([Uint8Array.from(bytes)]);
       }
       await clipboard.write([new ClipboardItem(items)]);
-      return true;
+
+      // Verify the format actually round-trips: headless runners without a
+      // clipboard manager often accept the write but expose nothing on read.
+      const readback = await clipboard.read();
+      for (const type of Object.keys(payload)) {
+        const entry = readback.find((item) => item.types.includes(type));
+        if (!entry) continue;
+        const blob = await entry.getType(type);
+        if (blob instanceof Blob && blob.size > 0) return true;
+      }
+      return false;
     } catch {
       return false;
     }
