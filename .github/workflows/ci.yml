@@ -4,10 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Reused by release.yml so a tag can only publish when CI is green.
+  workflow_call:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,12 +21,15 @@ jobs:
       - run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - run: npm run check:flatpak-sources
       - run: npm run typecheck
       - run: npm run test:unit
       - run: npm run build
 
   e2e:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

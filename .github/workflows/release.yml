@@ -16,8 +16,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Block publishing on the exact same checks used for pull requests.
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   release:
     name: Build & publish (${{ matrix.platform }})
+    needs: ci
     strategy:
       fail-fast: false
       matrix:

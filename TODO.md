@@ -1,6 +1,6 @@
 # OpenBurn — TODO & Roadmap
 
-Estado actual: **v0.8.0**. Esta lista se actualiza con cada bloque de trabajo.
+Estado actual: **v0.8.1**. Esta lista se actualiza con cada bloque de trabajo.
 
 > 🟡 = funcionalidad presente pero **parcial**; el checkbox marca el estado real
 > (`[ ]` = solo existe la base, falta la paridad con LightBurn).
@@ -58,6 +58,7 @@ Estado actual: **v0.8.0**. Esta lista se actualiza con cada bloque de trabajo.
 - [x] Imágenes pegadas/importadas van a una capa en modo **Image** (reutiliza una existente o crea `C00`, `C01`…), como LightBurn; así aparecen en la Preview y se graban sin cambiar la capa a mano
 - [x] Pegar en su sitio (`Alt+V`)
 - [x] Todos los "Paste" (Ctrl+V, toolbar, **Edit → Paste / Paste in Place**, menú contextual del lienzo) usan el portapapeles interno y, si está vacío, caen automáticamente al del sistema (y `Edit → Paste from Clipboard` fuerza el sistema)
+- [x] El paneo con botón central no dispara el pegado de la selección primaria (X11) mientras se arrastra el lienzo
 - [x] Tests e2e del pegado por menú (Edit → Paste, menú contextual → Paste / Paste from clipboard) contra el clipboard real de Electron
 - [x] SVG pegado/importado como **solo trazo** (se descarta el relleno original), igual que el modo Line de LightBurn
 - [x] Tamaño físico correcto al pegar/importar SVG (se normalizan `mm`/`cm`/`in`/`pt` y el `style` del root; la escala se aplica tras parsear a escala 1)
@@ -77,9 +78,9 @@ Estado actual: **v0.8.0**. Esta lista se actualiza con cada bloque de trabajo.
 
 ## 🚧 Próximos pasos
 
-Orden sugerido: (1) higiene de release `0.8.1`, (2) **P6 — fundamentos** +
-seguridad, (3) **P1 — editor**, (4) **P2 — cortes/capas**, (5) **P3 — máquina/taller**,
-y (6) hardware (rotary/cámaras/DSP) cuando haya máquinas para probar. Detalle en
+Orden sugerido: **P6 — fundamentos** + seguridad, **P1 — editor**, **P2 —
+cortes/capas**, **P3 — máquina/taller**, y hardware (rotary/cámaras/DSP) cuando
+haya máquinas para probar. Detalle en
 [TODO.md](TODO.md#-paridad-con-lightburn-feature-parity).
 
 ### 🚀 Auto-update (prioridad máxima)
@@ -89,11 +90,11 @@ y (6) hardware (rotary/cámaras/DSP) cuando haya máquinas para probar. Detalle 
 - [x] `build.publish` apuntando a GitHub Releases (`latest.yml` / `latest-*.yml`)
 - [x] Workflow de release por tag `v*` para Linux, Windows y macOS
 - [ ] Firma de código (certificado Windows y notarización de macOS): prerrequisito para evitar avisos del sistema y para actualizar macOS en producción
-- [ ] 🟡 Auto-update de macOS: sin firma, `electron/updater.ts` intenta actualizar y muestra error en vez de "no disponible" (reportar `disabled` con explicación)
-- [ ] 🟡 Gate de release sobre CI verde (hoy `release.yml` se publica con independencia de CI)
+- [x] Auto-update de macOS: sin firma, `electron/updater.ts` reporta `disabled` con explicación (detección con `codesign`) en vez de error
+- [x] Gate de release sobre CI verde (`release.yml` reutiliza el workflow de CI)
 - [ ] Canales beta/stable y rollback de versiones
 - [x] Repin del Flatpak a la última release (manifest apuntando a `v0.8.0`); seguimiento de Flathub pendiente
-- [ ] Regenerar `flatpak/node-sources.json` para v0.8.0 (nuevas deps: `electron-updater`, `vitest`, `playwright`, `jsdom`…) con `flatpak-node-generator npm package-lock.json -o flatpak/node-sources.json`; el build offline de Flatpak fallará hasta entonces
+- [x] Regenerar `flatpak/node-sources.json` para v0.8.1 (nuevas deps: `electron-updater`, `vitest`, `playwright`, `jsdom`…) con `flatpak-node-generator`; CI valida la cobertura con `npm run check:flatpak-sources`
 
 ### 🧪 Tests automatizados
 Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).

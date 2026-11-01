@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => {
   const eventHandlers = new Map<string, (payload?: unknown) => void>();
@@ -28,9 +28,15 @@ const h = vi.hoisted(() => {
     emit: (event: string, payload?: unknown) => eventHandlers.get(event)?.(payload),
   };
 
-  const app = { packaged: false, version: '9.9.9' };
+  const app = {
+    packaged: false,
+    version: '9.9.9',
+    getPath: (_name: string) => '/Applications/OpenBurn.app/Contents/MacOS/OpenBurn',
+  };
 
-  return { eventHandlers, ipcHandlers, sent, windows, autoUpdater, app };
+  const codesign = { signed: true, calls: 0 };
+
+  return { eventHandlers, ipcHandlers, sent, windows, autoUpdater, app, codesign };
 });
 
 vi.mock('electron', () => ({
@@ -39,6 +45,7 @@ vi.mock('electron', () => ({
     get isPackaged() {
       return h.app.packaged;
     },
+    getPath: (name: string) => h.app.getPath(name),
   },
   BrowserWindow: { getAllWindows: () => h.windows },
   ipcMain: {
@@ -48,7 +55,25 @@ vi.mock('electron', () => ({
   },
 }));
 
+vi.mock('node:child_process', () => ({
+  execFileSync: vi.fn(() => {
+    h.codesign.calls += 1;
+    if (!h.codesign.signed) throw new Error('code object is not signed at all');
+    return Buffer.from('');
+  }),
+}));
+
 vi.mock('electron-updater', () => ({ autoUpdater: h.autoUpdater }));
+
+const originalPlatform = process.platform;
+
+function setPlatform(platform: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+}
+
+afterEach(() => {
+  setPlatform(originalPlatform);
+});
 
 async function loadUpdater() {
   vi.resetModules();
@@ -56,6 +81,8 @@ async function loadUpdater() {
   h.ipcHandlers.clear();
   h.sent.length = 0;
   h.app.packaged = false;
+  h.codesign.signed = true;
+  h.codesign.calls = 0;
   h.autoUpdater.on.mockClear();
   h.autoUpdater.checkForUpdates.mockClear();
   h.autoUpdater.downloadUpdate.mockClear();
@@ -76,6 +103,37 @@ describe('electron/updater', () => {
     });
     expect(updater.getUpdaterState().message).toMatch(/packaged builds/);
     expect(h.autoUpdater.checkForUpdates).not.toHaveBeenCalled();
+  });
+
+  it('reports unsigned macOS builds as disabled instead of failing', async () => {
+    setPlatform('darwin');
+    const updater = await loadUpdater();
+    h.app.packaged = true;
+    h.codesign.signed = false;
+
+    updater.initUpdater();
+    updater.checkForUpdates(true);
+
+    expect(h.codesign.calls).toBe(1);
+    expect(updater.getUpdaterState()).toMatchObject({
+      status: 'disabled',
+      manual: true,
+    });
+    expect(updater.getUpdaterState().message).toMatch(/signed build/);
+    expect(h.autoUpdater.checkForUpdates).not.toHaveBeenCalled();
+  });
+
+  it('checks for updates on signed macOS builds', async () => {
+    setPlatform('darwin');
+    const updater = await loadUpdater();
+    h.app.packaged = true;
+    h.codesign.signed = true;
+
+    updater.initUpdater();
+    updater.checkForUpdates(true);
+
+    expect(updater.getUpdaterState().status).toBe('checking');
+    expect(h.autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
   });
 
   it('configures electron-updater when initialised', async () => {

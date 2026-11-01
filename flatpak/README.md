@@ -56,6 +56,16 @@ flatpak-node-generator npm package-lock.json -o flatpak/node-sources.json
 The generator downloads every npm tarball and the Electron release zips for
 x86_64 and aarch64, so the Flatpak build itself does not need network access.
 
+Validate that the generated file still covers `package-lock.json` (this runs in
+CI, and needs no network):
+
+```bash
+npm run check:flatpak-sources
+```
+
+It fails and lists the missing packages when a dependency was added or bumped
+without regenerating `node-sources.json`.
+
 ## Permissions
 
 - `--device=all` is required for USB serial access to GRBL controllers

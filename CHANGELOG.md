@@ -4,6 +4,33 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa
 [Versionado Semántico](https://semver.org/lang/es/).
 
+## [0.8.1] — 2026-11-01
+
+Versión de mantenimiento centrada en que el canal de distribución y las
+actualizaciones sean fiables.
+
+### Añadido
+- **Comprobación de las fuentes offline de Flatpak** (`npm run
+  check:flatpak-sources`): valida que `flatpak/node-sources.json` cubre todos
+  los tarballs de `package-lock.json` y los runtimes de Electron para x86_64 y
+  aarch64. Se ejecuta en CI, así que una dependencia nueva sin regenerar las
+  fuentes ya no rompe el build de Flatpak en silencio.
+
+### Cambiado
+- **Release gate sobre CI**: `release.yml` ya no publica con CI en rojo; el
+  workflow reutiliza el de CI (`workflow_call`) y el job de publicación depende
+  de él.
+- `flatpak/node-sources.json` regenerado para las dependencias actuales
+  (`electron-updater`, `electron-builder 26`, `vitest`, `playwright`, `jsdom`…).
+
+### Corregido
+- **Auto-update en macOS**: los builds sin firmar reportan `disabled` con una
+  explicación y un enlace a GitHub Releases, en lugar de intentar actualizar y
+  terminar en error. La firma se detecta una vez con `codesign` al arrancar.
+- **El paneo con el botón central ya no pega contenido en Linux.** X11/Chromium
+  convierte el clic central en un pegado de la selección primaria; ahora esos
+  eventos se ignoran mientras se arrastra el lienzo. Cubierto por un test e2e.
+
 ## [0.8.0] — 2026-10-28
 
 Esta versión se centra en el **flujo diario**: actualizaciones automáticas,

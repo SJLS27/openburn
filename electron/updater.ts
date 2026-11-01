@@ -1,9 +1,33 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
+import { execFileSync } from 'node:child_process';
 import {
   autoUpdater,
   type ProgressInfo,
   type UpdateInfo,
 } from 'electron-updater';
+
+export type MacSigning = 'signed' | 'unsigned' | 'unknown';
+
+let macSigning: MacSigning = 'unknown';
+
+/**
+ * Apple's updater (Squirrel.Mac) refuses unsigned bundles. Detect the signature
+ * once so macOS builds report `disabled` with an explanation instead of failing
+ * halfway through an update check.
+ */
+export function detectMacSigning(): MacSigning {
+  if (process.platform !== 'darwin' || !app.isPackaged) return 'unknown';
+  try {
+    execFileSync('codesign', ['-dv', '--verbose=2', app.getPath('exe')], {
+      stdio: 'ignore',
+      timeout: 5000,
+    });
+    macSigning = 'signed';
+  } catch {
+    macSigning = 'unsigned';
+  }
+  return macSigning;
+}
 
 /**
  * Auto-update state shared with the renderer.
@@ -65,6 +89,9 @@ function unsupportedReason(): string | null {
   if (process.platform === 'linux' && !process.env.APPIMAGE) {
     return 'Automatic updates on Linux require the AppImage build. Flatpak and distro packages update through their own store.';
   }
+  if (process.platform === 'darwin' && macSigning !== 'signed') {
+    return 'Automatic updates on macOS require a signed build. Download the latest version from GitHub Releases.';
+  }
   return null;
 }
 
@@ -102,6 +129,8 @@ export function scheduleUpdateCheck(delayMs = 5000): void {
 export function initUpdater(): void {
   if (started) return;
   started = true;
+
+  detectMacSigning();
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
