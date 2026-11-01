@@ -1,0 +1,63 @@
+---
+import Icon from './Icon.astro';
+import type { CellState, CompareRow, SectionHead } from '../content/types';
+
+interface Props {
+  head: SectionHead;
+  headers: { openburn: string; lightburn: string };
+  rows: CompareRow[];
+  note: string;
+}
+
+const { head, headers, rows, note } = Astro.props;
+
+const iconFor = (state: CellState) => {
+  if (state === 'yes') return 'check' as const;
+  if (state === 'no') return 'cross' as const;
+  if (state === 'partial') return 'partial' as const;
+  return null;
+};
+---
+
+<section class="section" id="comparison">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">{head.eyebrow}</p>
+      <h2>{head.title}</h2>
+      <p class="lead">{head.lead}</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col"><span class="sr-only">Feature</span></th>
+            <th scope="col">{headers.openburn}</th>
+            <th scope="col">{headers.lightburn}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            rows.map((row) => (
+              <tr>
+                <th scope="row">{row.label}</th>
+                {[row.openburn, row.lightburn].map((cell) => {
+                  const icon = iconFor(cell.state);
+                  return (
+                    <td>
+                      <span class={`cell ${cell.state}`}>
+                        {icon && <Icon name={icon} size={17} />}
+                        {cell.text}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="table-note">{note}</p>
+  </div>
+</section>

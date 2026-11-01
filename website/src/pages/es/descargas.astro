@@ -1,0 +1,115 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import Downloads from '../../components/Downloads.astro';
+import Cta from '../../components/Cta.astro';
+import Icon from '../../components/Icon.astro';
+import { getContent } from '../../content';
+import { links } from '../../content/links';
+
+const c = getContent('es');
+const downloadHref = '/es/descargas/';
+const page = c.downloadPage;
+---
+
+<Base
+  lang="es"
+  meta={c.meta.download}
+  path="/es/descargas/"
+  altPath="/download/"
+  breadcrumb={[
+    { label: 'Inicio', href: '/es/' },
+    { label: 'Descargar', href: '/es/descargas/' },
+  ]}
+>
+  <PageHero head={page.hero} />
+
+  <Downloads
+    eyebrow={c.home.downloads.eyebrow}
+    title={c.home.downloads.title}
+    lead={c.home.downloads.lead}
+    cards={c.home.downloads.cards}
+    recommended={c.home.downloads.recommended}
+    allReleases={c.home.downloads.allReleases}
+  />
+
+  <section class="section-tight">
+    <div class="container">
+      <div class="section-head">
+        <h2>{page.requirements.title}</h2>
+      </div>
+      <ul class="req-list">
+        {
+          page.requirements.items.map((item) => (
+            <li>
+              <Icon name="check" size={16} />
+              {item}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="container">
+      <div class="section-head">
+        <h2>{page.install.title}</h2>
+        <p class="lead">{page.install.lead}</p>
+      </div>
+
+      <div class="install-grid">
+        {
+          page.install.items.map((item, index) => (
+            <article class="install-card">
+              <h3>{item.title}</h3>
+              <p>{item.body}</p>
+              {item.code && (
+                <div class="code">
+                  <button
+                    class="copy-btn"
+                    type="button"
+                    data-copy={`#install-code-${index}`}
+                    data-copied={c.ui.copied}
+                    aria-label={c.ui.copy}
+                  >
+                    <Icon name="copy" size={13} />
+                    <span data-copy-label>{c.ui.copy}</span>
+                  </button>
+                  <pre id={`install-code-${index}`} dir="ltr">{item.code}</pre>
+                </div>
+              )}
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="container">
+      <div class="dev-block">
+        <div>
+          <h3>{page.dev.title}</h3>
+          <p>{page.dev.body}</p>
+          <p class="dev-note">{page.dev.note}</p>
+        </div>
+        <div class="code">
+          <button
+            class="copy-btn"
+            type="button"
+            data-copy="#build-code"
+            data-copied={c.ui.copied}
+            aria-label={c.ui.copy}
+          >
+            <Icon name="copy" size={13} />
+            <span data-copy-label>{c.ui.copy}</span>
+          </button>
+          <pre id="build-code" dir="ltr">{page.dev.code}</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <Cta cta={page.cta} downloadHref={downloadHref} githubHref={links.github} />
+</Base>

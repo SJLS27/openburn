@@ -15,7 +15,11 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build && playwright test",
-    "check:flatpak-sources": "node scripts/check-flatpak-sources.mjs"
+    "check:flatpak-sources": "node scripts/check-flatpak-sources.mjs",
+    "site:dev": "npm --prefix website run dev",
+    "site:build": "npm --prefix website run build",
+    "site:test": "npm --prefix website run build && npm --prefix website test",
+    "site:deploy": "npm --prefix website run build && npx wrangler pages deploy website/dist --project-name openburn --branch main --commit-dirty=true"
   },
   "dependencies": {
     "electron-updater": "^6.8.11",

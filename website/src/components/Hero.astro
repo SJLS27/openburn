@@ -1,0 +1,60 @@
+---
+import Icon from './Icon.astro';
+import Screenshot from './Screenshot.astro';
+import { links } from '../content/links';
+import type { HeroContent } from '../content/types';
+
+interface Props {
+  hero: HeroContent;
+  downloadHref: string;
+}
+
+const { hero, downloadHref } = Astro.props;
+---
+
+<section class="hero">
+  <div class="hero-bg" aria-hidden="true"></div>
+  <div class="container hero-inner">
+    <p class="eyebrow">{hero.eyebrow}</p>
+    <h1>
+      {hero.title}<br />
+      <span class="gradient-text">{hero.accent}</span>
+    </h1>
+    <p class="hero-lead">{hero.lead}</p>
+
+    <div class="hero-actions">
+      <a class="btn btn-primary btn-lg" href={downloadHref}>
+        <Icon name="download" size={18} />
+        {hero.primary}
+      </a>
+      <a class="btn btn-ghost btn-lg" href={links.github} target="_blank" rel="noopener">
+        <Icon name="github" size={18} />
+        {hero.secondary}
+      </a>
+    </div>
+    <p class="hero-note">v{__APP_VERSION__} · {hero.note}</p>
+
+    <div class="hero-shot-wrap" data-reveal>
+      <div class="hero-shot">
+        <div class="window-bar" aria-hidden="true">
+          <span></span><span></span><span></span>
+          <p>OpenBurn — Untitled.obrn</p>
+        </div>
+        <Screenshot name="overview" alt={hero.imageAlt} priority sizes="(max-width: 1080px) 100vw, 1040px" />
+      </div>
+
+      <span class="hero-chip hero-chip--a" aria-hidden="true">
+        <Icon name="machine" size={15} />
+        GRBL ready
+      </span>
+      <span class="hero-chip hero-chip--b" aria-hidden="true">
+        <Icon name="file" size={15} />
+        .lbrn2
+      </span>
+      <span class="hero-chip hero-chip--c" aria-hidden="true">
+        <Icon name="shield" size={15} />
+        MIT
+      </span>
+    </div>
+  </div>
+</section>

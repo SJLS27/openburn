@@ -1,0 +1,35 @@
+---
+import Icon from './Icon.astro';
+import type { FeatureItem, SectionHead } from '../content/types';
+
+interface Props {
+  head: SectionHead;
+  items: FeatureItem[];
+}
+
+const { head, items } = Astro.props;
+---
+
+<section class="section" id="features">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">{head.eyebrow}</p>
+      <h2>{head.title}</h2>
+      <p class="lead">{head.lead}</p>
+    </div>
+
+    <div class="features-grid">
+      {
+        items.map((item) => (
+          <article class="feature-card" data-reveal>
+            <div class="feature-icon">
+              <Icon name={item.icon} size={22} />
+            </div>
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+          </article>
+        ))
+      }
+    </div>
+  </div>
+</section>

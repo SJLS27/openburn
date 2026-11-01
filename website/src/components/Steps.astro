@@ -1,0 +1,57 @@
+---
+import Icon from './Icon.astro';
+import type { SectionHead, StepItem, UiContent } from '../content/types';
+
+interface Props {
+  head: SectionHead;
+  items: StepItem[];
+  dev: { title: string; body: string; code: string };
+  ui: UiContent;
+}
+
+const { head, items, dev, ui } = Astro.props;
+---
+
+<section class="section" id="start">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">{head.eyebrow}</p>
+      <h2>{head.title}</h2>
+      <p class="lead">{head.lead}</p>
+    </div>
+
+    <div class="steps-grid">
+      {
+        items.map((item, index) => (
+          <article class="step" data-reveal>
+            <p class="step-num" aria-hidden="true">
+              0{index + 1}
+            </p>
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+          </article>
+        ))
+      }
+    </div>
+
+    <div class="dev-block">
+      <div>
+        <h3>{dev.title}</h3>
+        <p>{dev.body}</p>
+      </div>
+      <div class="code">
+        <button
+          class="copy-btn"
+          type="button"
+          data-copy="#dev-code"
+          data-copied={ui.copied}
+          aria-label={ui.copy}
+        >
+          <Icon name="copy" size={13} />
+          <span data-copy-label>{ui.copy}</span>
+        </button>
+        <pre id="dev-code" dir="ltr">{dev.code}</pre>
+      </div>
+    </div>
+  </div>
+</section>

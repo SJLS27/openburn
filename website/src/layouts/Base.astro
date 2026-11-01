@@ -1,0 +1,241 @@
+---
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { getContent } from '../content';
+import { goatcounterEnabled, links } from '../content/links';
+import type { FaqItem, Lang, Meta } from '../content/types';
+
+interface Props {
+  lang: Lang;
+  meta: Meta;
+  path: string;
+  altPath: string;
+  image?: string;
+  preloadImage?: string;
+  noindex?: boolean;
+  faq?: FaqItem[];
+  breadcrumb?: { label: string; href: string }[];
+}
+
+const {
+  lang,
+  meta,
+  path,
+  altPath,
+  image,
+  preloadImage,
+  noindex = false,
+  faq,
+  breadcrumb,
+} = Astro.props;
+
+const content = getContent(lang);
+const site = Astro.site ?? new URL('https://openburn.pages.dev/');
+const canonical = new URL(path, site).href;
+const enUrl = new URL(lang === 'en' ? path : altPath, site).href;
+const esUrl = new URL(lang === 'es' ? path : altPath, site).href;
+const ogImage = new URL(image ?? '/og-image.png', site).href;
+const otherLocale = lang === 'en' ? 'es_ES' : 'en_US';
+const googleVerification = import.meta.env.PUBLIC_GOOGLE_SITE_VERIFICATION;
+const bingVerification = import.meta.env.PUBLIC_BING_SITE_VERIFICATION;
+
+const softwareSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'OpenBurn',
+  applicationCategory: 'DesignApplication',
+  applicationSubCategory: 'Laser cutting and engraving',
+  operatingSystem: 'Windows, macOS, Linux',
+  softwareVersion: __APP_VERSION__,
+  license: 'https://opensource.org/licenses/MIT',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  url: canonical,
+  downloadUrl: links.latest,
+  sameAs: [links.github, links.releases],
+  description: meta.description,
+  screenshot: new URL('/screenshots/overview-1200.webp', site).href,
+  isAccessibleForFree: true,
+  author: {
+    '@type': 'Person',
+    name: 'Santiago Leal',
+    url: 'https://github.com/SJLS27',
+  },
+  featureList: [
+    'Vector design and node editing',
+    'LightBurn-style cut layers',
+    'Animated job preview',
+    'GRBL machine control over Web Serial',
+    'Material, interval, focus and kerf tests',
+    'Image adjustment and vector tracing',
+    'LightBurn .lbrn and .lbrn2 import and export',
+    'GCode export',
+  ],
+};
+
+const faqSchema = faq?.length
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: faq.map((item) => ({
+        '@type': 'Question',
+        name: item.q,
+        acceptedAnswer: { '@type': 'Answer', text: item.a },
+      })),
+    }
+  : null;
+
+const breadcrumbSchema = breadcrumb?.length
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: breadcrumb.map((item, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        name: item.label,
+        item: new URL(item.href, site).href,
+      })),
+    }
+  : null;
+
+const jsonLd = [softwareSchema, faqSchema, breadcrumbSchema].filter(Boolean);
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{meta.title}</title>
+    <meta name="description" content={meta.description} />
+    <meta name="theme-color" content="#17191c" />
+    <link rel="canonical" href={canonical} />
+    {
+      noindex ? (
+        <meta name="robots" content="noindex, nofollow" />
+      ) : (
+        <meta name="robots" content="index, follow, max-image-preview:large" />
+      )
+    }
+
+    {googleVerification && <meta name="google-site-verification" content={googleVerification} />}
+    {bingVerification && <meta name="msvalidate.01" content={bingVerification} />}
+
+    <link rel="alternate" hreflang="en" href={enUrl} />
+    <link rel="alternate" hreflang="es" href={esUrl} />
+    <link rel="alternate" hreflang="x-default" href={enUrl} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="OpenBurn" />
+    <meta property="og:title" content={meta.title} />
+    <meta property="og:description" content={meta.description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="OpenBurn — free, open-source laser cutting and engraving software" />
+    <meta property="og:locale" content={content.locale} />
+    <meta property="og:locale:alternate" content={otherLocale} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={meta.title} />
+    <meta name="twitter:description" content={meta.description} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image:alt" content="OpenBurn — free, open-source laser cutting and engraving software" />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="alternate icon" href="/icon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <link
+      rel="preload"
+      href="/fonts/inter-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+
+    {
+      preloadImage && (
+        <link
+          rel="preload"
+          as="image"
+          href={`/screenshots/${preloadImage}-1200.webp`}
+          imagesrcset={`/screenshots/${preloadImage}-800.webp 800w, /screenshots/${preloadImage}-1200.webp 1200w, /screenshots/${preloadImage}-1600.webp 1600w`}
+          imagesizes="(max-width: 1080px) 100vw, 1040px"
+        />
+      )
+    }
+
+    {
+      jsonLd.map((schema) => (
+        <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+      ))
+    }
+
+    {
+      goatcounterEnabled && (
+        <script
+          is:inline
+          async
+          data-goatcounter="https://openburn.goatcounter.com/count"
+          src="https://gc.zgo.at/count.js"
+        />
+      )
+    }
+  </head>
+  <body>
+    <a class="skip-link" href="#main">{content.ui.skipToContent}</a>
+    <Header lang={lang} altPath={altPath} nav={content.nav} />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer lang={lang} footer={content.footer} ui={content.ui} />
+
+    <script>
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const revealItems = document.querySelectorAll<HTMLElement>('[data-reveal]');
+
+      if (reduceMotion || !('IntersectionObserver' in window)) {
+        revealItems.forEach((item) => item.classList.add('is-visible'));
+      } else if (revealItems.length) {
+        document.documentElement.classList.add('reveal-ready');
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add('is-visible');
+                observer.unobserve(entry.target);
+              }
+            });
+          },
+          { rootMargin: '0px 0px -8% 0px', threshold: 0.05 },
+        );
+        revealItems.forEach((item) => observer.observe(item));
+      }
+
+      document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const target = document.querySelector<HTMLElement>(button.dataset.copy ?? '');
+          const text = target?.textContent?.trim();
+          if (!text) return;
+
+          try {
+            await navigator.clipboard.writeText(text);
+            const label = button.querySelector<HTMLElement>('[data-copy-label]');
+            const original = label?.textContent ?? '';
+            if (label) {
+              label.textContent = button.dataset.copied ?? original;
+              window.setTimeout(() => {
+                label.textContent = original;
+              }, 1600);
+            }
+          } catch {
+            /* Clipboard unavailable: selection still works. */
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

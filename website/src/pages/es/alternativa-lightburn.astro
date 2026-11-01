@@ -1,0 +1,90 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import Comparison from '../../components/Comparison.astro';
+import Faq from '../../components/Faq.astro';
+import Cta from '../../components/Cta.astro';
+import Icon from '../../components/Icon.astro';
+import { getContent } from '../../content';
+import { links } from '../../content/links';
+
+const c = getContent('es');
+const page = c.alternativePage;
+const downloadHref = '/es/descargas/';
+---
+
+<Base
+  lang="es"
+  meta={c.meta.alternative}
+  path="/es/alternativa-lightburn/"
+  altPath="/open-source-lightburn-alternative/"
+  faq={page.faq.items}
+  breadcrumb={[
+    { label: 'Inicio', href: '/es/' },
+    { label: 'Alternativa a LightBurn', href: '/es/alternativa-lightburn/' },
+  ]}
+>
+  <PageHero head={page.hero} />
+
+  <section class="section-tight">
+    <div class="container">
+      <div class="features-grid">
+        {
+          page.cards.map((card) => (
+            <article class="feature-card">
+              <div class="feature-icon">
+                <Icon name={card.icon} size={22} />
+              </div>
+              <h3>{card.title}</h3>
+              <p>{card.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <Comparison
+    head={page.comparison}
+    headers={page.comparison.headers}
+    rows={page.comparison.rows}
+    note={page.comparison.note}
+  />
+
+  <section class="section">
+    <div class="container split">
+      <div>
+        <h2>{page.migration.title}</h2>
+        <p class="lead">{page.migration.lead}</p>
+        <ol class="migration-list">
+          {
+            page.migration.items.map((item) => (
+              <li>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </li>
+            ))
+          }
+        </ol>
+      </div>
+      <div>
+        <h2>{page.limits.title}</h2>
+        <p class="lead">{page.limits.lead}</p>
+        <ul class="limits-list">
+          {
+            page.limits.items.map((item) => (
+              <li>
+                <Icon name="partial" size={16} />
+                {item}
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <Faq title={page.faq.title} items={page.faq.items} />
+
+  <Cta cta={page.cta} downloadHref={downloadHref} githubHref={links.github} />
+</Base>

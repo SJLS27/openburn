@@ -10,5 +10,7 @@ release/
 coverage/
 test-results/
 playwright-report/
+website/.astro/
+website/dist/
 
 .flatpak-builder/

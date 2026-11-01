@@ -1,0 +1,39 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import { getContent } from '../../content';
+
+const c = getContent('es');
+const page = c.privacyPage;
+---
+
+<Base
+  lang="es"
+  meta={c.meta.privacy}
+  path="/es/privacidad/"
+  altPath="/privacy/"
+  breadcrumb={[
+    { label: 'Inicio', href: '/es/' },
+    { label: 'Privacidad', href: '/es/privacidad/' },
+  ]}
+>
+  <PageHero head={page.hero} />
+
+  <section class="section">
+    <div class="container">
+      <div class="prose">
+        <p class="updated">{page.updated}</p>
+        {
+          page.sections.map((section) => (
+            <>
+              <h2>{section.title}</h2>
+              {section.paragraphs.map((paragraph) => (
+                <p>{paragraph}</p>
+              ))}
+            </>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</Base>

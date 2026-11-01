@@ -1,0 +1,76 @@
+---
+import Icon from './Icon.astro';
+import { links } from '../content/links';
+import type { DownloadCard } from '../content/types';
+
+interface Props {
+  eyebrow: string;
+  title: string;
+  lead: string;
+  cards: DownloadCard[];
+  recommended: string;
+  allReleases: string;
+}
+
+const { eyebrow, title, lead, cards, recommended, allReleases } = Astro.props;
+---
+
+<section class="section" id="download">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">{eyebrow}</p>
+      <h2>{title}</h2>
+      <p class="lead">{lead}</p>
+    </div>
+
+    <div class="download-grid">
+      {
+        cards.map((card) => (
+          <article class="download-card" data-os={card.os}>
+            <span class="os-badge" data-os-badge hidden>
+              {recommended}
+            </span>
+            <div class="os-icon">
+              <Icon name={card.icon} size={22} />
+            </div>
+            <h3>{card.title}</h3>
+            <p class="file">{card.file}</p>
+            <p class="meta">{card.meta}</p>
+            <p class="note">{card.note}</p>
+            <a class="btn btn-primary btn-block" href={card.href} target="_blank" rel="noopener">
+              <Icon name="download" size={16} />
+              {card.cta}
+            </a>
+          </article>
+        ))
+      }
+    </div>
+
+    <p class="download-all">
+      <a href={links.releases} target="_blank" rel="noopener">
+        {allReleases} →
+      </a>
+    </p>
+  </div>
+</section>
+
+<script>
+  const detectOS = () => {
+    const ua = navigator.userAgent.toLowerCase();
+    if (/android|iphone|ipad|ipod/.test(ua)) return '';
+    if (/windows|win32|win64/.test(ua)) return 'windows';
+    if (/mac os|macintosh/.test(ua)) return 'macos';
+    if (/linux|x11/.test(ua)) return 'linux';
+    return '';
+  };
+
+  const detected = detectOS();
+  if (detected) {
+    document.querySelectorAll<HTMLElement>('[data-os]').forEach((card) => {
+      if (card.dataset.os !== detected) return;
+      card.classList.add('is-recommended');
+      const badge = card.querySelector<HTMLElement>('[data-os-badge]');
+      if (badge) badge.hidden = false;
+    });
+  }
+</script>

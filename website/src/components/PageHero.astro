@@ -1,0 +1,19 @@
+---
+import type { SectionHead } from '../content/types';
+
+interface Props {
+  head: SectionHead;
+}
+
+const { head } = Astro.props;
+---
+
+<section class="page-hero">
+  <div class="container">
+    <div class="page-hero-inner">
+      <p class="eyebrow">{head.eyebrow}</p>
+      <h1>{head.title}</h1>
+      <p>{head.lead}</p>
+    </div>
+  </div>
+</section>

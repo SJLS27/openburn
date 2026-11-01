@@ -1,0 +1,34 @@
+---
+import Icon from './Icon.astro';
+import { links } from '../content/links';
+import type { SupportBandContent } from '../content/types';
+
+interface Props {
+  content: SupportBandContent;
+  supportHref: string;
+}
+
+const { content, supportHref } = Astro.props;
+---
+
+<section class="support-band">
+  <div class="container support-inner">
+    <div class="support-icon" aria-hidden="true">
+      <Icon name="heart" size={20} />
+    </div>
+    <div class="support-copy">
+      <h2>{content.title}</h2>
+      <p>{content.body}</p>
+    </div>
+    <div class="support-actions">
+      <a class="btn btn-ghost btn-sm" href={links.paypal} target="_blank" rel="noopener">
+        <Icon name="heart" size={16} />
+        {content.paypal}
+      </a>
+      <a class="arrow-link" href={supportHref}>
+        {content.more}
+        <Icon name="arrow" size={14} />
+      </a>
+    </div>
+  </div>
+</section>

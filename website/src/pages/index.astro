@@ -1,0 +1,62 @@
+---
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import TrustBar from '../components/TrustBar.astro';
+import Features from '../components/Features.astro';
+import Showcase from '../components/Showcase.astro';
+import Comparison from '../components/Comparison.astro';
+import Downloads from '../components/Downloads.astro';
+import Steps from '../components/Steps.astro';
+import Faq from '../components/Faq.astro';
+import Cta from '../components/Cta.astro';
+import SupportBand from '../components/SupportBand.astro';
+import { getContent } from '../content';
+import { links } from '../content/links';
+
+const c = getContent('en');
+const downloadHref = '/download/';
+---
+
+<Base
+  lang="en"
+  meta={c.meta.home}
+  path="/"
+  altPath="/es/"
+  faq={c.home.faq.items}
+  preloadImage="overview"
+>
+  <Hero hero={c.home.hero} downloadHref={downloadHref} />
+  <TrustBar items={c.home.trust} />
+
+  <Features head={c.home.features} items={c.home.features.items} />
+
+  <Showcase head={c.home.showcase} tabs={c.home.showcase.tabs} />
+
+  <Comparison
+    head={c.home.comparison}
+    headers={c.home.comparison.headers}
+    rows={c.home.comparison.rows}
+    note={c.home.comparison.note}
+  />
+
+  <Downloads
+    eyebrow={c.home.downloads.eyebrow}
+    title={c.home.downloads.title}
+    lead={c.home.downloads.lead}
+    cards={c.home.downloads.cards}
+    recommended={c.home.downloads.recommended}
+    allReleases={c.home.downloads.allReleases}
+  />
+
+  <Steps head={c.home.steps} items={c.home.steps.items} dev={c.home.steps.dev} ui={c.ui} />
+
+  <Faq
+    eyebrow={c.home.faq.eyebrow}
+    title={c.home.faq.title}
+    lead={c.home.faq.lead}
+    items={c.home.faq.items}
+  />
+
+  <Cta cta={c.home.cta} downloadHref={downloadHref} githubHref={links.github} />
+  <SupportBand content={c.home.support} supportHref="/support/" />
+</Base>

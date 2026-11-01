@@ -1,0 +1,94 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Cta from '../components/Cta.astro';
+import Icon from '../components/Icon.astro';
+import { getContent } from '../content';
+import { githubSponsorsEnabled, links } from '../content/links';
+
+const c = getContent('en');
+const page = c.supportPage;
+const ways = page.ways.items.filter(
+  (item) => githubSponsorsEnabled || item.href !== links.githubSponsors,
+);
+---
+
+<Base
+  lang="en"
+  meta={c.meta.support}
+  path="/support/"
+  altPath="/es/apoyar/"
+  breadcrumb={[
+    { label: 'Home', href: '/' },
+    { label: 'Support', href: '/support/' },
+  ]}
+>
+  <PageHero head={page.hero} />
+
+  <section class="section-tight">
+    <div class="container">
+      <h2 class="sr-only">{page.reasonsTitle}</h2>
+      <div class="features-grid">
+        {
+          page.reasons.map((reason) => (
+            <article class="feature-card">
+              <div class="feature-icon">
+                <Icon name={reason.icon} size={22} />
+              </div>
+              <h3>{reason.title}</h3>
+              <p>{reason.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container split">
+      <div>
+        <h2>{page.ways.title}</h2>
+        <p class="lead">{page.ways.lead}</p>
+        <ul class="support-list">
+          {
+            ways.map((item) => (
+              <li>
+                <div class="support-list-icon" aria-hidden="true">
+                  <Icon name={item.icon} size={18} />
+                </div>
+                <div>
+                  <h3>{item.title}</h3>
+                  <p>{item.body}</p>
+                  <a
+                    href={item.href}
+                    target={item.href.startsWith('http') ? '_blank' : undefined}
+                    rel={item.href.startsWith('http') ? 'noopener' : undefined}
+                  >
+                    {item.cta}
+                    <Icon name="arrow" size={13} />
+                  </a>
+                </div>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+      <div class="support-transparency">
+        <h2>{page.transparency.title}</h2>
+        {page.transparency.paragraphs.map((paragraph) => <p>{paragraph}</p>)}
+        <p class="support-note">
+          <Icon name="heart" size={16} />
+          {page.transparency.note}
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <Cta
+    cta={page.cta}
+    downloadHref={links.paypal}
+    githubHref={links.github}
+    primaryIcon="heart"
+    secondaryIcon="github"
+  />
+</Base>

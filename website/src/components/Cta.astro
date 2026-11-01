@@ -1,0 +1,46 @@
+---
+import Icon from './Icon.astro';
+import type { CtaContent, IconName } from '../content/types';
+
+interface Props {
+  cta: CtaContent;
+  downloadHref: string;
+  githubHref: string;
+  primaryIcon?: IconName;
+  secondaryIcon?: IconName;
+}
+
+const {
+  cta,
+  downloadHref,
+  githubHref,
+  primaryIcon = 'download',
+  secondaryIcon = 'github',
+} = Astro.props;
+
+const primaryIsExternal = downloadHref.startsWith('http');
+---
+
+<section class="section">
+  <div class="container">
+    <div class="cta-panel" data-reveal>
+      <h2>{cta.title}</h2>
+      <p>{cta.lead}</p>
+      <div class="cta-actions">
+        <a
+          class="btn btn-primary btn-lg"
+          href={downloadHref}
+          target={primaryIsExternal ? '_blank' : undefined}
+          rel={primaryIsExternal ? 'noopener' : undefined}
+        >
+          <Icon name={primaryIcon} size={18} />
+          {cta.primary}
+        </a>
+        <a class="btn btn-ghost btn-lg" href={githubHref} target="_blank" rel="noopener">
+          <Icon name={secondaryIcon} size={18} />
+          {cta.secondary}
+        </a>
+      </div>
+    </div>
+  </div>
+</section>

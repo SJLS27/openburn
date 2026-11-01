@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://openburn.pages.dev/sitemap-index.xml

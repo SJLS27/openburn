@@ -1,0 +1,128 @@
+---
+import Icon from './Icon.astro';
+import { links } from '../content/links';
+import type { Lang, NavContent } from '../content/types';
+
+interface Props {
+  lang: Lang;
+  altPath: string;
+  nav: NavContent;
+}
+
+const { lang, altPath, nav } = Astro.props;
+
+const homeHref = lang === 'es' ? '/es/' : '/';
+const featuresHref = lang === 'es' ? '/es/funciones/' : '/features/';
+const downloadHref = lang === 'es' ? '/es/descargas/' : '/download/';
+const pathname = Astro.url.pathname;
+
+const isActive = (href: string) => {
+  if (href === '/' || href === '/es/') return pathname === href;
+  return pathname.startsWith(href);
+};
+---
+
+<header class="site-header" data-header>
+  <div class="container header-inner">
+    <a class="brand" href={homeHref} aria-label="OpenBurn">
+      <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+        <rect width="64" height="64" rx="14" fill="#24262a"></rect>
+        <path
+          d="M32 8c4.3 8.6.8 12.6-2.4 16.4-3.2 3.8-6.4 7.5-3.2 13.4 0-3.7 2.4-5.9 4.8-8 .5 2.9 2.1 5.1 4.3 6.7 2.4 1.8 3.2 4 1.9 7 5.9-3.2 9.4-8.8 9.4-15.3 0-9.7-6.7-16.6-14.8-20.2Z"
+          fill="#e07a2c"></path>
+      </svg>
+      <span>OpenBurn</span>
+    </a>
+
+    <nav class="desktop-nav" aria-label={lang === 'es' ? 'Navegación principal' : 'Primary'}>
+      <a href={featuresHref} aria-current={isActive(featuresHref) ? 'page' : undefined}>
+        {nav.features}
+      </a>
+      <a href={downloadHref} aria-current={isActive(downloadHref) ? 'page' : undefined}>
+        {nav.download}
+      </a>
+      <a href={links.docs} target="_blank" rel="noopener">{nav.docs}</a>
+      <a href={links.github} target="_blank" rel="noopener">{nav.github}</a>
+    </nav>
+
+    <div class="header-actions">
+      <a class="lang-switch" href={altPath} hreflang={lang === 'en' ? 'es' : 'en'} lang={lang === 'en' ? 'es' : 'en'}>
+        {nav.switchTo}
+      </a>
+      <a class="btn btn-primary btn-sm" href={downloadHref}>
+        <Icon name="download" size={16} />
+        {nav.download}
+      </a>
+      <button
+        class="menu-toggle"
+        type="button"
+        data-menu-toggle
+        aria-expanded="false"
+        aria-controls="mobile-nav"
+        aria-label={nav.openMenu}
+        data-open-label={nav.openMenu}
+        data-close-label={nav.closeMenu}
+      >
+        <Icon name="menu" size={20} class="icon-menu" />
+        <Icon name="close" size={20} class="icon-close" />
+      </button>
+    </div>
+  </div>
+
+  <div class="mobile-nav" id="mobile-nav" data-menu>
+    <div class="container">
+      <a href={featuresHref}>{nav.features}<Icon name="arrow" size={16} /></a>
+      <a href={downloadHref}>{nav.download}<Icon name="arrow" size={16} /></a>
+      <a href={links.docs} target="_blank" rel="noopener">
+        {nav.docs}<Icon name="external" size={16} />
+      </a>
+      <a href={links.github} target="_blank" rel="noopener">
+        {nav.github}<Icon name="external" size={16} />
+      </a>
+      <a href={altPath} hreflang={lang === 'en' ? 'es' : 'en'} lang={lang === 'en' ? 'es' : 'en'}>
+        {nav.switchTo}<Icon name="arrow" size={16} />
+      </a>
+      <a class="btn btn-primary btn-block" href={downloadHref}>
+        <Icon name="download" size={16} />
+        {nav.download}
+      </a>
+    </div>
+  </div>
+</header>
+
+<script>
+  const header = document.querySelector<HTMLElement>('[data-header]');
+  const toggle = document.querySelector<HTMLButtonElement>('[data-menu-toggle]');
+  const panel = document.querySelector<HTMLElement>('[data-menu]');
+
+  const setOpen = (open: boolean) => {
+    if (!toggle || !panel) return;
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute(
+      'aria-label',
+      open ? (toggle.dataset.closeLabel ?? 'Close menu') : (toggle.dataset.openLabel ?? 'Open menu'),
+    );
+    panel.toggleAttribute('data-open', open);
+    document.body.style.overflow = open ? 'hidden' : '';
+  };
+
+  toggle?.addEventListener('click', () => {
+    setOpen(toggle.getAttribute('aria-expanded') !== 'true');
+  });
+
+  panel?.querySelectorAll('a').forEach((link) => {
+    link.addEventListener('click', () => setOpen(false));
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setOpen(false);
+  });
+
+  window.matchMedia('(min-width: 901px)').addEventListener('change', (event) => {
+    if (event.matches) setOpen(false);
+  });
+
+  const onScroll = () => header?.classList.toggle('is-scrolled', window.scrollY > 8);
+  onScroll();
+  window.addEventListener('scroll', onScroll, { passive: true });
+</script>

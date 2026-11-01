@@ -1,0 +1,28 @@
+---
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import { getContent } from '../content';
+
+const c = getContent('en');
+---
+
+<Base lang="en" meta={c.meta.notFound} path="/404/" altPath="/es/" noindex>
+  <section class="not-found">
+    <div class="container">
+      <p class="nf-code" aria-hidden="true">404</p>
+      <h1>{c.notFound.title}</h1>
+      <p>{c.notFound.lead}</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="/">
+          <Icon name="arrow" size={18} />
+          {c.notFound.home}
+        </a>
+        <a class="btn btn-ghost" href="/download/">
+          <Icon name="download" size={18} />
+          {c.notFound.download}
+        </a>
+      </div>
+      <p class="not-found-lang"><a href="/es/">Ver esta página en español</a></p>
+    </div>
+  </section>
+</Base>

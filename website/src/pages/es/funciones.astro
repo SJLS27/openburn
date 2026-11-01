@@ -1,0 +1,28 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import Features from '../../components/Features.astro';
+import Showcase from '../../components/Showcase.astro';
+import Cta from '../../components/Cta.astro';
+import { getContent } from '../../content';
+import { links } from '../../content/links';
+
+const c = getContent('es');
+const downloadHref = '/es/descargas/';
+---
+
+<Base
+  lang="es"
+  meta={c.meta.features}
+  path="/es/funciones/"
+  altPath="/features/"
+  breadcrumb={[
+    { label: 'Inicio', href: '/es/' },
+    { label: 'Funciones', href: '/es/funciones/' },
+  ]}
+>
+  <PageHero head={c.featuresPage.hero} />
+  <Features head={c.featuresPage.grid} items={c.featuresPage.grid.items} />
+  <Showcase head={c.home.showcase} tabs={c.home.showcase.tabs} />
+  <Cta cta={c.featuresPage.cta} downloadHref={downloadHref} githubHref={links.github} />
+</Base>
