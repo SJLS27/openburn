@@ -73,6 +73,12 @@ test('dragging with the middle mouse button pans the canvas', async () => {
 });
 
 test('middle-button panning does not move or select objects', async () => {
+  // On X11/Chromium a middle click triggers a paste from the PRIMARY
+  // selection. Panning with the wheel button must ignore that paste.
+  await app.evaluate(async ({ clipboard }) => {
+    await clipboard.selection?.writeText('middle-click must not paste this');
+  });
+
   // Draw a rectangle first using the rect tool, then pan over it.
   await page.getByRole('button', { name: 'Rectangle (R)' }).click();
   const box = await page.locator('.fabric-host').boundingBox();

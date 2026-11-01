@@ -115,6 +115,13 @@ export class WorkspaceController implements WorkspaceApi {
   private nodeHandles: { circle: Circle; commandIndex: number }[] = [];
   private nodeDragging = false;
 
+  /**
+   * X11/Chromium turns a middle-click into a paste from the PRIMARY selection.
+   * Panning with the wheel button must not paste, so paste events that follow a
+   * middle-button press are ignored.
+   */
+  private suppressPasteUntil = 0;
+
   private undoStack: string[] = [];
   private redoStack: string[] = [];
   private currentSnapshot = '';
@@ -183,6 +190,9 @@ export class WorkspaceController implements WorkspaceApi {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('paste', this.onPaste);
+    // Capture phase: runs before Fabric and before the synthetic paste event.
+    window.addEventListener('mousedown', this.onPointerButton, true);
+    window.addEventListener('mouseup', this.onPointerButton, true);
     (window as unknown as { __openburn?: WorkspaceController }).__openburn = this;
     this.setStatus('Ready');
   }
@@ -196,6 +206,8 @@ export class WorkspaceController implements WorkspaceApi {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('paste', this.onPaste);
+    window.removeEventListener('mousedown', this.onPointerButton, true);
+    window.removeEventListener('mouseup', this.onPointerButton, true);
     this.canvas.dispose();
   }
 
@@ -3160,7 +3172,15 @@ export class WorkspaceController implements WorkspaceApi {
   // System clipboard
   // -------------------------------------------------------------------------
 
+  private onPointerButton = (e: MouseEvent): void => {
+    if (e.button === 1) this.suppressPasteUntil = performance.now() + 500;
+  };
+
   private onPaste = (e: ClipboardEvent): void => {
+    if (performance.now() < this.suppressPasteUntil) {
+      e.preventDefault();
+      return;
+    }
     const target = e.target as HTMLElement | null;
     if (
       target &&
