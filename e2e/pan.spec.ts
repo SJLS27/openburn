@@ -6,6 +6,12 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test';
+import {
+  createTestProfile,
+  dismissWelcome,
+  launchEnv,
+  removeTestProfile,
+} from './helpers';
 
 /**
  * Workspace navigation tests. They run against the real Electron build, so run
@@ -17,6 +23,7 @@ const repoRoot = path.resolve(__dirname, '..');
 
 let app: ElectronApplication;
 let page: Page;
+const profile = createTestProfile();
 
 type WorkspaceHandle = {
   canvas: { viewportTransform: number[] };
@@ -32,10 +39,11 @@ async function readViewport(): Promise<number[]> {
 test.beforeAll(async () => {
   app = await electron.launch({
     args: [repoRoot, '--no-sandbox'],
-    env: { ...process.env, NODE_ENV: 'production' },
+    env: launchEnv(profile),
   });
   page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
+  await dismissWelcome(page);
   await page.waitForFunction(
     () => Boolean((window as unknown as { __openburn?: unknown }).__openburn),
   );
@@ -48,6 +56,7 @@ test.afterAll(async () => {
   await app
     .evaluate(({ app: electronApp }) => electronApp.exit(0))
     .catch(() => undefined);
+  removeTestProfile(profile);
 });
 
 test('dragging with the middle mouse button pans the canvas', async () => {

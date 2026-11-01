@@ -16,7 +16,13 @@ import { StatusBar } from '@/ui/StatusBar';
 import { Modal, NumberField, UnitsContext, WorkspaceContext } from '@/ui/common';
 import { PreviewDialog } from '@/ui/PreviewDialog';
 import { UpdateBanner, UpdateDialog } from '@/ui/UpdateDialog';
+import { DiscardChangesDialog } from '@/ui/DiscardChangesDialog';
+import { RecoveryDialog } from '@/ui/RecoveryDialog';
+import { WelcomeDialog } from '@/ui/WelcomeDialog';
 import { checkForUpdates } from '@/state/updateStore';
+import { DISCARD_CONFIRM_EVENT } from '@/state/discardGuard';
+import { AutosaveScheduler } from '@/state/autosave';
+import { refreshRecentFiles } from '@/state/recentStore';
 import { machine, useMachineSelector } from '@/serial/machine';
 import type { JobPlan } from '@/gcode/types';
 
@@ -28,6 +34,10 @@ export default function App() {
   const [layoutKey, setLayoutKey] = useState(0);
   const [previewPlan, setPreviewPlan] = useState<JobPlan | null>(null);
   const [updateOpen, setUpdateOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const [recovery, setRecovery] = useState<OpenBurnAutosaveRecord | null>(null);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
   const machineConnected = useMachineSelector((s) => s.connected);
   const machineName = useMachineSelector((s) => s.transportName);
 
@@ -82,11 +92,104 @@ export default function App() {
   }, [controller]);
 
   useEffect(() => {
+    const onConfirm = () => setDiscardOpen(true);
+    window.addEventListener(DISCARD_CONFIRM_EVENT, onConfirm);
+    return () => window.removeEventListener(DISCARD_CONFIRM_EVENT, onConfirm);
+  }, []);
+
+  useEffect(() => {
+    void refreshRecentFiles();
+    const api = window.openburn?.autosave;
+    if (!api) {
+      setWelcomeOpen(true);
+      return;
+    }
+    let cancelled = false;
+    api
+      .read()
+      .then((record) => {
+        if (cancelled) return;
+        if (record) setRecovery(record);
+        else setWelcomeOpen(true);
+      })
+      .catch(() => {
+        if (!cancelled) setWelcomeOpen(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Persist a draft of unsaved work so an unexpected exit can be recovered.
+  useEffect(() => {
+    const api = window.openburn?.autosave;
+    if (!controller || !api) return;
+
+    const scheduler = new AutosaveScheduler(async () => {
+      const s = store.getState();
+      if (!s.dirty) return;
+      await api.write({ document: controller.snapshotDocument(), filePath: s.filePath });
+    });
+
+    let wasDirty = store.getState().dirty;
+    const unsubscribe = store.subscribe(() => {
+      const s = store.getState();
+      if (s.dirty !== wasDirty) {
+        wasDirty = s.dirty;
+        if (s.dirty) {
+          scheduler.notify();
+        } else {
+          scheduler.cancel();
+          void api.clear();
+        }
+        return;
+      }
+      if (s.dirty) scheduler.notify();
+    });
+
+    const flush = () => scheduler.flush();
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') scheduler.flush();
+    };
+    window.addEventListener('beforeunload', flush);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('beforeunload', flush);
+      document.removeEventListener('visibilitychange', onVisibility);
+      scheduler.dispose();
+    };
+  }, [controller]);
+
+  const recoverDraft = async () => {
+    if (!recovery || !controller) return;
+    setRecoveryBusy(true);
+    try {
+      const ok = await controller.applyRecoveredDocument(
+        recovery.document,
+        recovery.filePath,
+      );
+      if (ok) setRecovery(null);
+    } finally {
+      setRecoveryBusy(false);
+    }
+  };
+
+  const discardDraft = async () => {
+    await window.openburn?.autosave.clear();
+    setRecovery(null);
+    setWelcomeOpen(true);
+  };
+
+  useEffect(() => {
     document.title = `${state.doc.meta.name || 'Untitled'}${state.dirty ? ' *' : ''} — OpenBurn`;
   }, [state.doc.meta.name, state.dirty]);
 
   useEffect(() => {
-    if (import.meta.env.DEV) return;
+    // In the browser the native prompt is useful; in Electron it would cancel
+    // the close without asking, so unsaved work is recovered from the autosave
+    // draft instead (see RecoveryDialog).
+    if (import.meta.env.DEV || window.openburn?.isElectron) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (store.getState().dirty) {
         e.preventDefault();
@@ -121,6 +224,16 @@ export default function App() {
         {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
         {deviceOpen && <DeviceSettingsDialog onClose={() => setDeviceOpen(false)} />}
         {updateOpen && <UpdateDialog onClose={() => setUpdateOpen(false)} />}
+        {welcomeOpen && !recovery && <WelcomeDialog onClose={() => setWelcomeOpen(false)} />}
+        {recovery && (
+          <RecoveryDialog
+            record={recovery}
+            busy={recoveryBusy}
+            onRecover={() => void recoverDraft()}
+            onDiscard={() => void discardDraft()}
+          />
+        )}
+        {discardOpen && <DiscardChangesDialog onClose={() => setDiscardOpen(false)} />}
         {previewPlan && (
           <PreviewDialog
             plan={previewPlan}

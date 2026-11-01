@@ -12,6 +12,11 @@ Esta guía cubre el flujo completo: diseñar, asignar capas, previsualizar, cali
 - **Grid y snap**: toggles en la barra de estado. El tamaño de grid se cambia en *Settings*.
 - **Zoom**: rueda del ratón, botones de la esquina inferior derecha, `Ctrl+0` (página), `Ctrl+Shift+A` (selección) y `+` / `-`.
 - **Paneo**: `Espacio` + arrastrar o botón central del ratón.
+- **Drag & drop**: arrastra uno o varios archivos al lienzo. Los `.obrn`/`.lbrn2`
+  se abren como proyecto (con confirmación si hay cambios sin guardar) y los
+  `.svg`, `.dxf` e imágenes se importan en la capa activa, en el punto donde los
+  sueltes. Una capa en modo Image se crea o reutiliza automáticamente para
+  imágenes.
 
 ---
 
@@ -249,6 +254,22 @@ Detalles técnicos y limitaciones: [FILE-FORMATS.md](FILE-FORMATS.md).
 | `.svg` | Intercambio vectorial |
 
 `Ctrl+S` guarda el proyecto nativo `.obrn`. `Ctrl+Shift+S` guarda como.
+
+### Autoguardado y recuperación
+- Mientras hay cambios sin guardar, OpenBurn escribe un borrador en el perfil de
+  la app (2 s tras el último cambio, como máximo cada 30 s). Al guardar o cerrar
+  limpio, el borrador se elimina.
+- Si la app se cierra de golpe, al volver a abrir aparece **Recover Unsaved
+  Work** con la fecha del borrador: *Recover* restaura el diseño como cambios sin
+  guardar y *Discard* lo borra.
+- New, Open, Open Recent y soltar un proyecto piden **Guardar / Descartar /
+  Cancelar** si el documento está sucio.
+
+### Archivos recientes y bienvenida
+- Al abrir y guardar proyectos se recuerdan hasta 10 rutas. Están en
+  *File → Open Recent* (con *Clear Recent Files*).
+- Si arrancas sin documento verás la pantalla de bienvenida con New Design,
+  Open Project y la lista de recientes.
 
 ---
 

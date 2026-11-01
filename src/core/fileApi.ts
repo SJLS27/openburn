@@ -20,6 +20,11 @@ function ext(name: string): string {
   return name.split('.').pop()?.toLowerCase() ?? '';
 }
 
+/** MIME type for images imported from disk (browser fallback and drag & drop). */
+export function mimeForFile(name: string): string {
+  return MIME[ext(name)] ?? 'application/octet-stream';
+}
+
 export const PROJECT_FILTER = [{ name: 'OpenBurn Project', extensions: ['obrn'] }];
 export const PROJECT_OPEN_FILTERS = [
   { name: 'OpenBurn Project', extensions: ['obrn', 'ovbrn'] },
@@ -79,7 +84,7 @@ export async function pickArtwork(): Promise<PickedFile | null> {
       return { name, path, text: await api.readFile(path) };
     }
     const bin = await api.readBinary(path);
-    const mime = MIME[e] ?? 'application/octet-stream';
+    const mime = mimeForFile(name);
     return { name, path, dataUrl: `data:${mime};base64,${bin.data}` };
   }
   return browserPick('.svg,.dxf,.png,.jpg,.jpeg,.gif,.bmp,.webp');

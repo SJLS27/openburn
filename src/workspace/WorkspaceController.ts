@@ -21,6 +21,7 @@ import {
   store,
   type AlignMode,
   type BooleanOp,
+  type DroppedFile,
   type FocusTestOptions,
   type IntervalTestOptions,
   type KerfTestOptions,
@@ -29,12 +30,17 @@ import {
   type WorkspaceApi,
 } from '@/state/store';
 import { buildDocument, parseDocument, serializeDocument } from '@/core/serialize';
+import { HistoryBuffer } from './history';
 import {
   pickArtwork,
+  mimeForFile,
   pickProject,
   saveProjectFile,
   saveTextFile,
 } from '@/core/fileApi';
+import { dropKindForFile } from '@/core/dropRouting';
+import { addRecentFile } from '@/state/recentStore';
+import { requestDiscardConfirmation } from '@/state/discardGuard';
 import { booleanObjects, isConvertible, objectToPathData } from '@/geometry/paperOps';
 import { offsetPathData } from '@/geometry/offset';
 import { objectContours } from '@/gcode/geometry';
@@ -48,6 +54,7 @@ import {
   type CutSettings,
   type ImageAdjust,
   type LayerDef,
+  type OpenBurnDocument,
 } from '@/types/document';
 import { textToScenePath } from '@/text/outline';
 import { addTabsToContour } from '@/geometry/tabs';
@@ -122,8 +129,7 @@ export class WorkspaceController implements WorkspaceApi {
    */
   private suppressPasteUntil = 0;
 
-  private undoStack: string[] = [];
-  private redoStack: string[] = [];
+  private history = new HistoryBuffer();
   private currentSnapshot = '';
   private suppressHistory = false;
   private editingText = false;
@@ -1019,11 +1025,9 @@ export class WorkspaceController implements WorkspaceApi {
     if (this.suppressHistory || this.editingText) return;
     const snap = this.snapshot();
     if (snap === this.currentSnapshot) return;
-    this.undoStack.push(this.currentSnapshot);
-    if (this.undoStack.length > 150) this.undoStack.shift();
+    this.history.push(this.currentSnapshot);
     this.currentSnapshot = snap;
-    this.redoStack = [];
-    store.setHistoryState(this.undoStack.length > 0, false);
+    store.setHistoryState(this.history.canUndo, false);
   }
 
   private async loadSnapshot(json: string): Promise<void> {
@@ -1044,24 +1048,22 @@ export class WorkspaceController implements WorkspaceApi {
   undo(): void {
     if (this.historyTimer) window.clearTimeout(this.historyTimer);
     this.commitHistory();
-    if (this.undoStack.length === 0) return;
-    const prev = this.undoStack.pop()!;
-    this.redoStack.push(this.currentSnapshot);
+    const prev = this.history.undo(this.currentSnapshot);
+    if (prev === null) return;
     this.currentSnapshot = prev;
     void this.loadSnapshot(prev).then(() => {
-      store.setHistoryState(this.undoStack.length > 0, true);
+      store.setHistoryState(this.history.canUndo, this.history.canRedo);
       store.markDirty(true);
       this.setStatus('Undo');
     });
   }
 
   redo(): void {
-    if (this.redoStack.length === 0) return;
-    const next = this.redoStack.pop()!;
-    this.undoStack.push(this.currentSnapshot);
+    const next = this.history.redo(this.currentSnapshot);
+    if (next === null) return;
     this.currentSnapshot = next;
     void this.loadSnapshot(next).then(() => {
-      store.setHistoryState(true, this.redoStack.length > 0);
+      store.setHistoryState(this.history.canUndo, this.history.canRedo);
       store.markDirty(true);
       this.setStatus('Redo');
     });
@@ -1107,6 +1109,134 @@ export class WorkspaceController implements WorkspaceApi {
     this.setStatus('New document');
   }
 
+  /** Current document, exactly as it would be written to `.obrn`. */
+  snapshotDocument(): OpenBurnDocument {
+    const s = store.getState();
+    return buildDocument({
+      name: s.doc.meta.name,
+      units: s.doc.units,
+      bed: s.doc.bed,
+      layers: s.doc.layers,
+      canvas: this.canvas.toObject(['layerId']),
+      pages: s.doc.pages,
+      createdAt: s.doc.meta.createdAt,
+    });
+  }
+
+  getScenePointFromClient(clientX: number, clientY: number): { x: number; y: number } {
+    const point = this.canvas.getScenePoint({ clientX, clientY } as MouseEvent);
+    return { x: point.x, y: point.y };
+  }
+
+  /** Re-open a project from a known path (recent files, command line, drop). */
+  async openPath(filePath: string): Promise<void> {
+    const api = window.openburn;
+    if (!api) return;
+    const name = filePath.split(/[\\/]/).pop() ?? filePath;
+    try {
+      const text = await api.readFile(filePath);
+      if (/\.(lbrn|lbrn2)$/i.test(name)) {
+        const result = await parseLightBurn(text);
+        await this.applyLightBurnImport(result, baseName(name));
+        await addRecentFile(filePath);
+        return;
+      }
+      const doc = parseDocument(text);
+      // The window title follows the file name, like LightBurn.
+      doc.meta = { ...doc.meta, name };
+      // Legacy .ovbrn files are read-only: save as .obrn on the next Ctrl+S.
+      const legacy = /\.ovbrn$/i.test(name);
+      await this.applyDocument(doc, legacy ? null : filePath);
+      this.setStatus(
+        legacy
+          ? `Opened legacy ${name} — use Save As to convert it to .obrn`
+          : `Opened ${name}`,
+      );
+      if (!legacy) await addRecentFile(filePath);
+    } catch (err) {
+      this.setStatus(`Open failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Import files dropped onto the canvas. Projects replace the document;
+   * artwork is added to the active layer at the drop position.
+   */
+  async dropFiles(files: DroppedFile[], at?: { x: number; y: number }): Promise<void> {
+    let placed = false;
+    for (const file of files) {
+      const kind = dropKindForFile(file.name);
+      try {
+        if (kind === 'project' || kind === 'lightburn') {
+          if (file.path) {
+            await this.openPath(file.path);
+            continue;
+          }
+          if (!file.text) continue;
+          if (kind === 'lightburn') {
+            const result = await parseLightBurn(file.text);
+            await this.applyLightBurnImport(result, baseName(file.name));
+          } else {
+            await this.applyDocument(parseDocument(file.text), null);
+          }
+          continue;
+        }
+
+        if (kind === 'svg') {
+          const text = await this.readDroppedText(file);
+          if (text) await this.importSvg(text, placed ? undefined : at);
+          placed = true;
+          continue;
+        }
+
+        if (kind === 'dxf') {
+          const text = await this.readDroppedText(file);
+          if (text) this.importDxf(text, placed ? undefined : at);
+          placed = true;
+          continue;
+        }
+
+        if (kind === 'image') {
+          const dataUrl = await this.readDroppedImage(file);
+          if (dataUrl) await this.importImage(dataUrl, placed ? undefined : at);
+          placed = true;
+          continue;
+        }
+
+        this.setStatus(`Unsupported file type: ${file.name}`);
+      } catch (err) {
+        this.setStatus(`Could not open ${file.name}: ${(err as Error).message}`);
+      }
+    }
+  }
+
+  /** Restore the autosaved draft after a crash. */
+  async applyRecoveredDocument(doc: unknown, filePath: string | null): Promise<boolean> {
+    try {
+      const parsed = parseDocument(JSON.stringify(doc));
+      await this.applyDocument(parsed, filePath);
+      store.markDirty(true);
+      this.setStatus('Recovered unsaved work');
+      return true;
+    } catch (err) {
+      this.setStatus(`Recovery failed: ${(err as Error).message}`);
+      return false;
+    }
+  }
+
+  private async readDroppedText(file: DroppedFile): Promise<string | null> {
+    if (file.text !== undefined) return file.text;
+    if (file.path && window.openburn?.readFile) return window.openburn.readFile(file.path);
+    return null;
+  }
+
+  private async readDroppedImage(file: DroppedFile): Promise<string | null> {
+    if (file.dataUrl) return file.dataUrl;
+    if (!file.path || !window.openburn?.readBinary) return null;
+    const bin = await window.openburn.readBinary(file.path);
+    return `data:${mimeForFile(file.name)};base64,${bin.data}`;
+  }
+
   private async applyDocument(
     doc: ReturnType<typeof parseDocument>,
     filePath: string | null,
@@ -1118,8 +1248,7 @@ export class WorkspaceController implements WorkspaceApi {
       await this.canvas.loadFromJSON(doc.canvas as Record<string, unknown>);
       this.applyLayerStyles();
       this.currentSnapshot = this.snapshot();
-      this.undoStack = [];
-      this.redoStack = [];
+      this.history.clear();
       store.setHistoryState(false, false);
       this.bg.setOptions({
         bedWidth: doc.bed.width,
@@ -1138,7 +1267,13 @@ export class WorkspaceController implements WorkspaceApi {
 
   async openDocument(): Promise<void> {
     const file = await pickProject();
-    if (!file?.text) return;
+    if (!file) return;
+    if (file.path) {
+      await this.openPath(file.path);
+      return;
+    }
+    if (!file.text) return;
+    // Browser fallback: no absolute path, so the file cannot become "recent".
     try {
       if (/\.(lbrn|lbrn2)$/i.test(file.name)) {
         const result = await parseLightBurn(file.text);
@@ -1146,9 +1281,9 @@ export class WorkspaceController implements WorkspaceApi {
         return;
       }
       const doc = parseDocument(file.text);
-      // Legacy .ovbrn files are read-only: save as .obrn on the next Ctrl+S.
+      doc.meta = { ...doc.meta, name: file.name };
       const legacyProject = /\.ovbrn$/i.test(file.name);
-      await this.applyDocument(doc, legacyProject ? null : file.path ?? null);
+      await this.applyDocument(doc, null);
       this.setStatus(
         legacyProject
           ? `Opened legacy ${file.name} — use Save As to convert it to .obrn`
@@ -1169,6 +1304,7 @@ export class WorkspaceController implements WorkspaceApi {
     try {
       const result = await parseLightBurn(file.text);
       await this.applyLightBurnImport(result, baseName(file.name));
+      if (file.path) await addRecentFile(file.path);
     } catch (err) {
       this.setStatus(`LightBurn import failed: ${(err as Error).message}`);
     }
@@ -1201,8 +1337,7 @@ export class WorkspaceController implements WorkspaceApi {
       this.applyLayerStyles();
       this.canvas.requestRenderAll();
       this.currentSnapshot = this.snapshot();
-      this.undoStack = [];
-      this.redoStack = [];
+      this.history.clear();
       store.setHistoryState(false, false);
       store.markDirty(true);
       this.fitToBounds({
@@ -1246,15 +1381,7 @@ export class WorkspaceController implements WorkspaceApi {
 
   async saveDocument(saveAs = false): Promise<void> {
     const s = store.getState();
-    const doc = buildDocument({
-      name: s.doc.meta.name,
-      units: s.doc.units,
-      bed: s.doc.bed,
-      layers: s.doc.layers,
-      canvas: this.canvas.toObject(['layerId']),
-      pages: s.doc.pages,
-      createdAt: s.doc.meta.createdAt,
-    });
+    const doc = this.snapshotDocument();
     const path = await saveProjectFile(
       s.doc.meta.name || 'Untitled',
       serializeDocument(doc),
@@ -1266,6 +1393,7 @@ export class WorkspaceController implements WorkspaceApi {
       filePath: path,
       dirty: false,
     });
+    await addRecentFile(path);
     this.currentSnapshot = this.snapshot();
     this.setStatus('Saved');
   }
@@ -1288,7 +1416,7 @@ export class WorkspaceController implements WorkspaceApi {
     }
   }
 
-  private async importSvg(text: string): Promise<void> {
+  private async importSvg(text: string, at?: { x: number; y: number }): Promise<void> {
     const prep = prepareSvgForImport(text);
     // Visible in DevTools: shows what the source SVG declared and the size we
     // apply, which makes scaling issues easy to diagnose.
@@ -1315,6 +1443,7 @@ export class WorkspaceController implements WorkspaceApi {
     this.canvas.add(target);
     this.assignLayerDeep(target, layer.id);
     this.fitImported(target);
+    this.placeImportedAt([target], at);
     target.setCoords();
     this.canvas.setActiveObject(target);
     this.zoomToFitSelection();
@@ -1326,7 +1455,7 @@ export class WorkspaceController implements WorkspaceApi {
     );
   }
 
-  private importDxf(text: string): void {
+  private importDxf(text: string, at?: { x: number; y: number }): void {
     const objects = parseDxf(text);
     const layer = this.activeLayer();
     for (const obj of objects) {
@@ -1337,6 +1466,7 @@ export class WorkspaceController implements WorkspaceApi {
     const first = objects[0];
     if (first) {
       this.fitImported(first);
+      this.placeImportedAt(objects, at);
       first.setCoords();
       this.canvas.setActiveObject(first);
       this.zoomToFitSelection();
@@ -1346,15 +1476,15 @@ export class WorkspaceController implements WorkspaceApi {
     this.setStatus('DXF imported');
   }
 
-  private async importImage(dataUrl: string): Promise<void> {
+  private async importImage(dataUrl: string, at?: { x: number; y: number }): Promise<void> {
     const img = await FabricImage.fromURL(dataUrl);
     const bed = store.getState().doc.bed;
     const maxW = bed.width * 0.8;
     const maxH = bed.height * 0.8;
     const scale = Math.min(1, maxW / (img.width || 1), maxH / (img.height || 1));
     img.set({
-      left: 10,
-      top: 10,
+      left: at ? Math.max(0, at.x) : 10,
+      top: at ? Math.max(0, at.y) : 10,
       scaleX: scale,
       scaleY: scale,
       objectCaching: false,
@@ -1403,6 +1533,20 @@ export class WorkspaceController implements WorkspaceApi {
       top: (obj.top ?? 0) + (before.top - after.top),
     });
     obj.setCoords();
+  }
+
+  /** Move a group of freshly imported objects so its top-left sits at `at`. */
+  private placeImportedAt(objects: FabricObject[], at?: { x: number; y: number }): void {
+    if (!at || objects.length === 0) return;
+    const boxes = objects.map((obj) => obj.getBoundingRect());
+    const minLeft = Math.min(...boxes.map((b) => b.left));
+    const minTop = Math.min(...boxes.map((b) => b.top));
+    const dx = at.x - minLeft;
+    const dy = at.y - minTop;
+    for (const obj of objects) {
+      obj.set({ left: (obj.left ?? 0) + dx, top: (obj.top ?? 0) + dy });
+      obj.setCoords();
+    }
   }
 
   private fitImported(obj: FabricObject): void {
@@ -3540,11 +3684,15 @@ export class WorkspaceController implements WorkspaceApi {
           return;
         case 'o':
           e.preventDefault();
-          void this.openDocument();
+          void requestDiscardConfirmation().then((ok) => {
+            if (ok) void this.openDocument();
+          });
           return;
         case 'n':
           e.preventDefault();
-          this.newDocument();
+          void requestDiscardConfirmation().then((ok) => {
+            if (ok) this.newDocument();
+          });
           return;
         case 'i':
           e.preventDefault();

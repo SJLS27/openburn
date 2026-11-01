@@ -1,5 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
 import { store, useAppState } from '@/state/store';
+import { requestDiscardConfirmation } from '@/state/discardGuard';
+import { dropKindForFile, isTextDrop } from '@/core/dropRouting';
+import { mimeForFile, readAsDataUrl } from '@/core/fileApi';
 import { WorkspaceController } from '@/workspace/WorkspaceController';
 import { Icon } from './icons';
 import { ToolButton } from './common';
@@ -15,6 +18,7 @@ export function Workspace({ onReady }: Props) {
   const bgRef = useRef<HTMLCanvasElement>(null);
   const [controller, setController] = useState<WorkspaceController | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
   const state = useAppState();
 
   useEffect(() => {
@@ -59,6 +63,51 @@ export function Workspace({ onReady }: Props) {
     };
   }, [contextMenu]);
 
+  useEffect(() => {
+    // A file dropped outside the canvas would otherwise navigate the window.
+    const prevent = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
+    };
+    window.addEventListener('dragover', prevent);
+    window.addEventListener('drop', prevent);
+    return () => {
+      window.removeEventListener('dragover', prevent);
+      window.removeEventListener('drop', prevent);
+    };
+  }, []);
+
+  const handleDrop = async (e: ReactDragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragging(false);
+    if (!controller) return;
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    const dropped = await Promise.all(
+      files.map(async (file) => {
+        const electron = window.openburn;
+        const path =
+          electron?.getFilePath?.(file) ?? (file as File & { path?: string }).path;
+        if (path) return { name: file.name, path };
+        if (isTextDrop(file.name)) return { name: file.name, text: await file.text() };
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        return {
+          name: file.name,
+          dataUrl: await readAsDataUrl(bytes, file.type || mimeForFile(file.name)),
+        };
+      }),
+    );
+
+    const replacesDocument = dropped.some((file) => {
+      const kind = dropKindForFile(file.name);
+      return kind === 'project' || kind === 'lightburn';
+    });
+    if (replacesDocument && !(await requestDiscardConfirmation())) return;
+
+    const at = controller.getScenePointFromClient(e.clientX, e.clientY);
+    await controller.dropFiles(dropped, at);
+  };
+
   const run = (fn: () => void) => {
     setContextMenu(null);
     fn();
@@ -76,11 +125,23 @@ export function Workspace({ onReady }: Props) {
         e.preventDefault();
         setContextMenu({ x: e.clientX, y: e.clientY });
       }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        setDragging(false);
+      }}
+      onDrop={(e) => void handleDrop(e)}
     >
       <canvas ref={bgRef} className="bg-canvas" />
       <div className="fabric-host" ref={hostRef}>
         <canvas ref={fabricRef} />
       </div>
+
+      {dragging && <div className="drop-overlay">Drop to open or import</div>}
 
       {contextMenu && (
         <div

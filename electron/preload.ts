@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 export interface OpenDialogFilters {
   name: string;
@@ -26,6 +26,18 @@ export interface UpdaterState {
   manual?: boolean;
 }
 
+export interface RecentFile {
+  path: string;
+  name: string;
+  openedAt: string;
+}
+
+export interface AutosaveRecord {
+  document: unknown;
+  filePath: string | null;
+  savedAt: string;
+}
+
 const api = {
   openFile: (filters?: OpenDialogFilters[]): Promise<string | null> =>
     ipcRenderer.invoke('dialog:openFile', filters),
@@ -41,6 +53,29 @@ const api = {
     ipcRenderer.invoke('fs:writeFile', filePath, content, encoding),
   readAppAsset: (relativePath: string): Promise<string> =>
     ipcRenderer.invoke('app:readAsset', relativePath),
+  /** Absolute path of a dropped `File` (Electron 32+ removed `File.path`). */
+  getFilePath: (file: File): string => {
+    try {
+      return webUtils.getPathForFile(file) ?? '';
+    } catch {
+      // Synthetic File objects (e2e, browser fallbacks) have no real path.
+      return '';
+    }
+  },
+  autosave: {
+    read: (): Promise<AutosaveRecord | null> => ipcRenderer.invoke('autosave:read'),
+    write: (record: Omit<AutosaveRecord, 'savedAt'>): Promise<boolean> =>
+      ipcRenderer.invoke('autosave:write', record),
+    clear: (): Promise<boolean> => ipcRenderer.invoke('autosave:clear'),
+  },
+  recent: {
+    list: (): Promise<RecentFile[]> => ipcRenderer.invoke('recent:list'),
+    add: (filePath: string): Promise<RecentFile[]> =>
+      ipcRenderer.invoke('recent:add', filePath),
+    remove: (filePath: string): Promise<RecentFile[]> =>
+      ipcRenderer.invoke('recent:remove', filePath),
+    clear: (): Promise<RecentFile[]> => ipcRenderer.invoke('recent:clear'),
+  },
   readClipboard: (): Promise<{
     text?: string;
     html?: string;

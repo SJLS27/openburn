@@ -317,12 +317,28 @@ export function useAppState(): AppState {
 }
 
 /**
+ * A file dropped onto the workspace. Electron provides an absolute path (read
+ * through the bridge); the browser fallback ships the contents directly.
+ */
+export interface DroppedFile {
+  name: string;
+  path?: string;
+  text?: string;
+  dataUrl?: string;
+}
+
+/**
  * Imperative bridge to the workspace controller (Fabric canvas). Registered by
  * the workspace component so toolbars and menus can invoke commands.
  */
 export interface WorkspaceApi {
   newDocument(): void;
   openDocument(): Promise<void>;
+  openPath(filePath: string): Promise<void>;
+  dropFiles(files: DroppedFile[], at?: { x: number; y: number }): Promise<void>;
+  snapshotDocument(): OpenBurnDocument;
+  applyRecoveredDocument(doc: unknown, filePath: string | null): Promise<boolean>;
+  getScenePointFromClient(clientX: number, clientY: number): { x: number; y: number } | null;
   openLightBurn(): Promise<void>;
   saveLightBurn(format: 'lbrn' | 'lbrn2'): Promise<void>;
   saveDocument(saveAs?: boolean): Promise<void>;

@@ -4,6 +4,44 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa
 [Versionado Semántico](https://semver.org/lang/es/).
 
+## [0.9.0] — 2026-11-01
+
+Esta versión se centra en los **fundamentos de app de escritorio**: no perder
+trabajo, retomar proyectos rápido y que la ventana y el lienzo se comporten como
+en un programa nativo.
+
+### Añadido
+- **Autoguardado y recuperación**. Mientras hay cambios sin guardar se escribe
+  un borrador en el perfil de la app (debounce de 2 s, flush máximo cada 30 s;
+  al guardar o cerrar limpio se elimina). Si la app termina de golpe, el
+  siguiente arranque ofrece **Recover Unsaved Work**.
+- **Archivos recientes y pantalla de bienvenida**. Hasta 10 rutas en
+  *File → Open Recent* (con *Clear Recent Files*) y un diálogo de inicio con
+  New Design, Open Project y la lista de recientes.
+- **Drag & drop** de `.obrn`, `.lbrn2`, SVG, DXF e imágenes sobre el lienzo. Los
+  proyectos sustituyen el documento (con confirmación si hay cambios) y el
+  artwork se importa en el punto donde se suelta. Usa `webUtils.getPathForFile`
+  y cae a leer el `File` en el navegador.
+- **Ventana persistente**: tamaño, posición y estado maximizado se restauran
+  validándolos contra los monitores actuales (si el monitor desapareció, la
+  ventana vuelve a un tamaño centrado seguro).
+- **Historial acotado por memoria**: `HistoryBuffer` limita undo/redo a 64 MB y
+  100 entradas, descartando los snapshots más antiguos. Importante con imágenes
+  embebidas como data URLs.
+- Confirmación **Guardar / Descartar / Cancelar** al crear, abrir, reabrir un
+  reciente o soltar un proyecto si hay cambios sin guardar.
+- `OPENBURN_USER_DATA_DIR` para aislar el perfil (usado por los e2e).
+
+### Cambiado
+- El título del documento al abrir un proyecto ahora es el nombre del archivo.
+- Guardar y abrir proyectos actualiza la lista de recientes.
+- Los e2e arrancan con un perfil temporal y ya no escriben en la configuración
+  real del desarrollador.
+
+### Pendiente
+- **Varios documentos** (pestañas/ventanas) queda como P6b: requiere rediseñar
+  el store y el controlador a multi-documento.
+
 ## [0.8.1] — 2026-11-01
 
 Versión de mantenimiento centrada en que el canal de distribución y las

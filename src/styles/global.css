@@ -295,6 +295,68 @@ select {
   background: #303236;
 }
 
+.welcome-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.recent-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 7px 9px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text, #e6e7e9);
+  text-align: left;
+  cursor: pointer;
+}
+
+.recent-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border, #3a3d42);
+}
+
+.recent-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.recent-meta {
+  font-size: 11px;
+  color: var(--text-faint, #8a8f96);
+}
+
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(38, 40, 44, 0.55);
+  border: 2px dashed var(--accent, #3f8fdd);
+  color: var(--text, #e6e7e9);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 .bg-canvas {
   position: absolute;
   inset: 0;

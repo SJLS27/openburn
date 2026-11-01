@@ -1,6 +1,6 @@
 # OpenBurn — TODO & Roadmap
 
-Estado actual: **v0.8.1**. Esta lista se actualiza con cada bloque de trabajo.
+Estado actual: **v0.9.0**. Esta lista se actualiza con cada bloque de trabajo.
 
 > 🟡 = funcionalidad presente pero **parcial**; el checkbox marca el estado real
 > (`[ ]` = solo existe la base, falta la paridad con LightBurn).
@@ -78,9 +78,9 @@ Estado actual: **v0.8.1**. Esta lista se actualiza con cada bloque de trabajo.
 
 ## 🚧 Próximos pasos
 
-Orden sugerido: **P6 — fundamentos** + seguridad, **P1 — editor**, **P2 —
-cortes/capas**, **P3 — máquina/taller**, y hardware (rotary/cámaras/DSP) cuando
-haya máquinas para probar. Detalle en
+Orden sugerido: **seguridad** + **P1 — editor**, **P2 — cortes/capas**, **P3 —
+máquina/taller**, hardware (rotary/cámaras/DSP) cuando haya máquinas para probar,
+y P6b (varios documentos) cuando el store pase a multi-documento. Detalle en
 [TODO.md](TODO.md#-paridad-con-lightburn-feature-parity).
 
 ### 🚀 Auto-update (prioridad máxima)
@@ -95,6 +95,7 @@ haya máquinas para probar. Detalle en
 - [ ] Canales beta/stable y rollback de versiones
 - [x] Repin del Flatpak a la última release (manifest apuntando a `v0.8.0`); seguimiento de Flathub pendiente
 - [x] Regenerar `flatpak/node-sources.json` para v0.8.1 (nuevas deps: `electron-updater`, `vitest`, `playwright`, `jsdom`…) con `flatpak-node-generator`; CI valida la cobertura con `npm run check:flatpak-sources`
+- [ ] Repin del manifiesto Flatpak a `v0.9.0` cuando se publique el tag
 
 ### 🧪 Tests automatizados
 Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
@@ -103,6 +104,7 @@ Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
 - [x] Primeros tests: unidades, serialización `.obrn`, `gcode/types`, `gcode/optimize`, `updateStore`, `UpdateDialog` y `electron/updater`
 - [x] Scripts `test`, `test:unit`, `test:watch`, `test:coverage`, `test:e2e`
 - [x] CI: typecheck + unit + build, y job de e2e con `xvfb`
+- [x] Tests de P6: `windowState`, `storage`, `autosave`, `recentFiles`, `HistoryBuffer`, `dropRouting`, diálogos de bienvenida/recuperación/descarte y e2e de recuperación tras crash, drag & drop, recientes y tamaño de ventana
 - [x] Procedimiento estándar documentado en `AGENTS.md`
 - [ ] Ampliar cobertura: round-trip `io/lightburn`, `core/serialize`, `geometry/offset`, `serial/grbl` y simulador
 - [ ] E2E de flujos completos: dibujar/transformar, import/export `.obrn`/`.lbrn2`, preview y job en el simulador
@@ -199,12 +201,12 @@ y solo falta completar la paridad.
 - [ ] 🟡 **Asociación de archivos** y abrir `.obrn`/`.lbrn2` con doble clic (*file associations* + single-instance)
 
 #### P6 — Fundamentos de app de escritorio (transversal)
-- [ ] **Autoguardado + recuperación** tras crash
-- [ ] **Archivos recientes** / pantalla de bienvenida
-- [ ] **Varios documentos** (pestañas o ventanas)
-- [ ] **Drag & drop** de SVG/DXF/imagen al lienzo
-- [ ] Restaurar **tamaño/posición de ventana**
-- [ ] Límite de memoria del **undo** (snapshots acotados)
+- [x] **Autoguardado + recuperación** tras crash (borrador en `userData`, `RecoveryDialog`)
+- [x] **Archivos recientes** (10 rutas, `File → Open Recent`) / pantalla de bienvenida
+- [ ] **Varios documentos** (pestañas o ventanas) — P6b: requiere `AppStore` multi-documento y un canvas por documento
+- [x] **Drag & drop** de SVG/DXF/imágenes y proyectos `.obrn`/`.lbrn2` al lienzo (posición del drop, `webUtils.getPathForFile`)
+- [x] Restaurar **tamaño/posición de ventana** (validado contra los monitores actuales, flag maximizada)
+- [x] Límite de memoria del **undo** (`HistoryBuffer`: 64 MB y 100 entradas)
 
 ---
 

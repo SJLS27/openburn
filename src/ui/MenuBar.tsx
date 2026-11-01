@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppState, store, type ToolId, type WorkspaceApi } from '@/state/store';
+import { requestDiscardConfirmation } from '@/state/discardGuard';
+import { useRecentFiles, clearRecentFiles } from '@/state/recentStore';
 import { Icon } from './icons';
 import { Modal, NumberField, useUnits, useWorkspace } from './common';
 import { ImageAdjustDialog, TabsDialog, TraceDialog } from './ImageToolsDialogs';
@@ -38,6 +40,12 @@ interface MenuContext {
   hasSelection: boolean;
   selectionCount: number;
   setTool: (tool: ToolId) => void;
+  recent: OpenBurnRecentFile[];
+}
+
+/** Run a document-replacing action only after the user accepts losing edits. */
+async function guardThen(action: () => void): Promise<void> {
+  if (await requestDiscardConfirmation()) action();
 }
 
 interface MenuDef {
@@ -48,10 +56,25 @@ interface MenuDef {
 const MENUS: MenuDef[] = [
   {
     label: 'File',
-    entries: ({ ws }) => [
-      { label: 'New', shortcut: 'Ctrl+N', action: () => ws?.newDocument() },
-      { label: 'Open…', shortcut: 'Ctrl+O', action: () => void ws?.openDocument() },
-      { label: 'Open LightBurn Project…', action: () => void ws?.openLightBurn() },
+    entries: ({ ws, recent }) => [
+      { label: 'New', shortcut: 'Ctrl+N', action: () => void guardThen(() => ws?.newDocument()) },
+      { label: 'Open…', shortcut: 'Ctrl+O', action: () => void guardThen(() => void ws?.openDocument()) },
+      { label: 'Open LightBurn Project…', action: () => void guardThen(() => void ws?.openLightBurn()) },
+      ...(recent.length > 0
+        ? [
+            { separator: true },
+            { label: 'Open Recent', disabled: true },
+            ...recent.slice(0, 8).map((file) => ({
+              label: `  ${file.name}`,
+              action: () => void guardThen(() => void ws?.openPath(file.path)),
+            })),
+            {
+              label: 'Clear Recent Files',
+              action: () => void clearRecentFiles(),
+            },
+          ]
+        : []),
+      { separator: true },
       { label: 'Save', shortcut: 'Ctrl+S', action: () => void ws?.saveDocument() },
       { label: 'Save As…', shortcut: 'Ctrl+Shift+S', action: () => void ws?.saveDocument(true) },
       { separator: true },
@@ -318,6 +341,7 @@ export function MenuBar() {
     );
   };
 
+  const recent = useRecentFiles();
   const ctx: MenuContext = {
     ws,
     canUndo: state.canUndo,
@@ -325,6 +349,7 @@ export function MenuBar() {
     hasSelection: !!state.selection && state.selection.count > 0,
     selectionCount: state.selection?.count ?? 0,
     setTool: (tool) => store.setState({ tool }),
+    recent,
   };
 
   return (

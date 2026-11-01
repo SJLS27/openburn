@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { store, useAppState, type ToolId } from '@/state/store';
+import { requestDiscardConfirmation } from '@/state/discardGuard';
 import { Icon } from './icons';
 import { NumberField, ToolButton, useUnits, useWorkspace } from './common';
 
@@ -8,8 +9,24 @@ export function MainToolbar() {
   const state = useAppState();
   return (
     <div className="tb-group">
-      <ToolButton icon="new" title="New (Ctrl+N)" onClick={() => ws?.newDocument()} />
-      <ToolButton icon="open" title="Open (Ctrl+O)" onClick={() => void ws?.openDocument()} />
+      <ToolButton
+        icon="new"
+        title="New (Ctrl+N)"
+        onClick={() => {
+          void requestDiscardConfirmation().then((ok) => {
+            if (ok) ws?.newDocument();
+          });
+        }}
+      />
+      <ToolButton
+        icon="open"
+        title="Open (Ctrl+O)"
+        onClick={() => {
+          void requestDiscardConfirmation().then((ok) => {
+            if (ok) void ws?.openDocument();
+          });
+        }}
+      />
       <ToolButton icon="save" title="Save (Ctrl+S)" onClick={() => void ws?.saveDocument()} />
       <ToolButton icon="import" title="Import artwork (Ctrl+I)" onClick={() => void ws?.importFile()} />
       <div className="tb-sep" />

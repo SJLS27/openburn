@@ -5,6 +5,7 @@ import {
   dialog,
   Menu,
   clipboard,
+  screen,
   shell,
   type MenuItemConstructorOptions,
 } from 'electron';
@@ -16,18 +17,68 @@ import {
   scheduleUpdateCheck,
 } from './updater';
 import { readClipboardPayload } from './clipboard';
+import { registerAutosaveHandlers } from './autosave';
+import { registerRecentHandlers } from './recentFiles';
+import {
+  MIN_WINDOW_HEIGHT,
+  MIN_WINDOW_WIDTH,
+  loadWindowState,
+  sanitizeWindowState,
+  saveWindowState,
+  windowStatePath,
+} from './windowState';
+
+// Keep tests and development profiles away from the real user configuration.
+const userDataOverride = process.env.OPENBURN_USER_DATA_DIR;
+if (userDataOverride) app.setPath('userData', path.resolve(userDataOverride));
 
 let mainWindow: BrowserWindow | null = null;
+let windowStateTimer: NodeJS.Timeout | null = null;
+
+function persistWindowState(win: BrowserWindow): void {
+  if (win.isDestroyed()) return;
+  saveWindowState(windowStatePath(app.getPath('userData')), {
+    ...win.getNormalBounds(),
+    maximized: win.isMaximized(),
+  });
+}
+
+function trackWindowState(win: BrowserWindow): void {
+  const schedule = () => {
+    if (windowStateTimer) clearTimeout(windowStateTimer);
+    windowStateTimer = setTimeout(() => {
+      windowStateTimer = null;
+      persistWindowState(win);
+    }, 300);
+  };
+  win.on('resize', schedule);
+  win.on('move', schedule);
+  win.on('close', () => {
+    if (windowStateTimer) {
+      clearTimeout(windowStateTimer);
+      windowStateTimer = null;
+    }
+    persistWindowState(win);
+  });
+}
 
 function createWindow() {
   const iconPath = app.isPackaged
     ? path.join(__dirname, '../dist/icon.png')
     : path.join(__dirname, '../public/icon.png');
+  const statePath = windowStatePath(app.getPath('userData'));
+  const restored = sanitizeWindowState(
+    loadWindowState(statePath),
+    screen.getAllDisplays().map((display) => display.workArea),
+  );
   mainWindow = new BrowserWindow({
-    width: 1600,
-    height: 1000,
-    minWidth: 1024,
-    minHeight: 680,
+    ...(restored.x !== undefined && restored.y !== undefined
+      ? { x: restored.x, y: restored.y }
+      : {}),
+    width: restored.width,
+    height: restored.height,
+    minWidth: MIN_WINDOW_WIDTH,
+    minHeight: MIN_WINDOW_HEIGHT,
     backgroundColor: '#26282c',
     title: 'OpenBurn',
     icon: iconPath,
@@ -39,6 +90,12 @@ function createWindow() {
       sandbox: false,
     },
   });
+  trackWindowState(mainWindow);
+
+  if (restored.maximized) mainWindow.maximize();
+
+  // Dropping a file outside the canvas must not navigate away from the editor.
+  mainWindow.webContents.on('will-navigate', (event) => event.preventDefault());
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   if (devServerUrl) {
@@ -186,6 +243,8 @@ function installApplicationMenu(): void {
 app.whenReady().then(() => {
   installApplicationMenu();
   initUpdater();
+  registerAutosaveHandlers();
+  registerRecentHandlers();
   createWindow();
   scheduleUpdateCheck();
   app.on('activate', () => {

@@ -26,6 +26,7 @@ npm install
 | `npm run test:watch` | Vitest en modo watch |
 | `npm run test:coverage` | Tests + cobertura v8 en `coverage/` |
 | `npm run test:e2e` | Build + Playwright sobre Electron |
+| `npm run check:flatpak-sources` | Valida que `flatpak/node-sources.json` cubre el lockfile |
 | `npm run build:app` | Instalador con electron-builder |
 | `npm run preview` | Sirve el build de producción |
 
@@ -41,8 +42,15 @@ La política y las plantillas están en [AGENTS.md](../AGENTS.md).
   los builds (`electron/tsconfig.json` y `vitest.config.ts`).
 - El proceso principal se testea con `// @vitest-environment node` y mockeando
   `electron` / `electron-updater` (ver `electron/updater.test.ts`).
-- CI ejecuta `typecheck`, `test:unit` y `build` en cada PR, y los e2e con
-  `xvfb-run` en un job aparte.
+- CI ejecuta `typecheck`, `test:unit`, `check:flatpak-sources` y `build` en cada
+  PR, y los e2e con `xvfb-run` en un job aparte.
+- Los e2e arrancan con `OPENBURN_USER_DATA_DIR` apuntando a un directorio
+  temporal (`e2e/helpers.ts`), así que no tocan el perfil real. Puedes usar la
+  misma variable al desarrollar para probar autoguardado, recientes o el tamaño
+  de ventana desde cero.
+- `electron/windowState.test.ts`, `electron/autosave.test.ts` y
+  `electron/recentFiles.test.ts` usan un `userData` temporal y no dependen de
+  ventanas reales.
 
 ```bash
 npm run test                    # unitarios + componentes

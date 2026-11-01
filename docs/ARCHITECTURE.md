@@ -38,10 +38,10 @@ flowchart LR
 
 | Carpeta | Responsabilidad |
 | --- | --- |
-| `electron/` | Ventana, IPC (diálogos, fs, assets), permisos Web Serial y auto-update |
+| `electron/` | Ventana (tamaño/posición persistidos), IPC (diálogos, fs, assets, autoguardado, recientes), permisos Web Serial y auto-update |
 | `src/core/` | `.obrn`, unidades, DXF, acceso a archivos |
-| `src/state/` | Store observable + interfaz `WorkspaceApi` |
-| `src/workspace/` | `WorkspaceController`: herramientas, selección, historial, zoom, nodos |
+| `src/state/` | Store observable, interfaz `WorkspaceApi`, autoguardado, archivos recientes y confirmación de descartes |
+| `src/workspace/` | `WorkspaceController`: herramientas, selección, zoom, nodos e `HistoryBuffer` con presupuesto de memoria |
 | `src/ui/` | Menús, toolbars, paneles, diálogos, iconos |
 | `src/geometry/` | Booleanos/offset (Paper.js), tabs |
 | `src/gcode/` | Geometría de mecanizado, planificación, optimización y GCode |
@@ -58,6 +58,7 @@ flowchart LR
 - `store` es un store observable minimalista (`useSyncExternalStore`) con el estado de UI: herramienta activa, selección, zoom, cursor, dispositivo, etc.
 - `WorkspaceController` se registra en `WorkspaceApi` para que la UI invoque comandos imperativos (nuevo, guardar, alinear, booleanos…).
 - Cada cambio relevante de la escena se snapshotea para **undo/redo**. Los snapshots excluyen los nodos temporales (`excludeFromExport`).
+- `src/workspace/history.ts` (`HistoryBuffer`) limita el historial por número de entradas **y por bytes** (64 MB por defecto). Las imágenes viajan como data URLs, así que un puñado de snapshots puede pesar cientos de MB; al exceder el presupuesto se descartan los más antiguos.
 
 Las propiedades por objeto viajan con la escena:
 
@@ -144,7 +145,9 @@ src/ui/UpdateDialog.tsx      banner de progreso + diálogo "Restart & install"
 - El feed se define en `build.publish` (GitHub Releases). `.github/workflows/release.yml` compila y publica al empujar un tag `v*`, incluidos `latest.yml` / `latest-*.yml`.
 - La comprobación de arranque se retrasa 5 s para no competir con el primer render; **Help → Check for Updates…** (menú nativo y menú in-app) lanza una comprobación manual y abre el diálogo.
 - El main cachea el último estado: si el renderer se suscribe tarde, `updater:get-state` hidrata el store.
-- La firma de código (Windows/macOS) es independiente del mecanismo y queda pendiente; sin ella macOS no puede aplicar actualizaciones en producción.
+- En macOS, Squirrel exige un bundle firmado. `updater.ts` detecta la firma una vez con `codesign` al arrancar y, si no existe, reporta `disabled` con una explicación en lugar de fallar al comprobar.
+- `release.yml` reutiliza el workflow de CI (`workflow_call`) y el job de publicación depende de él: un tag no publica nada si typecheck, tests, build o e2e están en rojo.
+- La firma de código (Windows/macOS) sigue pendiente; sin ella macOS no puede aplicar actualizaciones en producción.
 
 ---
 
@@ -169,7 +172,40 @@ No usa el código de LightBurn; se basa en el formato XML y en archivos de ejemp
 
 ---
 
-## 9. Pruebas
+## 9. Fundamentos de escritorio (autoguardado, recientes, ventana)
+
+```
+src/App.tsx ── AutosaveScheduler (debounce 2 s / flush 30 s) ──► IPC 'autosave:write'
+   │                                                              │
+   │  store.dirty = false ───────────────────────────────────────► 'autosave:clear'
+   │                                                              ▼
+   │                                                   userData/autosave.json
+   └─ al arrancar: 'autosave:read' → RecoveryDialog (Recover / Discard)
+```
+
+- **Autoguardado**: solo se escribe mientras el documento está sucio. Si la app
+  termina de forma limpia (o se guarda), el borrador se elimina; si se cae, el
+  siguiente arranque ofrece recuperarlo y lo restaura como cambios sin guardar.
+- **Recientes**: `electron/recentFiles.ts` mantiene hasta 10 rutas en
+  `userData/recent-files.json` (deduplicadas, filtrando archivos que ya no
+  existen). Alimenta `File → Open Recent` y la pantalla de bienvenida.
+- **Ventana**: `electron/windowState.ts` valida los bounds guardados contra los
+  monitores actuales (mínimo visible, monitor desaparecido, tamaño máximo) y los
+  persiste con debounce en `resize`/`move` y al cerrar.
+- **Drag & drop**: `src/core/dropRouting.ts` decide qué hacer con cada extensión;
+  el renderer obtiene la ruta real con `webUtils.getPathForFile` (Electron 32+
+  eliminó `File.path`) y cae a `File.text()`/`arrayBuffer()` en navegador.
+  `will-navigate` está bloqueado para que un drop no saque la app del editor.
+- **Descartes**: `src/state/discardGuard.ts` centraliza la confirmación
+  Guardar / Descartar / Cancelar que usan New, Open, Open Recent y el drop de
+  proyectos.
+- **Perfiles aislados**: `OPENBURN_USER_DATA_DIR` redirige todo el estado del
+  main (ventana, borradores, recientes); los e2e lo apuntan a un directorio
+  temporal para no tocar la configuración real.
+
+---
+
+## 10. Pruebas
 
 La política completa está en [AGENTS.md](../AGENTS.md).
 
@@ -177,13 +213,21 @@ La política completa está en [AGENTS.md](../AGENTS.md).
   (`vitest.config.ts`, setup en `src/test/setup.ts`).
   - Lógica pura: `src/core/units.test.ts`, `src/core/serialize.test.ts`,
     `src/gcode/types.test.ts`, `src/gcode/optimize.test.ts`.
-  - Estado: `src/state/updateStore.test.ts`.
-  - Componentes: `src/ui/UpdateDialog.test.tsx`.
-  - Proceso principal: `electron/updater.test.ts` (mockea `electron` y
-    `electron-updater`, entorno `node`).
+  - Estado: `src/state/updateStore.test.ts`, `src/state/autosave.test.ts`,
+    `src/state/recentStore.test.ts`.
+  - Rendimiento/memoria: `src/workspace/history.test.ts`.
+  - Componentes: `src/ui/UpdateDialog.test.tsx`,
+    `src/ui/WelcomeDialog.test.tsx`, `src/ui/DiscardChangesDialog.test.tsx`,
+    `src/ui/RecoveryDialog.test.tsx`.
+  - Proceso principal: `electron/updater.test.ts`, `electron/windowState.test.ts`,
+    `electron/autosave.test.ts`, `electron/recentFiles.test.ts`,
+    `electron/storage.test.ts` (mockean `electron` y usan un `userData` temporal).
 - **End-to-end**: Playwright `_electron` sobre `dist/` + `dist-electron/`
-  (`playwright.config.ts`, specs en `e2e/`). Cubre arranque de la ventana,
-  versión del proceso principal y el diálogo de actualizaciones.
+  (`playwright.config.ts`, specs en `e2e/`). Cubre arranque de la ventana y
+  pantalla de bienvenida, versión del proceso principal, actualizaciones,
+  portapapeles, paneo, recuperación tras un cierre abrupto, drag & drop,
+  recientes y restauración del tamaño de ventana. Cada spec usa un perfil
+  temporal (`OPENBURN_USER_DATA_DIR`).
 - **Estáticos**: `npm run typecheck` y `npm run build`.
 - **CI**: `.github/workflows/ci.yml` ejecuta typecheck + tests + build, y un job
   separado de e2e con `xvfb-run`.

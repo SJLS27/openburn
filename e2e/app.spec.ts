@@ -7,6 +7,12 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test';
+import {
+  createTestProfile,
+  dismissWelcome,
+  launchEnv,
+  removeTestProfile,
+} from './helpers';
 
 const repoRoot = path.resolve(__dirname, '..');
 const pkg = JSON.parse(
@@ -15,11 +21,12 @@ const pkg = JSON.parse(
 
 let app: ElectronApplication;
 let page: Page;
+const profile = createTestProfile();
 
 test.beforeAll(async () => {
   app = await electron.launch({
     args: [repoRoot, '--no-sandbox'],
-    env: { ...process.env, NODE_ENV: 'production' },
+    env: launchEnv(profile),
   });
   page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
@@ -27,6 +34,12 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await app?.close();
+  removeTestProfile(profile);
+});
+
+test('shows the start screen on first launch and closes it', async () => {
+  await expect(page.locator('.dialog-header', { hasText: 'Welcome to OpenBurn' })).toBeVisible();
+  expect(await dismissWelcome(page)).toBe(true);
 });
 
 test('opens the editor window', async () => {

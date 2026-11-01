@@ -31,6 +31,31 @@ declare global {
     onOpenDialog(callback: () => void): () => void;
   }
 
+  interface OpenBurnRecentFile {
+    path: string;
+    name: string;
+    openedAt: string;
+  }
+
+  interface OpenBurnAutosaveRecord {
+    document: unknown;
+    filePath: string | null;
+    savedAt: string;
+  }
+
+  interface OpenBurnAutosaveApi {
+    read(): Promise<OpenBurnAutosaveRecord | null>;
+    write(record: { document: unknown; filePath: string | null }): Promise<boolean>;
+    clear(): Promise<boolean>;
+  }
+
+  interface OpenBurnRecentApi {
+    list(): Promise<OpenBurnRecentFile[]>;
+    add(filePath: string): Promise<OpenBurnRecentFile[]>;
+    remove(filePath: string): Promise<OpenBurnRecentFile[]>;
+    clear(): Promise<OpenBurnRecentFile[]>;
+  }
+
   interface OpenBurnFileApi {
     openFile(filters?: { name: string; extensions: string[] }[]): Promise<string | null>;
     saveFile(options?: {
@@ -47,6 +72,10 @@ declare global {
       svg?: string | null;
     }>;
     writeFile(filePath: string, content: string, encoding?: string): Promise<boolean>;
+    /** Absolute path of a dropped `File` (Electron 32+ removed `File.path`). */
+    getFilePath(file: File): string;
+    autosave: OpenBurnAutosaveApi;
+    recent: OpenBurnRecentApi;
     updater?: OpenBurnUpdaterApi;
     platform: string;
     isElectron: boolean;
