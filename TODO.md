@@ -96,6 +96,18 @@ y P6b (varios documentos) cuando el store pase a multi-documento. Detalle en
 - [x] Repin del Flatpak a la última release (manifest apuntando a `v0.9.0`); seguimiento de Flathub pendiente
 - [x] Regenerar `flatpak/node-sources.json` para v0.8.1 (nuevas deps: `electron-updater`, `vitest`, `playwright`, `jsdom`…) con `flatpak-node-generator`; CI valida la cobertura con `npm run check:flatpak-sources`
 
+### 🌐 Web pública
+- [x] Landing bilingüe (EN/ES) en `website/` con Astro, SEO técnico, schema.org, sitemap y `robots.txt`
+- [x] CI de la web: `astro check`, build, smoke tests y chequeo de enlaces internos
+- [x] Página de apoyo/patrocinio bilingüe sin cookies ni anuncios, con GitHub Sponsors
+- [x] Publicar en Cloudflare Pages: <https://openburn.pages.dev> (proyecto direct-upload con Wrangler)
+- [x] Verificar la propiedad en Google Search Console (archivo HTML, 1 nov 2026)
+- [ ] Enviar `sitemap-index.xml` en Search Console y solicitar indexación de las páginas principales
+- [ ] Alta en Bing Webmaster Tools importando la propiedad desde Search Console
+- [ ] Crear la cuenta GoatCounter `openburn` y comprobar que el script registra visitas
+- [x] Campo *Website* y topics del repo
+- [ ] Backlinks: Flathub, AlternativeTo, Product Hunt, Reddit/HN
+
 ### 🧪 Tests automatizados
 Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
 - [x] Infraestructura: Vitest + jsdom + Testing Library (`vitest.config.ts`, `src/test/setup.ts`)

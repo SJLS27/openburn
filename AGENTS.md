@@ -244,7 +244,33 @@ extiende los tests de las tres capas.
 
 ---
 
-## 8. CI
+## 8. Web pública (`website/`)
+
+La web de marketing vive en `website/` y se construye con Astro como sitio
+estático, sin depender del build de la app.
+
+```bash
+cd website
+npm install
+npm run dev      # http://localhost:4321
+npm run check    # Astro + TypeScript
+npm run build    # genera dist/
+npm test         # smoke tests sobre dist/ (SEO, sitemap, assets y enlaces)
+```
+
+- El contenido está en `src/content/{en,es}.ts`; ambos deben cumplir
+  `SiteContent` en `src/content/types.ts`, así que añadir una cadena exige
+  actualizar los dos idiomas.
+- `.github/workflows/website.yml` compila, ejecuta `astro check`, los smoke tests
+  y un chequeo de enlaces internos en cada PR que toque `website/`.
+- La web no forma parte del bundle de Electron ni del empaquetado.
+- Las capturas se optimizan a WebP (800/1200/1600) en `public/screenshots/`.
+- El despliegue en Cloudflare Pages y la verificación en Search Console están en
+  [`website/README.md`](website/README.md).
+
+---
+
+## 9. CI
 
 `.github/workflows/ci.yml` ejecuta en cada push/PR dos jobs:
 
@@ -252,11 +278,12 @@ extiende los tests de las tres capas.
 2. **e2e**: `npm ci` → instala `xvfb` → `xvfb-run -a npm run test:e2e`.
 
 El workflow de release (`.github/workflows/release.yml`) solo se dispara con
-tags `v*`.
+tags `v*`. La web tiene su propio workflow (`.github/workflows/website.yml`) y se
+despliega desde Cloudflare Pages.
 
 ---
 
-## 9. Checklist al añadir una feature
+## 10. Checklist al añadir una feature
 
 1. Lee `docs/ARCHITECTURE.md` y localiza el módulo correcto.
 2. Implementa la lógica en un módulo puro siempre que sea posible.
@@ -264,12 +291,13 @@ tags `v*`.
 4. Si hay UI, añade un test de componente (mockeando store/bridge).
 5. Si el flujo es crítico, añade o amplía un e2e.
 6. Ejecuta `npm run typecheck && npm run test && npm run build`.
-7. Actualiza la documentación y `TODO.md`.
-8. Describe en el PR qué se probó y qué queda pendiente.
+7. Si tocas `website/`, ejecuta `cd website && npm run check && npm run build && npm test`.
+8. Actualiza la documentación y `TODO.md`.
+9. Describe en el PR qué se probó y qué queda pendiente.
 
 ---
 
-## 10. Recursos
+## 11. Recursos
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — módulos y flujos.
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — entorno, scripts y empaquetado.

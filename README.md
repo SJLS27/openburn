@@ -5,7 +5,8 @@
 <p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="https://github.com/SJLS27/openburn/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SJLS27/openburn/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.8.0-orange.svg">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.9.0-orange.svg">
+  <a href="https://openburn.pages.dev"><img alt="Website" src="https://img.shields.io/badge/website-openburn.pages.dev-blue.svg"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="GRBL" src="https://img.shields.io/badge/GRBL-ready-brightgreen.svg">
   <img alt="LightBurn" src="https://img.shields.io/badge/LightBurn-.lbrn%20%7C%20.lbrn2-8a63d2.svg">
@@ -22,6 +23,7 @@
   <a href="#-características">Características</a> ·
   <a href="#-capturas">Capturas</a> ·
   <a href="#-inicio-rápido">Inicio rápido</a> ·
+  <a href="#web-oficial">Web</a> ·
   <a href="#-compatibilidad-con-lightburn">LightBurn</a> ·
   <a href="#-documentación">Documentación</a> ·
   <a href="#-roadmap">Roadmap</a>
@@ -31,14 +33,19 @@
 
 ---
 
-## 🆕 Novedades 0.8.0
+## 🆕 Novedades 0.9.0
 
-- **Actualizaciones automáticas** (`electron-updater`): comprobación al arrancar, descarga en segundo plano, progreso y **Restart & install**. Manual desde **Help → Check for Updates…**.
-- **Pegado de Inkscape como vectores editables** en Windows, macOS y Linux: lectura del portapapeles **por contenido**, compatible con el formato comprimido de Inkscape y con Electron 45+.
-- **Capa de imagen automática**: las imágenes pegadas o importadas van a una capa en modo **Image**, aparecen en la Preview y se graban sin configuración manual.
-- **Paneo con el botón central** del ratón.
-- **Pegado consistente**: `Ctrl+V`, la barra, **Edit → Paste / Paste in Place** y el menú contextual usan el portapapeles interno y, si está vacío, el del sistema.
-- **Base de tests y CI**: Vitest + Testing Library, Playwright/Electron, CI con `xvfb` y workflow de release por tag.
+Esta versión se centra en los **fundamentos de app de escritorio**: no perder
+trabajo, retomar proyectos rápido y que la ventana y el lienzo se comporten como
+en un programa nativo.
+
+- **Autoguardado y recuperación**: mientras hay cambios sin guardar se escribe un borrador en el perfil de la app (debounce de 2 s); si la app termina de golpe, el siguiente arranque ofrece **Recover Unsaved Work**.
+- **Archivos recientes y pantalla de bienvenida**: hasta 10 proyectos en *File → Open Recent* (con *Clear Recent Files*), más un diálogo de inicio con New Design y Open Project.
+- **Drag & drop** de `.obrn`, `.lbrn2`, SVG, DXF e imágenes sobre el lienzo. Los proyectos sustituyen el documento (con confirmación si hay cambios) y el artwork se importa donde se suelta.
+- **Ventana persistente**: tamaño, posición y estado maximizado se restauran validándolos contra los monitores actuales; si un monitor desapareció, la ventana vuelve a un tamaño centrado seguro.
+- **Historial acotado por memoria**: undo/redo limitado a 64 MB y 100 entradas, importante con imágenes embebidas como data URLs.
+- **Confirmación Guardar / Descartar / Cancelar** al crear, abrir, reabrir un reciente o soltar un proyecto si hay cambios sin guardar.
+- **Varios documentos (pestañas/ventanas)** queda pendiente para la próxima fase; hoy se trabaja con un documento por ventana.
 
 Detalle completo en [CHANGELOG.md](CHANGELOG.md).
 
@@ -85,6 +92,14 @@ Detalle completo en [CHANGELOG.md](CHANGELOG.md).
 - **Auto-update** con `electron-updater`: comprueba al arrancar, descarga en segundo plano y ofrece **Restart & install**.
 - Release manual desde **Help → Check for Updates…**.
 - Artefactos publicados automáticamente en GitHub Releases al crear un tag `v*` (AppImage, NSIS y DMG/ZIP).
+
+### Escritorio y flujo de trabajo
+- **Autoguardado** en el perfil de la app y recuperación del trabajo sin guardar tras un cierre inesperado.
+- **Pantalla de bienvenida** con New Design, Open Project y la lista de recientes.
+- **Archivos recientes** en *File → Open Recent*, con opción de limpiar la lista.
+- **Drag & drop** de proyectos, SVG, DXF e imágenes en el punto donde se sueltan.
+- **Ventana persistente** (tamaño, posición y maximizado) e **historial de undo/redo acotado** para sesiones largas.
+- Confirmación **Guardar / Descartar / Cancelar** antes de descartar cambios.
 
 ### Calibración
 - **Material Test** potencia × velocidad con **sublayers reales** (una capa por celda), **Interval Test**, **Focus Test** con rampa de eje Z y **Kerf Test** (ranura o span de líneas).
@@ -165,12 +180,37 @@ npm run build:app      # instalador (AppImage / NSIS / DMG) con electron-builder
   [`flatpak/`](flatpak/README.md). La publicación en Flathub está pendiente de
   revisión.
 
+### Web oficial
+
+La web del proyecto está **en producción** en Cloudflare Pages:
+**<https://openburn.pages.dev>** (inglés) · **<https://openburn.pages.dev/es/>** (español).
+
+Está **verificada en Google Search Console** (1 de noviembre de 2026, método de
+archivo HTML) y publica `robots.txt` y `sitemap-index.xml`. Quedan pendientes la
+solicitud de indexación, el alta en Bing Webmaster Tools y la analítica sin
+cookies (GoatCounter).
+
+Incluye versión en inglés y español, descargas por plataforma, comparativa con
+LightBurn, FAQ y datos estructurados para Google.
+
+```bash
+npm run site:dev      # http://localhost:4321
+npm run site:build    # sitio estático en website/dist/
+npm run site:test     # build + smoke tests de SEO, sitemap, assets y enlaces
+npm run site:deploy   # build + deploy a openburn.pages.dev (requiere wrangler login)
+```
+
+Los mismos comandos están disponibles dentro de [`website/`](website/README.md)
+(`npm run dev`, `build`, `test` y `deploy`). El despliegue y la verificación en
+Search Console están documentados en [`website/README.md`](website/README.md).
+
 ### Primeros pasos
-1. Elige una herramienta en la barra izquierda y dibuja en el lienzo.
-2. Asigna color/capa desde la paleta y ajusta velocidad/potencia en **Cuts / Layers**.
-3. Pulsa **Preview** (`Alt+P`) para revisar trayectorias y tiempos.
-4. En el panel **Laser**, conecta tu GRBL o el **Simulator (demo)** y pulsa **Start**.
-5. Guarda como `.obrn` (`Ctrl+S`) o exporta a LightBurn / GCode desde **File**.
+1. Al abrir, elige **New Design** u **Open Project** en la pantalla de bienvenida; también puedes arrastrar un `.obrn`, `.lbrn2`, SVG, DXF o una imagen al lienzo.
+2. Elige una herramienta en la barra izquierda y dibuja en el lienzo.
+3. Asigna color/capa desde la paleta y ajusta velocidad/potencia en **Cuts / Layers**.
+4. Pulsa **Preview** (`Alt+P`) para revisar trayectorias y tiempos.
+5. En el panel **Laser**, conecta tu GRBL o el **Simulator (demo)** y pulsa **Start**.
+6. Guarda como `.obrn` (`Ctrl+S`) o exporta a LightBurn / GCode desde **File**.
 
 > **Formato nativo:** `.obrn`. Los proyectos antiguos `.ovbrn` se pueden abrir; al guardar se
 > convierten a `.obrn`.
@@ -261,6 +301,7 @@ Más en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | [docs/FILE-FORMATS.md](docs/FILE-FORMATS.md) | `.obrn` y mapeo detallado `.lbrn`/`.lbrn2` |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Módulos, flujo de datos y pipeline de GCode |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Entorno, scripts, pruebas y empaquetado |
+| [website/README.md](website/README.md) | Web pública: contenido bilingüe, despliegue en Cloudflare Pages y Search Console |
 | [CHANGELOG.md](CHANGELOG.md) | Novedades por versión |
 | [AGENTS.md](AGENTS.md) | Política de tests, convenciones y checklist para agentes/contribuidores |
 | [TODO.md](TODO.md) | Lista de tareas y roadmap |
@@ -276,6 +317,8 @@ Más en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - [x] Fase 3 — Texto a contornos, Material/Interval/Focus Test, imágenes (ajuste/trace), tabs y optimización
 - [x] Calibración fina — kerf, ángulo/cross-hatch, scan offset, biblioteca de materiales, eje Z y Kerf Test
 - [x] Compatibilidad LightBurn (lectura y escritura `.lbrn`/`.lbrn2`)
+- [x] **P6 — Fundamentos de escritorio** — autoguardado y recuperación, recientes, pantalla de bienvenida, drag & drop, ventana persistente e historial acotado
+- [ ] **P6b — Varios documentos** — pestañas/ventanas con store multi-documento
 - [ ] Rotary, cámaras y Print & Cut
 - [ ] Ruida/DSP y galvo (EZCad)
 - [ ] Empaquetado firmado (certificados Windows/macOS)
@@ -293,6 +336,7 @@ Detalle y estado en [TODO.md](TODO.md).
 ## 📄 Licencia y créditos
 
 - Código: **MIT** — ver [LICENSE](LICENSE).
+- **Apoyar el proyecto:** [PayPal](https://paypal.me/openburn) · [página de apoyo](https://openburn.pages.dev/support/) (sin anuncios ni cookies).
 - Fuente **Inter**: SIL Open Font License 1.1 — [public/fonts/Inter-LICENSE.txt](public/fonts/Inter-LICENSE.txt).
 - [Fabric.js](https://github.com/fabricjs/fabric.js) (MIT), [Paper.js](https://github.com/paperjs/paper.js) (MIT), [opentype.js](https://github.com/opentypejs/opentype.js) (MIT), [ImageTracer](https://github.com/jankovicsandras/imagetracerjs) (Unlicense).
 
