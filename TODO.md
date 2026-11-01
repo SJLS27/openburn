@@ -93,9 +93,8 @@ y P6b (varios documentos) cuando el store pase a multi-documento. Detalle en
 - [x] Auto-update de macOS: sin firma, `electron/updater.ts` reporta `disabled` con explicación (detección con `codesign`) en vez de error
 - [x] Gate de release sobre CI verde (`release.yml` reutiliza el workflow de CI)
 - [ ] Canales beta/stable y rollback de versiones
-- [x] Repin del Flatpak a la última release (manifest apuntando a `v0.8.1`); seguimiento de Flathub pendiente
+- [x] Repin del Flatpak a la última release (manifest apuntando a `v0.9.0`); seguimiento de Flathub pendiente
 - [x] Regenerar `flatpak/node-sources.json` para v0.8.1 (nuevas deps: `electron-updater`, `vitest`, `playwright`, `jsdom`…) con `flatpak-node-generator`; CI valida la cobertura con `npm run check:flatpak-sources`
-- [ ] Repin del manifiesto Flatpak a `v0.9.0` cuando se publique el tag
 
 ### 🧪 Tests automatizados
 Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
