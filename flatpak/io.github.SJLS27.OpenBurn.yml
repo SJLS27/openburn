@@ -73,5 +73,5 @@ modules:
     sources:
       - type: git
         url: https://github.com/SJLS27/openburn.git
-        tag: v0.8.0
+        tag: v0.8.1
       - node-sources.json
