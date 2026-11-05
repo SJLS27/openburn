@@ -52,12 +52,39 @@ function ShapePropertiesPanel() {
               <Field label="Y">
                 <NumberField value={sel.y} onChange={(v) => ws?.applyNumeric({ y: v })} units={units} />
               </Field>
-              <Field label="W">
-                <NumberField value={sel.width} onChange={(v) => ws?.applyNumeric({ width: v })} units={units} />
-              </Field>
-              <Field label="H">
-                <NumberField value={sel.height} onChange={(v) => ws?.applyNumeric({ height: v })} units={units} />
-              </Field>
+            </div>
+            <div className="field-row">
+              <div className="grid-2" style={{ flex: 1 }}>
+                <Field label="W">
+                  <NumberField
+                    value={sel.width}
+                    onChange={(v) => ws?.applyNumeric({ width: v })}
+                    units={units}
+                  />
+                </Field>
+                <Field label="H">
+                  <NumberField
+                    value={sel.height}
+                    onChange={(v) => ws?.applyNumeric({ height: v })}
+                    units={units}
+                  />
+                </Field>
+              </div>
+              <button
+                type="button"
+                className={`btn${state.lockAspect ? ' primary' : ''}`}
+                style={{ width: 26, flex: '0 0 26px', marginTop: 14 }}
+                title={
+                  state.lockAspect
+                    ? 'Proportional scaling: on (hold Shift on a corner to stretch freely)'
+                    : 'Proportional scaling: off (hold Shift on a corner to keep the ratio)'
+                }
+                aria-pressed={state.lockAspect}
+                aria-label="Lock aspect ratio"
+                onClick={() => store.setState({ lockAspect: !state.lockAspect })}
+              >
+                <Icon name={state.lockAspect ? 'lock' : 'unlock'} size={12} />
+              </button>
             </div>
             <Field label="Angle">
               <NumberField

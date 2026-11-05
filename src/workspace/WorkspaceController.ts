@@ -47,6 +47,7 @@ import { objectContours } from '@/gcode/geometry';
 import { parseDxf } from '@/core/dxf';
 import { prepareSvgForImport, applySvgPhysicalSize } from '@/io/svg';
 import { findImageLayer } from './layers';
+import { applyNumericSingle, resolveSizePatch } from './numeric';
 import { buildFramePlan, buildJob, planToText } from '@/gcode/job';
 import type { JobPlan, Pt } from '@/gcode/types';
 import {
@@ -170,7 +171,7 @@ export class WorkspaceController implements WorkspaceApi {
       // events and breaks panning with the mouse wheel button.
       fireMiddleClick: true,
       stopContextMenu: false,
-      uniformScaling: true,
+      uniformScaling: state.lockAspect,
     });
 
     this.canvas.setDimensions({
@@ -228,6 +229,7 @@ export class WorkspaceController implements WorkspaceApi {
 
   private onStoreChange = (): void => {
     const s = store.getState();
+    this.applyAspectLock();
     if (s.doc.layers !== this.lastLayers) {
       this.lastLayers = s.doc.layers;
       this.applyLayerStyles();
@@ -265,6 +267,16 @@ export class WorkspaceController implements WorkspaceApi {
     if (tool === 'select' || tool === 'node') this.canvas.defaultCursor = 'default';
     else if (tool === 'pan') this.canvas.defaultCursor = 'grab';
     else this.canvas.defaultCursor = 'crosshair';
+  }
+
+  /**
+   * Fabric decides whether a corner drag keeps the aspect ratio from
+   * `canvas.uniformScaling`, flipping the behaviour while `uniScaleKey`
+   * (Shift) is held. Mirror the panel's aspect lock: locked by default, and
+   * Shift frees the scale so the user can still stretch freely.
+   */
+  private applyAspectLock(): void {
+    this.canvas.uniformScaling = store.getState().lockAspect;
   }
 
   // -------------------------------------------------------------------------
@@ -816,6 +828,8 @@ export class WorkspaceController implements WorkspaceApi {
     }
     const b = this.selectionBounds(objs);
     const single = objs.length === 1 ? objs[0] : null;
+    // A multi-object ActiveSelection carries the real rotation of the group.
+    const active = this.canvas.getActiveObject();
     store.setState({
       selection: {
         count: objs.length,
@@ -823,7 +837,7 @@ export class WorkspaceController implements WorkspaceApi {
         y: b.top,
         width: b.width,
         height: b.height,
-        angle: single ? single.angle ?? 0 : 0,
+        angle: single ? single.angle ?? 0 : active?.angle ?? 0,
         layerIds: [
           ...new Set(
             objs.map(
@@ -2328,52 +2342,89 @@ export class WorkspaceController implements WorkspaceApi {
   ): void {
     const objs = this.canvas.getActiveObjects();
     if (objs.length === 0) return;
-    const b = this.selectionBounds(objs);
-    const anchorX = b.left;
-    const anchorY = b.top;
+    const before = this.selectionBounds(objs);
+    if (before.width <= 0 || before.height <= 0) return;
+    const lockAspect = store.getState().lockAspect;
 
-    this.withSelectionObjects(() => {
-      if (patch.x !== undefined || patch.y !== undefined) {
-        const dx = patch.x !== undefined ? patch.x - b.left : 0;
-        const dy = patch.y !== undefined ? patch.y - b.top : 0;
-        objs.forEach((o) => o.set({ left: (o.left ?? 0) + dx, top: (o.top ?? 0) + dy }));
-      }
-      if (patch.width !== undefined && b.width > 0) {
-        const fx = patch.width / b.width;
-        objs.forEach((o) => {
-          o.set({
-            left: anchorX + ((o.left ?? 0) - anchorX) * fx,
-            scaleX: (o.scaleX ?? 1) * fx,
-          });
+    if (objs.length === 1) {
+      const obj = objs[0];
+      this.withSelectionObjects(() => {
+        applyNumericSingle(
+          {
+            get angle() {
+              return obj.angle ?? 0;
+            },
+            setAngle: (a) => obj.set({ angle: a }),
+            getScaledSize: () => {
+              const dim = obj._getTransformedDimensions({
+                scaleX: 1,
+                scaleY: 1,
+                strokeWidth: 0,
+              });
+              return { x: Math.max(1e-6, dim.x), y: Math.max(1e-6, dim.y) };
+            },
+            getScale: () => ({ x: obj.scaleX || 1, y: obj.scaleY || 1 }),
+            setScale: (x, y) => obj.set({ scaleX: x, scaleY: y }),
+            getBounds: () => {
+              obj.setCoords();
+              const r = obj.getBoundingRect();
+              return { left: r.left, top: r.top, width: r.width, height: r.height };
+            },
+            move: (dx, dy) => obj.set({ left: (obj.left ?? 0) + dx, top: (obj.top ?? 0) + dy }),
+            syncCoords: () => obj.setCoords(),
+          },
+          patch,
+          { lockAspect },
+        );
+      });
+    } else {
+      const resolved = resolveSizePatch(before, patch, lockAspect);
+      this.withSelectionObjects(() => this.applyNumericGroup(objs, before, resolved));
+    }
+  }
+
+  /** Scale a multi-object selection from its top-left corner and rotate it. */
+  private applyNumericGroup(
+    objs: FabricObject[],
+    box: { left: number; top: number; width: number; height: number },
+    patch: Partial<{ x: number; y: number; width: number; height: number; angle: number }>,
+  ): void {
+    const active = this.canvas.getActiveObject();
+    const currentAngle = active?.angle ?? 0;
+    const dx = patch.x !== undefined ? patch.x - box.left : 0;
+    const dy = patch.y !== undefined ? patch.y - box.top : 0;
+    const fx = patch.width !== undefined && box.width > 0 ? patch.width / box.width : 1;
+    const fy = patch.height !== undefined && box.height > 0 ? patch.height / box.height : 1;
+    const deltaAngle = patch.angle !== undefined ? patch.angle - currentAngle : 0;
+
+    if (dx !== 0 || dy !== 0) {
+      objs.forEach((o) => o.set({ left: (o.left ?? 0) + dx, top: (o.top ?? 0) + dy }));
+    }
+    if (fx !== 1 || fy !== 1) {
+      objs.forEach((o) => {
+        const r = o.getBoundingRect();
+        o.set({
+          left: box.left + dx + (r.left - box.left) * fx,
+          top: box.top + dy + (r.top - box.top) * fy,
+          scaleX: (o.scaleX ?? 1) * fx,
+          scaleY: (o.scaleY ?? 1) * fy,
         });
-      }
-      if (patch.height !== undefined && b.height > 0) {
-        const fy = patch.height / b.height;
-        objs.forEach((o) => {
-          o.set({
-            top: anchorY + ((o.top ?? 0) - anchorY) * fy,
-            scaleY: (o.scaleY ?? 1) * fy,
-          });
-        });
-      }
-      if (patch.angle !== undefined) {
-        const current = objs.length === 1 ? objs[0].angle ?? 0 : 0;
-        const delta = patch.angle - current;
-        if (delta !== 0) {
-          const cx = b.left + b.width / 2;
-          const cy = b.top + b.height / 2;
-          const rad = (delta * Math.PI) / 180;
-          const cos = Math.cos(rad);
-          const sin = Math.sin(rad);
-          objs.forEach((o) => {
-            o.set({ angle: (o.angle ?? 0) + delta });
-            const dx = (o.left ?? 0) - cx;
-            const dy = (o.top ?? 0) - cy;
-            o.set({ left: cx + dx * cos - dy * sin, top: cy + dx * sin + dy * cos });
-          });
-        }
-      }
-    });
+      });
+    }
+    if (deltaAngle !== 0) {
+      const cx = box.left + dx + box.width / 2;
+      const cy = box.top + dy + box.height / 2;
+      const rad = (deltaAngle * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      objs.forEach((o) => {
+        o.set({ angle: (o.angle ?? 0) + deltaAngle });
+        const ox = (o.left ?? 0) - cx;
+        const oy = (o.top ?? 0) - cy;
+        o.set({ left: cx + ox * cos - oy * sin, top: cy + ox * sin + oy * cos });
+      });
+    }
+    objs.forEach((o) => o.setCoords());
   }
 
   applyTextStyle(patch: {

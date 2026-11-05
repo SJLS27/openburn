@@ -6,6 +6,18 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 
 ## [Unreleased]
 
+### Añadido
+- **Candado de proporción** en Shape Properties. Con el candado activo, editar
+  `W` o `H` ajusta la otra dimensión manteniendo la relación, y arrastrar una
+  esquina escala proporcionalmente (mantén `Shift` para estirar libremente; con
+  el candado desactivado, `Shift` fuerza la proporción).
+
+### Cambiado
+- **Campos numéricos de forma**: `X`/`Y`/`W`/`H` operan sobre el bounding box
+  de la selección. En objetos rotados el tamaño se resuelve de forma exacta
+  (no basta con escalar los ejes locales), y el ángulo de una selección
+  múltiple refleja la rotación real del grupo.
+
 ### Corregido
 - **Preview de imágenes**: las filas de un raster ya no se dibujan como líneas
   negras de borde a borde (que pintaban un rectángulo sólido). Ahora se

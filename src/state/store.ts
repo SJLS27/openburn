@@ -53,6 +53,8 @@ export interface AppState {
   gridSize: number;
   showGrid: boolean;
   snapToGrid: boolean;
+  /** Keep the aspect ratio when scaling from the W/H fields or the corners */
+  lockAspect: boolean;
 
   zoom: number;
   selection: SelectionSnapshot | null;
@@ -116,6 +118,7 @@ function initialState(): AppState {
     gridSize: 10,
     showGrid: true,
     snapToGrid: false,
+    lockAspect: true,
     zoom: 1,
     selection: null,
     cursor: null,
