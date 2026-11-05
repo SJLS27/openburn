@@ -124,4 +124,55 @@ describe('buildJob images', () => {
     expect(plan.gcode.join('\n')).toContain('M4 S255');
     expect(plan.gcode.join('\n')).not.toMatch(/S\d{4,}/);
   });
+
+  it('warns when a grayscale image burns white areas at Min power', async () => {
+    mocks.rasterRows.mockClear();
+    mocks.rasterRows.mockReturnValueOnce([
+      {
+        points: [
+          { x: 0, y: 0 },
+          { x: 5, y: 0 },
+        ],
+        powers: [20, 20],
+      },
+    ]);
+    const layer = layerWithMode('image');
+    layer.settings = { ...layer.settings, dither: 'grayscale', minPower: 20 };
+
+    const plan = await buildJob({
+      objects: [makeImage(layer.id)],
+      layers: [layer],
+      bed: { width: 400, height: 400 },
+      device: DEFAULT_DEVICE,
+      optimization: { ...DEFAULT_OPTIMIZATION, enabled: false },
+    });
+
+    expect(plan.warnings.join(' ')).toMatch(/min power 20%/i);
+    expect(plan.warnings.join(' ')).toMatch(/set min power to 0/i);
+  });
+
+  it('does not warn about Min power for threshold images', async () => {
+    mocks.rasterRows.mockClear();
+    mocks.rasterRows.mockReturnValueOnce([
+      {
+        points: [
+          { x: 0, y: 0 },
+          { x: 5, y: 0 },
+        ],
+        powers: [100, 100],
+      },
+    ]);
+    const layer = layerWithMode('image');
+    layer.settings = { ...layer.settings, dither: 'threshold', minPower: 20 };
+
+    const plan = await buildJob({
+      objects: [makeImage(layer.id)],
+      layers: [layer],
+      bed: { width: 400, height: 400 },
+      device: DEFAULT_DEVICE,
+      optimization: { ...DEFAULT_OPTIMIZATION, enabled: false },
+    });
+
+    expect(plan.warnings).toHaveLength(0);
+  });
 });

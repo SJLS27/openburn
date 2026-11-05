@@ -1,6 +1,6 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
-import { PreviewDialog } from './PreviewDialog';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { PreviewDialog, rasterPowerColor } from './PreviewDialog';
 import type { JobPlan } from '@/gcode/types';
 
 /**
@@ -11,6 +11,8 @@ const record = vi.hoisted(() => ({
   strokes: [] as { style: string; points: number }[],
   fills: [] as { style: string; x: number; y: number }[],
   draws: 0,
+  /** Alpha used for every drawImage call. */
+  drawAlphas: [] as number[],
 }));
 
 function makeContext(): CanvasRenderingContext2D {
@@ -42,6 +44,7 @@ function makeContext(): CanvasRenderingContext2D {
     clearRect: () => {},
     drawImage: () => {
       record.draws += 1;
+      record.drawAlphas.push(ctx.globalAlpha);
     },
     getImageData: () => ({ data: new Uint8ClampedArray(0) }),
     putImageData: () => {},
@@ -55,6 +58,7 @@ beforeEach(() => {
   record.strokes = [];
   record.fills = [];
   record.draws = 0;
+  record.drawAlphas = [];
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
     makeContext as unknown as HTMLCanvasElement['getContext'],
   );
@@ -110,6 +114,25 @@ function planWithImage(): JobPlan {
 }
 
 describe('PreviewDialog', () => {
+  it('ramps the colour and opacity with power', () => {
+    const low = rasterPowerColor(10);
+    const mid = rasterPowerColor(50);
+    const high = rasterPowerColor(100);
+
+    // Transparency falls away and brightness grows with power.
+    expect(low.a).toBeLessThan(mid.a);
+    expect(mid.a).toBeLessThan(high.a);
+    expect(high.a).toBeCloseTo(1, 6);
+    expect(low.g).toBeLessThan(mid.g);
+    expect(mid.g).toBeLessThan(high.g);
+    // Even a light burn stays visible (not a black block).
+    expect(low.a).toBeGreaterThan(0.1);
+    expect(rasterPowerColor(0).a).toBeLessThan(low.a);
+    // Out-of-range values are clamped.
+    expect(rasterPowerColor(-10)).toEqual(rasterPowerColor(0));
+    expect(rasterPowerColor(250)).toEqual(rasterPowerColor(100));
+  });
+
   it('paints raster rows with toned pixels instead of the layer colour', () => {
     render(
       <PreviewDialog
@@ -126,14 +149,36 @@ describe('PreviewDialog', () => {
     expect(record.strokes.some((s) => s.style === '#ff0000')).toBe(true);
     // …but nothing is stroked with the black image layer colour.
     expect(record.strokes.some((s) => s.style === '#000000')).toBe(false);
-    // Raster pixels are toned (grayscale, never pure black) with power-driven
-    // alpha.
+    // Raster pixels use the power ramp (warm, never a dark grey block).
     const rasterFills = record.fills.filter((f) => /^rgba\(\d+,\d+,\d+/.test(f.style));
     expect(rasterFills.length).toBeGreaterThan(0);
     for (const fill of rasterFills) {
-      const [r] = fill.style.match(/\d+/g)!.map(Number);
+      const [r, g] = fill.style.match(/\d+/g)!.map(Number);
       expect(r).toBeGreaterThanOrEqual(150);
+      // Warm tone: red never trails green, so a 20 % burn cannot look black.
+      expect(r).toBeGreaterThanOrEqual(g);
     }
+  });
+
+  it('reveals the engraved image at full opacity (regression)', () => {
+    render(
+      <PreviewDialog
+        plan={planWithImage()}
+        bed={{ width: 400, height: 400 }}
+        onClose={() => {}}
+        onSend={() => {}}
+        canSend={false}
+        connectedName="GRBL"
+      />,
+    );
+
+    // The backdrop draws the image layer dimmed…
+    expect(record.drawAlphas.some((a) => a < 0.9)).toBe(true);
+    // …but the revealed (engraved) layer is composited opaque. Previously the
+    // layer was baked at 32 % alpha and reused here, so it never got darker
+    // than the dim backdrop and images looked like a black block.
+    const opaqueDraws = record.drawAlphas.filter((a) => a > 0.9);
+    expect(opaqueDraws.length).toBeGreaterThan(0);
   });
 
   it('shows the job summary', () => {

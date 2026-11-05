@@ -20,6 +20,9 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 50;
 const ZOOM_STEP = 1.25;
 
+/** Opacity of the not-yet-engraved image in the Preview backdrop. */
+const RASTER_BACKDROP_ALPHA = 0.3;
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -270,8 +273,16 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
-    rasterRef.current = renderRasterLayer(plan, toScreen, 0.32);
-    if (rasterRef.current) ctx.drawImage(rasterRef.current, 0, 0);
+    // Pre-render the engraved image at full opacity. The backdrop draws it
+    // dimmed by drawing this same layer through `globalAlpha`; the playhead
+    // reveal composites it at full strength, so an image is never limited to
+    // the dim backdrop opacity.
+    rasterRef.current = renderRasterLayer(plan, toScreen);
+    if (rasterRef.current) {
+      ctx.globalAlpha = RASTER_BACKDROP_ALPHA;
+      ctx.drawImage(rasterRef.current, 0, 0);
+      ctx.globalAlpha = 1;
+    }
     bgRef.current = off;
     draw(progress);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -630,7 +641,22 @@ function interpolatePoint(points: Pt[], frac: number): Pt {
   return points[points.length - 1];
 }
 
-/** Draw a scan line with one vertical stripe per point, alpha from power. */
+/**
+ * Colour for a given power: transparent at 0 %, then a warm ramp that ends in
+ * near-white. The amber mid-tones make a 20 % burn clearly different from a
+ * 100 % one on the dark bed, unlike a pure greyscale ramp.
+ */
+export function rasterPowerColor(power: number): { r: number; g: number; b: number; a: number } {
+  const p = Math.max(0, Math.min(100, Number.isFinite(power) ? power : 0)) / 100;
+  // Low power: dim orange; high power: white-hot.
+  const r = Math.round(190 + 65 * p);
+  const g = Math.round(110 + 145 * p);
+  const b = Math.round(60 + 195 * p);
+  const a = 0.18 + 0.82 * Math.pow(p, 0.7);
+  return { r, g, b, a };
+}
+
+/** Draw a scan line as one column per point, coloured by its power. */
 function strokeRasterLine(
   ctx: CanvasRenderingContext2D,
   points: Pt[],
@@ -649,32 +675,30 @@ function strokeRasterLine(
   const width = Math.max(1, step + 0.6);
   const nx = total > 0 ? -dy / total : 0;
   const ny = total > 0 ? dx / total : 1;
+  let lastStyle = '';
   for (let i = 0; i < n; i += 1) {
-    const power = Math.max(0, Math.min(100, powers[i] ?? 0));
+    const power = powers[i] ?? 0;
     if (power <= 0) continue;
+    const color = rasterPowerColor(power);
+    const style = `rgba(${color.r},${color.g},${color.b},${color.a})`;
+    if (style !== lastStyle) {
+      ctx.fillStyle = style;
+      lastStyle = style;
+    }
     const s = toScreen(points[i]);
-    const alpha = 0.12 + 0.88 * (power / 100);
-    // Bright engraving on a dark bed: power drives both brightness and opacity.
-    const v = Math.round(150 + 105 * (power / 100));
-    ctx.fillStyle = `rgba(${v},${v},${v},${Math.min(1, alpha)})`;
     ctx.fillRect(s.x - width / 2, s.y - width / 2, width, width);
-    // Half-pixel offset for the neighbouring direction keeps rows continuous.
+    // Half-pixel offset along the row's normal keeps adjacent rows joined.
     ctx.fillRect(s.x - nx * 0.4 - width / 2, s.y - ny * 0.4 - width / 2, width, width);
   }
 }
 
-/** Pre-render the whole engraved (raster) layer at a fixed dim alpha. */
-function renderRasterLayer(
-  plan: JobPlan,
-  toScreen: ToScreen,
-  alpha: number,
-): HTMLCanvasElement | null {
+/** Pre-render the whole engraved (raster) layer at full opacity. */
+function renderRasterLayer(plan: JobPlan, toScreen: ToScreen): HTMLCanvasElement | null {
   const off = document.createElement('canvas');
   off.width = W;
   off.height = H;
   const ctx = off.getContext('2d');
   if (!ctx) return null;
-  ctx.globalAlpha = alpha;
   for (const seg of plan.segments) {
     if (seg.kind !== 'cut' || !seg.powers) continue;
     strokeRasterLine(ctx, seg.points, seg.powers, toScreen);

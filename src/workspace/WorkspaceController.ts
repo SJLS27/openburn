@@ -2728,7 +2728,14 @@ export class WorkspaceController implements WorkspaceApi {
     if (existing) return existing;
 
     const created = store.addLayer();
-    store.updateCutSettings(created.id, { mode: 'image', output: true, visible: true });
+    // New image layers burn white as "no power"; the palette default of
+    // Min power 20 % would engrave the whole rectangle in grayscale mode.
+    store.updateCutSettings(created.id, {
+      mode: 'image',
+      output: true,
+      visible: true,
+      minPower: 0,
+    });
     return store.getState().doc.layers.find((l) => l.id === created.id) ?? created;
   }
 

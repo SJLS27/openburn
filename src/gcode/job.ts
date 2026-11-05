@@ -339,6 +339,13 @@ export async function buildJob(input: BuildJobInput): Promise<JobPlan> {
 
       if (s.mode === 'image') {
         if (!(obj instanceof FabricImage)) continue;
+        // Grayscale maps tone between Min and Max power, so a non-zero Min
+        // burns white areas too. Flag it once per layer instead of letting the
+        // user wonder why the whole image comes out solid.
+        if (s.dither === 'grayscale' && s.minPower > 0) {
+          const warning = `${layer.name}: Min power ${s.minPower}% burns white areas too (set Min power to 0 for grayscale images)`;
+          if (!warnings.includes(warning)) warnings.push(warning);
+        }
         const rows = rasterRows(obj, {
           interval: s.interval,
           power: s.power,
