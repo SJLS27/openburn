@@ -76,7 +76,8 @@ function initialLogs(): LogLine[] {
     {
       id: 0,
       dir: 'info',
-      text: 'OpenBurn 0.6.1 — GRBL console ready',
+      // Build version injected by Vite; never hardcode it here.
+      text: `OpenBurn ${__APP_VERSION__} — GRBL console ready`,
       time: Date.now(),
     },
   ];

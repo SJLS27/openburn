@@ -24,6 +24,10 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
   múltiple refleja la rotación real del grupo.
 
 ### Corregido
+- **Preview de imágenes**: las filas de un raster ya no se dibujan como líneas
+  negras de borde a borde (que pintaban un rectángulo sólido). Se renderizan
+  como píxeles grabados según la potencia y la capa se revela avanzando el
+  trabajo.
 - **Preview de imágenes (bloque negro)**: la capa raster se pre-renderizaba
   horneada al 32 % de opacidad y se reutilizaba para la parte ya grabada, así
   que la imagen nunca pasaba de la opacidad de fondo. Ahora el grabado se
@@ -36,10 +40,6 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
   Preview avisa si una capa gris sigue con `Min power > 0`.
 - **Consola**: el mensaje de bienvenida mostraba la versión fija `0.6.1`; ahora
   usa la versión del build (`__APP_VERSION__`).
-- **Preview de imágenes**: las filas de un raster ya no se dibujan como líneas
-  negras de borde a borde (que pintaban un rectángulo sólido). Ahora se
-  renderizan como píxeles grabados con brillo y opacidad según la potencia, y la
-  capa se revela según avanza el trabajo.
 - **Potencia del primer punto de una fila raster**: el primer movimiento de cada
   scanline usaba la potencia del segundo punto. Ahora la potencia de cada
   movimiento corresponde al punto anterior, igual que en la Preview (nueva
