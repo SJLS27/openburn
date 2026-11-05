@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { FabricImage } from 'fabric';
-import { DEFAULT_DEVICE } from './types';
+import { DEFAULT_DEVICE, DEFAULT_OPTIMIZATION } from './types';
 import { DEFAULT_CUT_SETTINGS, createLayer, type LayerDef } from '@/types/document';
 import { buildJob } from './job';
 
@@ -67,5 +67,61 @@ describe('buildJob images', () => {
     expect(mocks.rasterRows).not.toHaveBeenCalled();
     expect(plan.segments).toHaveLength(0);
     expect(plan.warnings.join(' ')).toMatch(/image skipped in line mode/i);
+  });
+
+  it('emits variable power (S words) for raster rows', async () => {
+    mocks.rasterRows.mockClear();
+    mocks.rasterRows.mockReturnValueOnce([
+      {
+        points: [
+          { x: 0, y: 0 },
+          { x: 5, y: 0 },
+          { x: 10, y: 0 },
+          { x: 15, y: 0 },
+        ],
+        powers: [0, 50, 100, 0],
+      },
+    ]);
+    const layer = layerWithMode('image');
+    const plan = await buildJob({
+      objects: [makeImage(layer.id)],
+      layers: [layer],
+      bed: { width: 400, height: 400 },
+      device: { ...DEFAULT_DEVICE, maxS: 1000, laserMode: 'M4' },
+      optimization: { ...DEFAULT_OPTIMIZATION, enabled: false },
+    });
+    const gcode = plan.gcode.join('\n');
+
+    // The first move into the row lights up with the power of point 0 (0).
+    // Each following G1 carries the power of the *previous* point, matching
+    // the preview.
+    expect(gcode).toContain('G1 X5 Y400');
+    expect(gcode).toContain('G1 X10 Y400 S500');
+    expect(gcode).toContain('G1 X15 Y400 S1000');
+    expect(gcode).toMatch(/M4 S0/);
+  });
+
+  it('clamps raster power to maxS', async () => {
+    mocks.rasterRows.mockClear();
+    mocks.rasterRows.mockReturnValueOnce([
+      {
+        points: [
+          { x: 0, y: 0 },
+          { x: 5, y: 0 },
+        ],
+        powers: [100, 100],
+      },
+    ]);
+    const layer = layerWithMode('image');
+    const plan = await buildJob({
+      objects: [makeImage(layer.id)],
+      layers: [layer],
+      bed: { width: 400, height: 400 },
+      device: { ...DEFAULT_DEVICE, maxS: 255 },
+      optimization: { ...DEFAULT_OPTIMIZATION, enabled: false },
+    });
+
+    expect(plan.gcode.join('\n')).toContain('M4 S255');
+    expect(plan.gcode.join('\n')).not.toMatch(/S\d{4,}/);
   });
 });

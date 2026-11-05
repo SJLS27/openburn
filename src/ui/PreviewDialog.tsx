@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatDuration, type JobPlan, type PlanSegment, type Pt } from '@/gcode/types';
+import { rasterRuns } from '@/gcode/rasterPreview';
 import { Icon } from './icons';
 import { Modal } from './common';
 
@@ -34,6 +35,8 @@ function polyLength(points: Pt[]): number {
 export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedName }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bgRef = useRef<HTMLCanvasElement | null>(null);
+  /** Engraved-layer canvas for raster segments, composited on every frame. */
+  const rasterRef = useRef<HTMLCanvasElement | null>(null);
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(10);
@@ -54,14 +57,26 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
     return map;
   }, [plan]);
 
+  /**
+   * Per-segment weight. Time-based weights (from the plan) include rapid moves
+   * between raster rows; for raster cuts only the lit part of the row counts,
+   * so the playhead does not crawl over blank image areas.
+   */
   const { weights, totalWeight } = useMemo(() => {
-    const w =
+    const timeWeights =
       plan.segSeconds && plan.segSeconds.length === plan.segments.length
         ? plan.segSeconds
-        : plan.segments.map((seg) => {
-            const d = polyLength(seg.points);
-            return seg.kind === 'cut' ? d / Math.max(1, seg.feed ?? 600) : d / 3000;
-          });
+        : null;
+    const w = plan.segments.map((seg, i) => {
+      if (seg.kind !== 'cut') return timeWeights?.[i] ?? 0;
+      if (seg.powers) {
+        const lit = rasterRuns(seg)
+          .map((run) => polyLength(run.points))
+          .reduce((a, b) => a + b, 0);
+        return lit / Math.max(1, seg.feed ?? 600);
+      }
+      return timeWeights?.[i] ?? polyLength(seg.points) / Math.max(1, seg.feed ?? 600);
+    });
     return { weights: w, totalWeight: w.reduce((a, b) => a + b, 0) || 1 };
   }, [plan]);
 
@@ -238,10 +253,12 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
       ctx.setLineDash([]);
     }
 
-    // dim full toolpaths
+    // dim full toolpaths. Raster segments are not strokes: they engrave
+    // isolated pixels, so drawing the whole scan line would paint a solid
+    // black block. Their dimmed version is rendered as a low-alpha bitmap.
     ctx.lineWidth = 1;
     for (const seg of plan.segments) {
-      if (seg.kind !== 'cut') continue;
+      if (seg.kind !== 'cut' || seg.powers) continue;
       ctx.strokeStyle = colorByLayer.get(seg.layerId ?? '') ?? '#d0d3d6';
       ctx.globalAlpha = 0.32;
       ctx.beginPath();
@@ -253,6 +270,8 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
+    rasterRef.current = renderRasterLayer(plan, toScreen, 0.32);
+    if (rasterRef.current) ctx.drawImage(rasterRef.current, 0, 0);
     bgRef.current = off;
     draw(progress);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -272,6 +291,7 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
     let position: Pt | null = null;
 
     ctx.lineWidth = 1;
+    let rasterSeen = false;
     for (let i = 0; i < plan.segments.length; i += 1) {
       const seg: PlanSegment = plan.segments[i];
       const w = weights[i];
@@ -279,15 +299,20 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
 
       if (elapsed + w <= target + 1e-9) {
         if (seg.kind === 'cut') {
-          const color = colorByLayer.get(seg.layerId ?? '') ?? '#e8eaec';
-          ctx.strokeStyle = color;
-          ctx.beginPath();
-          seg.points.forEach((pt, k) => {
-            const s = toScreen(pt);
-            if (k === 0) ctx.moveTo(s.x, s.y);
-            else ctx.lineTo(s.x, s.y);
-          });
-          ctx.stroke();
+          if (seg.powers) {
+            // Whole raster segment done: reveal it from the raster layer.
+            rasterSeen = true;
+          } else {
+            const color = colorByLayer.get(seg.layerId ?? '') ?? '#e8eaec';
+            ctx.strokeStyle = color;
+            ctx.beginPath();
+            seg.points.forEach((pt, k) => {
+              const s = toScreen(pt);
+              if (k === 0) ctx.moveTo(s.x, s.y);
+              else ctx.lineTo(s.x, s.y);
+            });
+            ctx.stroke();
+          }
         }
         position = seg.points[seg.points.length - 1];
         elapsed += w;
@@ -296,36 +321,43 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
 
       const frac = w > 0 ? Math.max(0, Math.min(1, (target - elapsed) / w)) : 0;
       if (seg.kind === 'cut') {
-        const color = colorByLayer.get(seg.layerId ?? '') ?? '#e8eaec';
-        ctx.strokeStyle = color;
-        ctx.beginPath();
-        const remaining = polyLength(seg.points) * frac;
-        let walked = 0;
-        let started = false;
-        for (let k = 0; k < seg.points.length; k += 1) {
-          const s = toScreen(seg.points[k]);
-          if (k === 0) {
-            ctx.moveTo(s.x, s.y);
-            started = true;
-            continue;
+        if (seg.powers) {
+          // Partially engraved raster row: the reveal pass below clips the
+          // engraved layer; only move the head here.
+          rasterSeen = true;
+          head = interpolatePoint(seg.points, frac);
+        } else {
+          const color = colorByLayer.get(seg.layerId ?? '') ?? '#e8eaec';
+          ctx.strokeStyle = color;
+          ctx.beginPath();
+          const remaining = polyLength(seg.points) * frac;
+          let walked = 0;
+          let started = false;
+          for (let k = 0; k < seg.points.length; k += 1) {
+            const s = toScreen(seg.points[k]);
+            if (k === 0) {
+              ctx.moveTo(s.x, s.y);
+              started = true;
+              continue;
+            }
+            const prev = seg.points[k - 1];
+            const stepLen = Math.hypot(seg.points[k].x - prev.x, seg.points[k].y - prev.y);
+            if (walked + stepLen <= remaining) {
+              ctx.lineTo(s.x, s.y);
+              walked += stepLen;
+            } else {
+              const t = stepLen > 0 ? (remaining - walked) / stepLen : 0;
+              const px = prev.x + (seg.points[k].x - prev.x) * t;
+              const py = prev.y + (seg.points[k].y - prev.y) * t;
+              const sp = toScreen({ x: px, y: py });
+              ctx.lineTo(sp.x, sp.y);
+              head = { x: px, y: py };
+              break;
+            }
           }
-          const prev = seg.points[k - 1];
-          const stepLen = Math.hypot(seg.points[k].x - prev.x, seg.points[k].y - prev.y);
-          if (walked + stepLen <= remaining) {
-            ctx.lineTo(s.x, s.y);
-            walked += stepLen;
-          } else {
-            const t = stepLen > 0 ? (remaining - walked) / stepLen : 0;
-            const px = prev.x + (seg.points[k].x - prev.x) * t;
-            const py = prev.y + (seg.points[k].y - prev.y) * t;
-            const sp = toScreen({ x: px, y: py });
-            ctx.lineTo(sp.x, sp.y);
-            head = { x: px, y: py };
-            break;
-          }
+          if (started) ctx.stroke();
+          if (!head) head = seg.points[seg.points.length - 1];
         }
-        if (started) ctx.stroke();
-        if (!head) head = seg.points[seg.points.length - 1];
       } else {
         // Moving through a travel move: interpolate the head position.
         const to = seg.points[0];
@@ -344,6 +376,14 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
         ctx.setLineDash([]);
       }
       break;
+    }
+
+    // Reveal the engraved image. Rows before the playhead are fully lit, the
+    // current row is clipped sideways; the rest stays dim like the backdrop.
+    const raster = rasterRef.current;
+    if (rasterSeen && raster) {
+      const reveal = revealRasterLayer(raster, plan, weights, progress, toScreen);
+      if (reveal) ctx.drawImage(reveal, 0, 0);
     }
 
     if (!head && position) head = position;
@@ -552,4 +592,132 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
       </div>
     </Modal>
   );
+}
+
+type ToScreen = (p: Pt) => { x: number; y: number };
+
+/** Bounding box of a scan line in screen space, padded by one pixel. */
+function rasterLineBox(points: Pt[], toScreen: ToScreen): { x: number; y: number; w: number; h: number } {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of points) {
+    const s = toScreen(p);
+    minX = Math.min(minX, s.x);
+    maxX = Math.max(maxX, s.x);
+    minY = Math.min(minY, s.y);
+    maxY = Math.max(maxY, s.y);
+  }
+  const pad = 1;
+  return { x: minX - pad, y: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 };
+}
+
+function interpolatePoint(points: Pt[], frac: number): Pt {
+  const total = polyLength(points);
+  if (total <= 0) return points[0];
+  let remaining = total * Math.max(0, Math.min(1, frac));
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1];
+    const b = points[i];
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    if (remaining <= d) {
+      const t = d > 0 ? remaining / d : 0;
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    }
+    remaining -= d;
+  }
+  return points[points.length - 1];
+}
+
+/** Draw a scan line with one vertical stripe per point, alpha from power. */
+function strokeRasterLine(
+  ctx: CanvasRenderingContext2D,
+  points: Pt[],
+  powers: number[],
+  toScreen: ToScreen,
+): void {
+  const n = points.length;
+  if (n < 2) return;
+  const first = toScreen(points[0]);
+  const last = toScreen(points[n - 1]);
+  const dx = last.x - first.x;
+  const dy = last.y - first.y;
+  const total = Math.hypot(dx, dy);
+  // Stripe width: assume evenly spaced points along the scan line.
+  const step = total / Math.max(1, n - 1);
+  const width = Math.max(1, step + 0.6);
+  const nx = total > 0 ? -dy / total : 0;
+  const ny = total > 0 ? dx / total : 1;
+  for (let i = 0; i < n; i += 1) {
+    const power = Math.max(0, Math.min(100, powers[i] ?? 0));
+    if (power <= 0) continue;
+    const s = toScreen(points[i]);
+    const alpha = 0.12 + 0.88 * (power / 100);
+    // Bright engraving on a dark bed: power drives both brightness and opacity.
+    const v = Math.round(150 + 105 * (power / 100));
+    ctx.fillStyle = `rgba(${v},${v},${v},${Math.min(1, alpha)})`;
+    ctx.fillRect(s.x - width / 2, s.y - width / 2, width, width);
+    // Half-pixel offset for the neighbouring direction keeps rows continuous.
+    ctx.fillRect(s.x - nx * 0.4 - width / 2, s.y - ny * 0.4 - width / 2, width, width);
+  }
+}
+
+/** Pre-render the whole engraved (raster) layer at a fixed dim alpha. */
+function renderRasterLayer(
+  plan: JobPlan,
+  toScreen: ToScreen,
+  alpha: number,
+): HTMLCanvasElement | null {
+  const off = document.createElement('canvas');
+  off.width = W;
+  off.height = H;
+  const ctx = off.getContext('2d');
+  if (!ctx) return null;
+  ctx.globalAlpha = alpha;
+  for (const seg of plan.segments) {
+    if (seg.kind !== 'cut' || !seg.powers) continue;
+    strokeRasterLine(ctx, seg.points, seg.powers, toScreen);
+  }
+  return off;
+}
+
+/** Composite the revealed part of the engraved layer up to `progress`. */
+function revealRasterLayer(
+  layer: HTMLCanvasElement,
+  plan: JobPlan,
+  weights: number[],
+  progress: number,
+  toScreen: ToScreen,
+): HTMLCanvasElement | null {
+  const out = document.createElement('canvas');
+  out.width = W;
+  out.height = H;
+  const ctx = out.getContext('2d');
+  if (!ctx) return null;
+
+  const total = weights.reduce((a, b) => a + b, 0) || 1;
+  const target = progress * total;
+  let elapsed = 0;
+  for (let i = 0; i < plan.segments.length; i += 1) {
+    const seg = plan.segments[i];
+    const w = weights[i] ?? 0;
+    if (seg.kind !== 'cut' || !seg.powers) {
+      elapsed += w;
+      continue;
+    }
+    const box = rasterLineBox(seg.points, toScreen);
+    if (elapsed + w <= target + 1e-9) {
+      ctx.drawImage(layer, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h);
+    } else {
+      const frac = w > 0 ? Math.max(0, Math.min(1, (target - elapsed) / w)) : 0;
+      const fromLeft = seg.points[seg.points.length - 1].x >= seg.points[0].x;
+      const visible = box.w * frac;
+      const sx = fromLeft ? box.x : box.x + box.w - visible;
+      ctx.drawImage(layer, sx, box.y, visible, box.h, sx, box.y, visible, box.h);
+      break;
+    }
+    elapsed += w;
+  }
+  return out;
 }

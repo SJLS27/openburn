@@ -4,6 +4,18 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa
 [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Corregido
+- **Preview de imágenes**: las filas de un raster ya no se dibujan como líneas
+  negras de borde a borde (que pintaban un rectángulo sólido). Ahora se
+  renderizan como píxeles grabados con brillo y opacidad según la potencia, y la
+  capa se revela según avanza el trabajo.
+- **Potencia del primer punto de una fila raster**: el primer movimiento de cada
+  scanline usaba la potencia del segundo punto. Ahora la potencia de cada
+  movimiento corresponde al punto anterior, igual que en la Preview (nueva
+  utilidad `src/gcode/rasterPreview.ts`).
+
 ## [0.9.0] — 2026-11-01
 
 Esta versión se centra en los **fundamentos de app de escritorio**: no perder

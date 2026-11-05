@@ -1,6 +1,7 @@
 import { FabricImage, Textbox, type FabricObject } from 'fabric';
 import type { CutSettings, LayerDef } from '@/types/document';
 import { optimizePlan, refreshItem, type PlanItem } from './optimize';
+import { powerForMove } from './rasterPreview';
 import { offsetPolygonPoints, polygonArea } from '@/geometry/offset';
 import { textToScenePath } from '@/text/outline';
 import {
@@ -700,14 +701,25 @@ function emitGcode(
 
     if (seg.powers && seg.powers.length > 0) {
       // Raster engraving: power changes inline with motion (S word on G1).
+      // The beam is only set for moves, so the move into point i uses the
+      // power of point i - 1 (the preview uses the same rule).
       if (!laserOn) {
         lines.push(`${device.laserMode} S0`);
         laserOn = true;
         lastPower = 0;
       }
+      if (seg.points.length > 1) {
+        const firstRaw = powerForMove(seg.powers, 1);
+        const firstPower = Math.max(
+          0,
+          Math.min(device.maxS, Math.round((firstRaw / 100) * device.maxS)),
+        );
+        lastPower = firstPower;
+        lines.push(`${device.laserMode} S${firstPower}`);
+      }
       for (let i = 1; i < seg.points.length; i += 1) {
         const p = mapPoint(seg.points[i]);
-        const raw = seg.powers[Math.min(i, seg.powers.length - 1)] ?? 0;
+        const raw = powerForMove(seg.powers, i);
         const sVal = Math.max(0, Math.min(device.maxS, Math.round((raw / 100) * device.maxS)));
         const sWord = sVal !== lastPower ? ` S${sVal}` : '';
         lastPower = sVal;
