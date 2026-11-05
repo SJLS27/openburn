@@ -3,9 +3,12 @@ import { store, useAppState } from '@/state/store';
 import { requestDiscardConfirmation } from '@/state/discardGuard';
 import { dropKindForFile, isTextDrop } from '@/core/dropRouting';
 import { mimeForFile, readAsDataUrl } from '@/core/fileApi';
+import { mmToDisplay } from '@/core/units';
+import type { Units } from '@/types/document';
 import { WorkspaceController } from '@/workspace/WorkspaceController';
 import { Icon } from './icons';
 import { ToolButton } from './common';
+import { MeasureOverlay } from './MeasureOverlay';
 
 interface Props {
   onReady: (controller: WorkspaceController | null) => void;
@@ -195,6 +198,8 @@ export function Workspace({ onReady }: Props) {
         <ToolButton icon="zoom-page" title="Zoom to page" onClick={() => controller?.zoomToPage()} />
         <ToolButton icon="zoom-fit" title="Zoom to selection" onClick={() => controller?.zoomToFitSelection()} />
       </div>
+
+      {state.measure && <MeasureOverlay measure={state.measure} units={state.doc.units} />}
 
       <div
         style={{

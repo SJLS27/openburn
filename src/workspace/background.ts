@@ -1,4 +1,5 @@
 import type { Canvas } from 'fabric';
+import { rulerCursor, rulerTicks } from './ruler';
 
 interface BackgroundOptions {
   bedWidth: number;
@@ -9,6 +10,10 @@ interface BackgroundOptions {
   units: 'mm' | 'in';
 }
 
+/** Band reserved for the rulers at the top and left of the workspace. */
+const RULER_W = 22;
+const RULER_H = 18;
+
 /**
  * Draws the LightBurn-style workspace backdrop (grid, bed outline, origin)
  * on a canvas layered beneath the Fabric canvas. Both share the same
@@ -18,6 +23,8 @@ export class BackgroundRenderer {
   private ctx: CanvasRenderingContext2D;
   private fabric: Canvas;
   private options: BackgroundOptions;
+  /** Pointer position in scene units, highlighted on the rulers. */
+  private cursor: { x: number; y: number } | null = null;
 
   constructor(canvasEl: HTMLCanvasElement, fabric: Canvas, options: BackgroundOptions) {
     const ctx = canvasEl.getContext('2d');
@@ -30,6 +37,12 @@ export class BackgroundRenderer {
 
   setOptions(patch: Partial<BackgroundOptions>): void {
     this.options = { ...this.options, ...patch };
+    this.render();
+  }
+
+  /** Track the mouse so both rulers show where the pointer is. */
+  setCursor(point: { x: number; y: number } | null): void {
+    this.cursor = point;
     this.render();
   }
 
@@ -129,58 +142,121 @@ export class BackgroundRenderer {
       }
     }
 
-    // Rulers along the bed edges
-    this.drawRulers(ctx, zoom, ox, oy, bedWidth, bedHeight, units);
+    // Rulers pinned to the viewport edges (not to the bed), like LightBurn.
+    this.drawRulers(ctx, zoom, ox, oy, width, height, units);
   }
 
+  /**
+   * Top and left rulers that scroll with the canvas. Ticks come from
+   * `rulerTicks`; the scene origin (bed 0,0) is always labelled, including
+   * when it is off-screen.
+   */
   private drawRulers(
     ctx: CanvasRenderingContext2D,
     zoom: number,
     ox: number,
     oy: number,
-    bedWidth: number,
-    bedHeight: number,
+    width: number,
+    height: number,
     units: 'mm' | 'in',
   ): void {
-    const stepMm = units === 'mm' ? pickStep(zoom, [1, 2, 5, 10, 20, 50, 100]) : pickStep(zoom, [1, 2, 5, 10, 20, 50, 100]);
-    const toUnit = units === 'mm' ? 1 : 1 / 25.4;
-    const label = (mm: number) => {
-      const v = mm * toUnit;
-      return Number.isInteger(v) ? String(v) : v.toFixed(1);
-    };
-
+    const scale = units === 'mm' ? 1 : 1 / 25.4;
     ctx.save();
+
+    // Bands.
+    ctx.fillStyle = 'rgba(24,25,28,0.92)';
+    ctx.fillRect(0, 0, width, RULER_H);
+    ctx.fillRect(0, 0, RULER_W, height);
+    ctx.fillStyle = 'rgba(24,25,28,0.92)';
+    ctx.fillRect(0, 0, RULER_W, RULER_H);
+    ctx.strokeStyle = '#3a3d42';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, RULER_H + 0.5);
+    ctx.lineTo(width, RULER_H + 0.5);
+    ctx.moveTo(RULER_W + 0.5, 0);
+    ctx.lineTo(RULER_W + 0.5, height);
+    ctx.stroke();
+
     ctx.font = '9px system-ui, sans-serif';
     ctx.fillStyle = '#8a8f97';
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.textBaseline = 'top';
 
-    const top = Math.max(0, oy - 14);
-    for (let x = 0; x <= bedWidth + 0.001; x += stepMm) {
-      const sx = Math.round(ox + x * zoom) + 0.5;
-      ctx.beginPath();
-      ctx.moveTo(sx, top + 8);
-      ctx.lineTo(sx, top + 12);
-      ctx.stroke();
-      ctx.fillText(label(x), sx + 2, top + 7);
+    // Horizontal ruler (X).
+    ctx.beginPath();
+    for (const tick of rulerTicks(width - RULER_W, ox - RULER_W, zoom * scale, units)) {
+      const x = Math.round(RULER_W + tick.screen) + 0.5;
+      if (x < RULER_W || x > width) continue;
+      ctx.moveTo(x, RULER_H);
+      ctx.lineTo(x, RULER_H - (tick.major ? 7 : 3));
+    }
+    ctx.stroke();
+    for (const tick of rulerTicks(width - RULER_W, ox - RULER_W, zoom * scale, units)) {
+      const x = Math.round(RULER_W + tick.screen) + 0.5;
+      if (!tick.major || x < RULER_W || x > width - 12) continue;
+      ctx.fillText(tick.label, x + 2, 2);
     }
 
-    const left = Math.max(0, ox - 26);
-    for (let y = 0; y <= bedHeight + 0.001; y += stepMm) {
-      const sy = Math.round(oy + y * zoom) + 0.5;
-      ctx.beginPath();
-      ctx.moveTo(left + 18, sy);
-      ctx.lineTo(left + 22, sy);
-      ctx.stroke();
-      ctx.fillText(label(y), left, sy - 2);
+    // Vertical ruler (Y): labels rotated so they read bottom-up.
+    ctx.beginPath();
+    for (const tick of rulerTicks(height - RULER_H, oy - RULER_H, zoom * scale, units)) {
+      const y = Math.round(RULER_H + tick.screen) + 0.5;
+      if (y < RULER_H || y > height) continue;
+      ctx.moveTo(RULER_W, y);
+      ctx.lineTo(RULER_W - (tick.major ? 7 : 3), y);
     }
+    ctx.stroke();
+    for (const tick of rulerTicks(height - RULER_H, oy - RULER_H, zoom * scale, units)) {
+      const y = Math.round(RULER_H + tick.screen) + 0.5;
+      if (!tick.major || y < RULER_H + 10 || y > height) continue;
+      ctx.save();
+      ctx.translate(2, y - 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(tick.label, 0, 0);
+      ctx.restore();
+    }
+
+    // Origin markers (bed 0,0).
+    ctx.strokeStyle = '#c8b060';
+    ctx.lineWidth = 1.5;
+    const originX = ox;
+    const originY = oy;
+    if (originX >= RULER_W && originX <= width) {
+      ctx.beginPath();
+      ctx.moveTo(originX - 4, RULER_H);
+      ctx.lineTo(originX + 4, RULER_H);
+      ctx.stroke();
+    }
+    if (originY >= RULER_H && originY <= height) {
+      ctx.beginPath();
+      ctx.moveTo(RULER_W, originY - 4);
+      ctx.lineTo(RULER_W, originY + 4);
+      ctx.stroke();
+    }
+
+    // Pointer position.
+    if (this.cursor) {
+      const cx = rulerCursor(width - RULER_W, ox - RULER_W, zoom * scale, this.cursor.x);
+      const cy = rulerCursor(height - RULER_H, oy - RULER_H, zoom * scale, this.cursor.y);
+      ctx.strokeStyle = '#ffb357';
+      ctx.lineWidth = 1;
+      if (cx !== null) {
+        const x = Math.round(RULER_W + cx) + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, RULER_H);
+        ctx.stroke();
+      }
+      if (cy !== null) {
+        const y = Math.round(RULER_H + cy) + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(RULER_W, y);
+        ctx.stroke();
+      }
+    }
+
     ctx.restore();
   }
-}
-
-function pickStep(zoom: number, steps: number[]): number {
-  for (const s of steps) {
-    if (s * zoom >= 40) return s;
-  }
-  return steps[steps.length - 1];
 }

@@ -10,6 +10,7 @@ import {
 } from '@/types/document';
 import { DEFAULT_DEVICE, DEFAULT_OPTIMIZATION, type DeviceConfig, type JobPlan, type OptimizationSettings } from '@/gcode/types';
 import type { TraceOptions } from '@/image/trace';
+import type { LiveMeasure } from '@/workspace/measure';
 
 export type ToolId =
   | 'select'
@@ -60,6 +61,9 @@ export interface AppState {
   selection: SelectionSnapshot | null;
   cursor: { x: number; y: number } | null;
   statusText: string;
+
+  /** Live measurements while moving / scaling / rotating a selection. */
+  measure: LiveMeasure | null;
 
   canUndo: boolean;
   canRedo: boolean;
@@ -123,6 +127,7 @@ function initialState(): AppState {
     selection: null,
     cursor: null,
     statusText: 'Ready',
+    measure: null,
     canUndo: false,
     canRedo: false,
     showPreview: false,

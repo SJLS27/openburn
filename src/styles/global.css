@@ -295,6 +295,41 @@ select {
   background: #303236;
 }
 
+/* Live measurement while moving / scaling / rotating a selection. */
+.measure-overlay {
+  position: absolute;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 4px;
+  background: rgba(24, 25, 28, 0.86);
+  border: 1px solid #3a3d42;
+  color: var(--text, #e6e7e9);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 15;
+}
+
+.measure-overlay .measure-value {
+  font-weight: 600;
+}
+
+.measure-overlay .measure-delta {
+  color: var(--text-faint, #8a8f96);
+}
+
+.measure-overlay .measure-sep {
+  width: 1px;
+  height: 11px;
+  background: #3a3d42;
+}
+
 .welcome-actions {
   display: flex;
   gap: 8px;

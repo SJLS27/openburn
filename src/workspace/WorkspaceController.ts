@@ -48,6 +48,7 @@ import { parseDxf } from '@/core/dxf';
 import { prepareSvgForImport, applySvgPhysicalSize } from '@/io/svg';
 import { findImageLayer } from './layers';
 import { applyNumericSingle, resolveSizePatch } from './numeric';
+import { liveMeasure } from './measure';
 import { buildFramePlan, buildJob, planToText } from '@/gcode/job';
 import type { JobPlan, Pt } from '@/gcode/types';
 import {
@@ -79,6 +80,9 @@ const SELECTION_ACCENT = '#3f8fdd';
  * (the real cut width is decided by the machine, not the artwork).
  */
 const HAIRLINE_PX = 1;
+
+/** Space left for the viewport rulers (top band + left band) when fitting. */
+const RULER_INSET = 34;
 
 /** Stroke width used when writing vector artwork to SVG (mm). */
 const EXPORT_STROKE_MM = 0.1;
@@ -122,6 +126,14 @@ export class WorkspaceController implements WorkspaceApi {
   private nodeTarget: FabricPath | null = null;
   private nodeHandles: { circle: Circle; commandIndex: number }[] = [];
   private nodeDragging = false;
+
+  /** Box/angle captured when a move/scale/rotate gesture starts. */
+  private measureStart: { left: number; top: number; width: number; height: number } | null = null;
+  private measureAngleStart = 0;
+  private measureLineLength: number | undefined;
+  private lastMeasureAt = 0;
+  private lastCursorStoreX = Number.NaN;
+  private lastCursorStoreY = Number.NaN;
 
   /**
    * X11/Chromium turns a middle-click into a paste from the PRIMARY selection.
@@ -339,6 +351,7 @@ export class WorkspaceController implements WorkspaceApi {
     });
 
     this.canvas.on('mouse:up', () => {
+      this.endMeasure();
       if (this.panning) {
         this.panning = false;
         this.updateCursorStyle();
@@ -361,12 +374,28 @@ export class WorkspaceController implements WorkspaceApi {
     this.canvas.on('selection:created', sync);
     this.canvas.on('selection:updated', sync);
     this.canvas.on('selection:cleared', sync);
+
+    // Live measurements: remember the box/angle when a gesture starts and
+    // publish the delta (throttled) while it runs.
+    const beginGesture = () => this.beginMeasure();
+    const trackGesture = () => this.trackMeasure();
+    this.canvas.on('before:transform', beginGesture);
+    this.canvas.on('object:moving', trackGesture);
+    this.canvas.on('object:scaling', trackGesture);
+    this.canvas.on('object:rotating', trackGesture);
+
     this.canvas.on('object:modified', () => {
+      this.endMeasure();
       this.syncSelection();
       this.afterChange();
     });
     this.canvas.on('object:added', () => this.afterChange());
     this.canvas.on('object:removed', () => this.afterChange());
+
+    // Leaving the canvas hides the pointer marker on the rulers.
+    this.canvas.on('mouse:out', () => {
+      this.bg.setCursor(null);
+    });
 
     this.canvas.on('text:editing:entered', () => {
       this.editingText = true;
@@ -454,7 +483,7 @@ export class WorkspaceController implements WorkspaceApi {
     const w = this.host.clientWidth;
     const h = this.host.clientHeight;
     if (!w || !h) return;
-    const margin = 46;
+    const margin = RULER_INSET;
     const zoom = Math.min((w - margin * 2) / bed.width, (h - margin * 2) / bed.height);
     const z = Math.max(0.03, zoom);
     this.canvas.setViewportTransform([z, 0, 0, z, margin, margin]);
@@ -692,6 +721,58 @@ export class WorkspaceController implements WorkspaceApi {
       top: center.y + minY,
       objectCaching: false,
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Live measurements
+  // -------------------------------------------------------------------------
+
+  private beginMeasure(): void {
+    const objs = this.canvas.getActiveObjects();
+    if (objs.length === 0) {
+      this.measureStart = null;
+      return;
+    }
+    this.measureStart = this.selectionBounds(objs);
+    this.measureAngleStart = this.currentSelectionAngle(objs);
+    this.measureLineLength = this.selectionLineLength(objs);
+    this.lastMeasureAt = 0;
+  }
+
+  private trackMeasure(): void {
+    if (!this.measureStart) return;
+    const now = performance.now();
+    if (now - this.lastMeasureAt < 16) return;
+    this.lastMeasureAt = now;
+
+    const objs = this.canvas.getActiveObjects();
+    if (objs.length === 0) return;
+    const current = this.selectionBounds(objs);
+    const angle = this.currentSelectionAngle(objs);
+    const line = this.selectionLineLength(objs);
+    store.setState({
+      measure: liveMeasure(this.measureStart, current, angle, line ?? this.measureLineLength),
+    });
+  }
+
+  private endMeasure(): void {
+    this.measureStart = null;
+    if (store.getState().measure) store.setState({ measure: null });
+  }
+
+  private currentSelectionAngle(objs: FabricObject[]): number {
+    if (objs.length === 1) return objs[0].angle ?? 0;
+    return this.canvas.getActiveObject()?.angle ?? 0;
+  }
+
+  /** Length of the selection when it is a single line-like object. */
+  private selectionLineLength(objs: FabricObject[]): number | undefined {
+    if (objs.length !== 1) return undefined;
+    const obj = objs[0];
+    const isLine = obj instanceof Line || (obj as FabricObject & { isMeasure?: boolean }).isMeasure;
+    if (!isLine) return undefined;
+    const scale = obj.getTotalObjectScaling();
+    return (obj.width || 0) * ((Math.abs(scale.x) + Math.abs(scale.y)) / 2);
   }
 
   // -------------------------------------------------------------------------
@@ -3580,6 +3661,12 @@ export class WorkspaceController implements WorkspaceApi {
   }
 
   updateCursor(x: number, y: number): void {
+    this.bg.setCursor({ x, y });
+    // React consumers only need ~20 updates/second; the rulers are redrawn on
+    // every move independently.
+    if (this.lastCursorStoreX === x && this.lastCursorStoreY === y) return;
+    this.lastCursorStoreX = x;
+    this.lastCursorStoreY = y;
     store.setState({ cursor: { x, y } });
   }
 

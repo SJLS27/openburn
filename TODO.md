@@ -176,8 +176,8 @@ y solo falta completar la paridad.
 - [ ] 🟡 **Edición de nodos completa**: añadir/eliminar nodos, convertir segmento recto ↔ curva, asas de Bézier independientes — hoy solo se arrastran anclas existentes
 - [ ] 🟡 **Snapping**: a objetos (vértices, centros, intersecciones, punto medio) — hoy solo *snap to grid*
 - [ ] **Guías inteligentes** (líneas de alineación al mover) y **guías arrastrables** desde las reglas
-- [ ] 🟡 **Reglas reales** con medida de distancias durante el movimiento
-- [ ] **Campos numéricos de forma**: posición, tamaño y ángulo con candado de proporción (hoy casi todo es arrastrar)
+- [x] **Reglas reales** en los bordes del viewport, con marcador del puntero y medida de distancias durante el movimiento (`src/workspace/ruler.ts`, `src/workspace/measure.ts`)
+- [x] **Campos numéricos de forma**: posición, tamaño y ángulo del bounding box con candado de proporción (también en el arrastre de esquinas)
 - [ ] **Selector de fuentes** del sistema + **texto sobre trazado** — hoy solo Inter (`src/text/outline.ts` mapea todo a Inter)
 - [ ] **Biblioteca de formas** (engranaje, espiral, caja, teselaciones, formas paramétricas)
 - [ ] Herramienta de **medida** ampliada: ángulo, radio, longitud de trazado

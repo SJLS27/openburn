@@ -9,6 +9,8 @@ Esta guía cubre el flujo completo: diseñar, asignar capas, previsualizar, cali
 ## 1. Workspace
 
 - **Cama**: tamaño configurable en *Settings → Workspace* (mm o pulgadas). El origen se dibuja en la esquina superior izquierda del lienzo.
+- **Reglas**: bandas fijas en los bordes superior e izquierdo que siguen el zoom y el paneo (incluidas coordenadas negativas). El origen de la cama queda marcado en ámbar y el puntero resalta su posición en ambas reglas.
+- **Medida en vivo**: al mover, escalar o rotar una selección aparece un recuadro con `W × H`, `ΔX`/`ΔY`, el ángulo y, si es una línea, su longitud.
 - **Grid y snap**: toggles en la barra de estado. El tamaño de grid se cambia en *Settings*.
 - **Zoom**: rueda del ratón, botones de la esquina inferior derecha, `Ctrl+0` (página), `Ctrl+Shift+A` (selección) y `+` / `-`.
 - **Paneo**: `Espacio` + arrastrar o botón central del ratón.
@@ -35,6 +37,8 @@ Esta guía cubre el flujo completo: diseñar, asignar capas, previsualizar, cali
 | Medir | `M` | Muestra la longitud en la barra de estado |
 
 - **Booleanos**: selecciona 2+ formas y usa los botones de unión/resta/intersección/exclusión o *Tools*.
+- **Campos numéricos**: *Shape Properties* permite escribir `X`, `Y`, `W`, `H` y el ángulo. `X`/`Y` son la esquina superior izquierda del bounding box de la selección y `W`/`H` su tamaño visible, también con objetos rotados.
+- **Candado de proporción**: el botón junto a `W`/`H` mantiene la relación de aspecto, tanto al escribir un valor como al arrastrar una esquina. Con el candado activo, `Shift` en una esquina estira libremente; con el candado desactivado, `Shift` fuerza la proporción.
 - **Offset**: *Tools → Offset Shapes…*; positivo expande, negativo contrae.
 - **Arrays**: *Tools → Grid Array…* / *Circular Array…*.
 - **Nodos**: convierte primero con *Tools → Convert to Path*, activa `N` y arrastra los nodos.

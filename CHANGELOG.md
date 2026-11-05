@@ -7,6 +7,11 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 ## [Unreleased]
 
 ### Añadido
+- **Reglas del workspace** ancladas a los bordes superior e izquierdo: siguen
+  zoom y paneo (también en coordenadas negativas), marcan el origen de la cama
+  y resaltan la posición del puntero.
+- **Medida en vivo** al mover, escalar o rotar: `W × H`, `ΔX`/`ΔY`, ángulo y
+  longitud de líneas, en un recuadro sobre el lienzo.
 - **Candado de proporción** en Shape Properties. Con el candado activo, editar
   `W` o `H` ajusta la otra dimensión manteniendo la relación, y arrastrar una
   esquina escala proporcionalmente (mantén `Shift` para estirar libremente; con
