@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import { act } from 'react';
 import { PreviewDialog, rasterPowerColor } from './PreviewDialog';
 import type { JobPlan } from '@/gcode/types';
 
@@ -13,7 +14,18 @@ const record = vi.hoisted(() => ({
   draws: 0,
   /** Alpha used for every drawImage call. */
   drawAlphas: [] as number[],
+  /** Canvases created by the dialog (each offscreen layer allocates one). */
+  canvases: 0,
+  puts: 0,
+  /** Distinct colours written to the engraved-layer bitmap. */
+  rasterPixels: [] as string[],
 }));
+
+/** "#rrggbb" (possibly uppercase) -> components. */
+function decodeColor(hex: string): { r: number; g: number; b: number; a: number } {
+  const n = parseInt(hex.slice(1), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255, a: 1 };
+}
 
 function makeContext(): CanvasRenderingContext2D {
   const ctx = {
@@ -47,7 +59,23 @@ function makeContext(): CanvasRenderingContext2D {
       record.drawAlphas.push(ctx.globalAlpha);
     },
     getImageData: () => ({ data: new Uint8ClampedArray(0) }),
-    putImageData: () => {},
+    createImageData: (w: number, h: number) => ({
+      width: w,
+      height: h,
+      data: new Uint8ClampedArray(Math.max(0, w * h * 4)),
+    }),
+    putImageData: (image: ImageData) => {
+      record.puts += 1;
+      // Record the RGB of every non-transparent texel (the engraved dots).
+      // Alpha is applied to the RGB on write, so the colour stays warm.
+      const data = image.data;
+      const seen = new Set<string>();
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] === 0) continue;
+        seen.add(`#${((data[i] << 16) | (data[i + 1] << 8) | data[i + 2]).toString(16).padStart(6, '0')}`);
+      }
+      record.rasterPixels = [...seen];
+    },
     createLinearGradient: () => ({ addColorStop: () => {} }),
     setTransform: () => {},
   };
@@ -59,10 +87,18 @@ beforeEach(() => {
   record.fills = [];
   record.draws = 0;
   record.drawAlphas = [];
+  record.canvases = 0;
+  record.puts = 0;
+  record.rasterPixels = [];
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
     makeContext as unknown as HTMLCanvasElement['getContext'],
   );
   vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,');
+  const create = document.createElement.bind(document);
+  vi.spyOn(document, 'createElement').mockImplementation(((tag: string, opts?: ElementCreationOptions) => {
+    if (tag === 'canvas') record.canvases += 1;
+    return create(tag, opts);
+  }) as typeof document.createElement);
 });
 
 afterEach(() => {
@@ -150,13 +186,13 @@ describe('PreviewDialog', () => {
     // …but nothing is stroked with the black image layer colour.
     expect(record.strokes.some((s) => s.style === '#000000')).toBe(false);
     // Raster pixels use the power ramp (warm, never a dark grey block).
-    const rasterFills = record.fills.filter((f) => /^rgba\(\d+,\d+,\d+/.test(f.style));
+    const rasterFills = record.rasterPixels.map((hex) => decodeColor(hex));
     expect(rasterFills.length).toBeGreaterThan(0);
-    for (const fill of rasterFills) {
-      const [r, g] = fill.style.match(/\d+/g)!.map(Number);
+    for (const { r, g, a } of rasterFills) {
       expect(r).toBeGreaterThanOrEqual(150);
       // Warm tone: red never trails green, so a 20 % burn cannot look black.
       expect(r).toBeGreaterThanOrEqual(g);
+      expect(a).toBeGreaterThan(0);
     }
   });
 
@@ -195,5 +231,36 @@ describe('PreviewDialog', () => {
 
     expect(screen.getByText('Job summary')).toBeTruthy();
     expect(screen.getByText('Layers')).toBeTruthy();
+  });
+
+  it('reuses its offscreen layers while the playhead advances (regression)', () => {
+    // Deterministic clock: rAF is driven by fake timers.
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    try {
+      render(
+        <PreviewDialog
+          plan={planWithImage()}
+          bed={{ width: 400, height: 400 }}
+          onClose={() => {}}
+          onSend={() => {}}
+          canSend={false}
+          connectedName="GRBL"
+        />,
+      );
+      const created = record.canvases;
+      const drawsBefore = record.draws;
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      // Frames did run…
+      expect(record.draws).toBeGreaterThan(drawsBefore);
+      // …but no new 780x500 canvas was allocated. The dialog used to create
+      // one for the revealed raster layer on every frame.
+      expect(record.canvases).toBe(created);
+      // The raster layer is rasterised once, not once per frame.
+      expect(record.puts).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

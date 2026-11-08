@@ -101,6 +101,11 @@ GCode + estadísticas (tiempo, distancia, bounds)
 ```
 
 - **Preview** consume el mismo `JobPlan`, por lo que trayectorias y tiempos coinciden con el envío.
+  Se dibuja con Canvas 2D en capas: fondo cacheado en coordenadas de mundo (se
+  recompone al hacer pan/zoom), trazos vectoriales ya grabados y filas raster
+  ya reveladas en canvas persistentes, y el índice de filas raster
+  (`src/ui/previewRaster.ts`) resuelve por búsqueda binaria qué fila está
+  activa. Cada frame solo añade lo nuevo.
 - Los segmentos raster llevan `powers[]` y emiten `G1 X Y S…` para variar potencia punto a punto.
 - El kerf se aplica al contorno antes de cerrarlo; los offsets que colapsan se descartan.
 - Con `zAxisEnabled`, cada cambio de `zOffset` emite un `G1 Z…` con el feed configurado y el job vuelve a `Z0` al terminar.

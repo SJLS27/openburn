@@ -7,6 +7,11 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 ## [Unreleased]
 
 ### Añadido
+- **Alineación de texto** (izquierda / centro / derecha) desde la barra de
+  texto y desde *Tools → Align Text …*. Actúa sobre el texto seleccionado,
+  incluidos los textos dentro de un grupo, y el contorno exportado respeta la
+  alineación. `applyTextStyle` acepta `textAlign` y el fingerprint de undo
+  incluye alineación, peso, estilo, tracking e interlineado.
 - **Reglas del workspace** ancladas a los bordes superior e izquierdo: siguen
   zoom y paneo (también en coordenadas negativas), marcan el origen de la cama
   y resaltan la posición del puntero.
@@ -18,12 +23,23 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
   el candado desactivado, `Shift` fuerza la proporción).
 
 ### Cambiado
+- **Preview más fluido**: la animación, el paneo y el zoom ya no recalculan
+  todo en cada frame. El fondo se cachea en coordenadas de mundo y solo se
+  recompone al mover la vista; los trazos ya grabados y las filas raster ya
+  reveladas se acumulan en capas persistente, de modo que cada frame pinta
+  únicamente lo nuevo. Los movimientos del ratón se agrupan en un frame de
+  animación y el raster se escribe con `ImageData` en vez de `fillRect` por
+  punto (la lógica pura vive en `src/ui/previewRaster.ts`).
 - **Campos numéricos de forma**: `X`/`Y`/`W`/`H` operan sobre el bounding box
   de la selección. En objetos rotados el tamaño se resuelve de forma exacta
   (no basta con escalar los ejes locales), y el ángulo de una selección
   múltiple refleja la rotación real del grupo.
 
 ### Corregido
+- **`npm run dev` / `npm run dev:electron`** ya no se cae al arrancar con
+  `ELOOP: too many symbolic links` cuando existe `builddir/` (salida de
+  `flatpak-builder`). Vite solo vigila las fuentes de la app y no sigue los
+  árboles de montaje de los empaquetados.
 - **Preview de imágenes**: las filas de un raster ya no se dibujan como líneas
   negras de borde a borde (que pintaban un rectángulo sólido). Se renderizan
   como píxeles grabados según la potencia y la capa se revela avanzando el
