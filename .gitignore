@@ -14,3 +14,5 @@ website/.astro/
 website/dist/
 
 .flatpak-builder/
+builddir/
+repo/

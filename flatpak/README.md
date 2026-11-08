@@ -43,6 +43,16 @@ directory with `lsetxattr(security.selinux): Operation not supported`, run the
 build from a filesystem that accepts SELinux labels (or use the
 `org.flatpak.Builder` app in a normal system installation).
 
+The manifest builds the upstream tag (`sources: tag:`), so a local build only
+picks up committed code. To test uncommitted changes, copy the manifest to a
+local file, replace the `git` source with
+`- type: dir` / `path: /path/to/worktree`, and pass that file instead.
+
+`org.flatpak.Builder` runs in its own sandbox: `/tmp` is *not* shared with the
+host, so `--state-dir` must live under `$HOME` (or another directory the app can
+reach). Without it, the state directory looks empty to the builder and module
+builds fail with `No such file or directory`.
+
 ## Regenerate the offline sources
 
 After changing `package-lock.json`, regenerate the dependency manifest from the
@@ -88,3 +98,9 @@ without regenerating `node-sources.json`.
 > manifests and requires human authors to open and maintain submissions. Review
 > and rewrite this manifest yourself before submitting it, and do not submit it
 > through an automated agent.
+
+For day-to-day work, no copy-pasting needed: run `sh scripts/flatpak-local.sh`
+from the repository root. The script derives a copy of the manifest whose only
+change is a `dir` source pointing at the current worktree, drops the Playwright
+browser sources (only needed for e2e) and builds with `--disable-rofiles-fuse`.
+It needs `python3`.

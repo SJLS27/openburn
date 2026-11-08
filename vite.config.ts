@@ -36,5 +36,23 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // Only the app sources are watched. Flatpak output (`builddir/`,
+    // `.flatpak-builder/`), packaged builds and local repos contain mount
+    // trees and self-referencing symlinks (e.g. `var/run/udev/watch/*`) that
+    // make chokidar die with ELOOP and take the dev server down.
+    watch: {
+      ignored: [
+        '**/builddir/**',
+        '**/.flatpak-builder/**',
+        '**/release/**',
+        '**/dist/**',
+        '**/dist-electron/**',
+        '**/repo/**',
+        '**/coverage/**',
+        '**/test-results/**',
+        '**/playwright-report/**',
+        '**/website/**',
+      ],
+    },
   },
 });
