@@ -5,7 +5,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="https://github.com/SJLS27/openburn/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SJLS27/openburn/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.9.0-orange.svg">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.10.0-orange.svg">
   <a href="https://openburn.pages.dev"><img alt="Website" src="https://img.shields.io/badge/website-openburn.pages.dev-blue.svg"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="GRBL" src="https://img.shields.io/badge/GRBL-ready-brightgreen.svg">
@@ -33,19 +33,15 @@
 
 ---
 
-## 🆕 Novedades 0.9.0
+## 🆕 Novedades 0.10.0
 
-Esta versión se centra en los **fundamentos de app de escritorio**: no perder
-trabajo, retomar proyectos rápido y que la ventana y el lienzo se comporten como
-en un programa nativo.
+Versión centrada en la **edición de formas y la fluidez del editor**.
 
-- **Autoguardado y recuperación**: mientras hay cambios sin guardar se escribe un borrador en el perfil de la app (debounce de 2 s); si la app termina de golpe, el siguiente arranque ofrece **Recover Unsaved Work**.
-- **Archivos recientes y pantalla de bienvenida**: hasta 10 proyectos en *File → Open Recent* (con *Clear Recent Files*), más un diálogo de inicio con New Design y Open Project.
-- **Drag & drop** de `.obrn`, `.lbrn2`, SVG, DXF e imágenes sobre el lienzo. Los proyectos sustituyen el documento (con confirmación si hay cambios) y el artwork se importa donde se suelta.
-- **Ventana persistente**: tamaño, posición y estado maximizado se restauran validándolos contra los monitores actuales; si un monitor desapareció, la ventana vuelve a un tamaño centrado seguro.
-- **Historial acotado por memoria**: undo/redo limitado a 64 MB y 100 entradas, importante con imágenes embebidas como data URLs.
-- **Confirmación Guardar / Descartar / Cancelar** al crear, abrir, reabrir un reciente o soltar un proyecto si hay cambios sin guardar.
-- **Varios documentos (pestañas/ventanas)** queda pendiente para la próxima fase; hoy se trabaja con un documento por ventana.
+- **Alineación de texto**: izquierda, centro y derecha desde la barra de texto o *Tools → Align Text …*, también para textos dentro de un grupo; el contorno exportado a GCode y LightBurn la respeta.
+- **Campos numéricos de forma**: `X`/`Y`/`W`/`H` operan sobre el bounding box real, con **candado de proporción** (también al arrastrar esquinas).
+- **Reglas** en los bordes del lienzo y **medida en vivo** (`W × H`, `ΔX`/`ΔY`, ángulo y longitud) al mover, escalar o rotar.
+- **Preview más fluido**: capas cacheadas de fondo, trazos y raster, con raster escrito con `ImageData` en vez de punto por punto.
+- **Script de Flatpak local** (`scripts/flatpak-local.sh`) para empaquetar el worktree sin commitear.
 
 Detalle completo en [CHANGELOG.md](CHANGELOG.md).
 

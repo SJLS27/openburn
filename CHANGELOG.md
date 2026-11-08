@@ -6,6 +6,8 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-11-08
+
 ### Añadido
 - **Alineación de texto** (izquierda / centro / derecha) desde la barra de
   texto y desde *Tools → Align Text …*. Actúa sobre el texto seleccionado,

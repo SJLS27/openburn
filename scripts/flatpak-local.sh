@@ -25,7 +25,7 @@ src, dst, repo = sys.argv[1:4]
 text = open(src).read()
 old = """      - type: git
         url: https://github.com/SJLS27/openburn.git
-        tag: v0.9.0"""
+        tag: v0.10.0"""
 new = f"""      - type: dir
         path: {repo}
         skip:
