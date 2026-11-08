@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { store, useAppState, type ToolId } from '@/state/store';
+import { store, useAppState, type TextAlign, type ToolId } from '@/state/store';
 import { requestDiscardConfirmation } from '@/state/discardGuard';
-import { Icon } from './icons';
+import { Icon, type IconName } from './icons';
 import { NumberField, ToolButton, useUnits, useWorkspace } from './common';
 
 export function MainToolbar() {
@@ -168,12 +168,20 @@ const FONTS = [
   'Trebuchet MS',
 ];
 
+const TEXT_ALIGNS: { mode: TextAlign; icon: IconName; title: string }[] = [
+  { mode: 'left', icon: 'text-align-left', title: 'Align text left' },
+  { mode: 'center', icon: 'text-align-center', title: 'Align text center' },
+  { mode: 'right', icon: 'text-align-right', title: 'Align text right' },
+];
+
 export function TextToolbar() {
   const ws = useWorkspace();
+  const state = useAppState();
   const [family, setFamily] = useState('Inter');
   const [size, setSize] = useState(10);
   const [spacing, setSpacing] = useState(0);
   const [lineHeight, setLineHeight] = useState(1.1);
+  const [align, setAlign] = useState<TextAlign>('left');
 
   useEffect(() => {
     // defaults stay local; applied when the user changes a value
@@ -240,6 +248,20 @@ export function TextToolbar() {
       />
       <ToolButton icon="text" title="Bold" onClick={() => ws?.applyTextStyle({ bold: true })} />
       <ToolButton icon="text" title="Italic" onClick={() => ws?.applyTextStyle({ italic: true })} />
+      <div className="tb-sep" />
+      {TEXT_ALIGNS.map((item) => (
+        <ToolButton
+          key={item.mode}
+          icon={item.icon}
+          title={item.title}
+          active={align === item.mode}
+          disabled={!state.selection}
+          onClick={() => {
+            setAlign(item.mode);
+            ws?.applyTextStyle({ textAlign: item.mode });
+          }}
+        />
+      ))}
     </div>
   );
 }

@@ -39,6 +39,9 @@ export type IconName =
   | 'ellipse'
   | 'polygon'
   | 'text'
+  | 'text-align-left'
+  | 'text-align-center'
+  | 'text-align-right'
   | 'measure'
   | 'union'
   | 'subtract'
@@ -292,6 +295,21 @@ const paths: Record<IconName, ReactNode> = {
   text: (
     <>
       <path d="M5 5h14M12 5v15M8 20h8" />
+    </>
+  ),
+  'text-align-left': (
+    <>
+      <path d="M4 6h16M4 10h10M4 14h16M4 18h10" />
+    </>
+  ),
+  'text-align-center': (
+    <>
+      <path d="M4 6h16M7 10h10M4 14h16M7 18h10" />
+    </>
+  ),
+  'text-align-right': (
+    <>
+      <path d="M4 6h16M10 10h10M4 14h16M10 18h10" />
     </>
   ),
   measure: (

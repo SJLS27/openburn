@@ -26,6 +26,7 @@ import {
   type IntervalTestOptions,
   type KerfTestOptions,
   type MaterialTestOptions,
+  type TextAlign,
   type ToolId,
   type WorkspaceApi,
 } from '@/state/store';
@@ -1841,7 +1842,17 @@ export class WorkspaceController implements WorkspaceApi {
     if (obj instanceof Polygon) parts.push(JSON.stringify(any.points));
     if (obj instanceof Ellipse) parts.push(r(any.rx as number), r(any.ry as number));
     if (obj instanceof Rect) parts.push(r(any.rx as number), r(any.ry as number));
-    if (this.isText(obj)) parts.push(any.text, r(any.fontSize as number), any.fontFamily);
+    if (this.isText(obj))
+      parts.push(
+        any.text,
+        r(any.fontSize as number),
+        any.fontFamily,
+        any.fontWeight ?? '',
+        any.fontStyle ?? '',
+        any.textAlign ?? '',
+        r(any.charSpacing as number),
+        r(any.lineHeight as number),
+      );
     if (obj.type === 'image') parts.push(any.src ?? '', r(any.cropX as number), r(any.cropY as number));
     parts.push(obj.fill ?? '', obj.stroke ?? '');
 
@@ -2515,6 +2526,7 @@ export class WorkspaceController implements WorkspaceApi {
     fontFamily?: string;
     bold?: boolean;
     italic?: boolean;
+    textAlign?: TextAlign;
   }): void {
     const objs = this.canvas.getActiveObjects();
     let touched = 0;
@@ -2529,14 +2541,20 @@ export class WorkspaceController implements WorkspaceApi {
         if (patch.fontFamily !== undefined) next.fontFamily = patch.fontFamily;
         if (patch.bold !== undefined) next.fontWeight = patch.bold ? '700' : '400';
         if (patch.italic !== undefined) next.fontStyle = patch.italic ? 'italic' : 'normal';
+        if (patch.textAlign !== undefined) next.textAlign = patch.textAlign;
         t.set(next as never);
         touched += 1;
       }
     }
     if (touched > 0) {
+      // Group children need their parent box recomputed after a line gets
+      // narrower or wider.
+      for (const o of objs) {
+        if (o instanceof Group) o.setCoords();
+      }
       this.canvas.requestRenderAll();
       this.afterChange();
-      this.setStatus('Text updated');
+      this.setStatus(patch.textAlign ? `Text aligned ${patch.textAlign}` : 'Text updated');
     }
   }
 

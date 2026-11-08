@@ -395,6 +395,7 @@ export interface WorkspaceApi {
     fontFamily?: string;
     bold?: boolean;
     italic?: boolean;
+    textAlign?: TextAlign;
   }): void;
   convertToPath(): Promise<void>;
   closePath(): void;
@@ -432,6 +433,9 @@ export type AlignMode =
   | 'centerVPage';
 
 export type BooleanOp = 'union' | 'subtract' | 'intersect' | 'exclude';
+
+/** Horizontal alignment of text inside its textbox. */
+export type TextAlign = 'left' | 'center' | 'right';
 
 export interface MaterialTestOptions {
   powerMin: number;

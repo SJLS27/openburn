@@ -178,6 +178,8 @@ y solo falta completar la paridad.
 - [ ] **Guías inteligentes** (líneas de alineación al mover) y **guías arrastrables** desde las reglas
 - [x] **Reglas reales** en los bordes del viewport, con marcador del puntero y medida de distancias durante el movimiento (`src/workspace/ruler.ts`, `src/workspace/measure.ts`)
 - [x] **Campos numéricos de forma**: posición, tamaño y ángulo del bounding box con candado de proporción (también en el arrastre de esquinas)
+- [x] **Alineación de texto** horizontal (izquierda / centro / derecha) en la barra de texto y en *Tools*, incluida la exportación a contornos
+- [ ] **Alineación vertical de texto** (arriba / centro / abajo) y conservarla al importar/exportar `.lbrn2`
 - [ ] **Selector de fuentes** del sistema + **texto sobre trazado** — hoy solo Inter (`src/text/outline.ts` mapea todo a Inter)
 - [ ] **Biblioteca de formas** (engranaje, espiral, caja, teselaciones, formas paramétricas)
 - [ ] Herramienta de **medida** ampliada: ángulo, radio, longitud de trazado
