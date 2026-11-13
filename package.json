@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:electron": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "dev:build": "concurrently -k -n renderer,main \"vite build --watch\" \"tsc -p electron/tsconfig.json --watch --preserveWatchOutput\"",
     "build": "tsc --noEmit && vite build && tsc -p electron/tsconfig.json",
     "build:app": "npm run build && electron-builder",
     "preview": "vite preview",
@@ -15,6 +16,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build && playwright test",
+    "test:e2e:fast": "playwright test --reporter=list",
+    "test:e2e:watch": "concurrently -k -n build,e2e \"npm:dev:build\" \"wait-on dist-electron/main.js && npm run test:e2e:fast\"",
     "check:flatpak-sources": "node scripts/check-flatpak-sources.mjs",
     "site:dev": "npm --prefix website run dev",
     "site:build": "npm --prefix website run build",
