@@ -27,4 +27,22 @@ if (import.meta.env.DEV) {
   void import('./io/lightburn').then((m) => {
     (window as unknown as { __openburnLB?: unknown }).__openburnLB = m;
   });
+  // Used by e2e/demo.ts (documentation screenshots) to build demo layers.
+  void import('./types/document').then((m) => {
+    (window as unknown as { __openburnLayers?: unknown }).__openburnLayers = m;
+  });
+  // Documentation screenshots capture the whole window without the welcome
+  // dialog. Double opt-in: debug build + `?capture=docs` (see `npm run docs:screenshots`).
+  const search = window.location.search;
+  const captureSession = __CAPTURE_SESSION__ === true;
+  if (captureSession && search.includes('capture=docs')) {
+    void import('./types/document').then((m) => {
+      void window.openburn?.autosave
+        .write({
+          document: m.createEmptyDocument('OpenBurn Demo'),
+          filePath: null,
+        })
+        .catch(() => undefined);
+    });
+  }
 }

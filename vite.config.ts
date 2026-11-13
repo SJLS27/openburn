@@ -14,6 +14,8 @@ export default defineConfig({
   base: './',
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    // `vite build --mode capture` is only used by `npm run docs:screenshots`.
+    __CAPTURE_SESSION__: JSON.stringify(process.env.CAPTURE_SESSION === '1'),
   },
   resolve: {
     alias: {
