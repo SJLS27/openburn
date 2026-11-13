@@ -68,6 +68,23 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.10.0" date="2026-11-08">
+      <description>
+        <p>Node editing and object snapping, plus a smoother editor.</p>
+        <ul>
+          <li>Full node editing: Bézier handles, add/delete nodes, corner/smooth/symmetric, line ↔ curve.</li>
+          <li>Object snapping to vertices, centres, midpoints and intersections with alignment guides.</li>
+          <li>Rules and live measurements (W × H, ΔX/ΔY, angle, length) around the canvas.</li>
+          <li>Text alignment and shape fields that operate on the real bounding box with an aspect lock.</li>
+          <li>Faster preview with cached background, path and raster layers.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.9.0" date="2026-11-01">
+      <description>
+        <p>Desktop fundamentals: autosave and crash recovery, recent files, welcome screen, drag and drop, persistent window and bounded undo history.</p>
+      </description>
+    </release>
     <release version="0.8.0" date="2026-10-28">
       <description>
         <p>Automatic updates, Inkscape clipboard paste as editable vectors, image layers and middle-button panning.</p>
