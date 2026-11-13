@@ -300,8 +300,10 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
         <label className="checkbox">
           <input
             type="checkbox"
-            checked={state.snapToGrid}
-            onChange={(e) => store.setState({ snapToGrid: e.target.checked })}
+            checked={state.snapSettings.enabled && state.snapSettings.grid}
+            onChange={(e) =>
+              store.setSnapSettings({ enabled: e.target.checked || state.snapSettings.enabled, grid: e.target.checked })
+            }
           />
           Snap to grid
         </label>

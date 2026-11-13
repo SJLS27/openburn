@@ -11,6 +11,8 @@ import {
 import { DEFAULT_DEVICE, DEFAULT_OPTIMIZATION, type DeviceConfig, type JobPlan, type OptimizationSettings } from '@/gcode/types';
 import type { TraceOptions } from '@/image/trace';
 import type { LiveMeasure } from '@/workspace/measure';
+import type { SnapKind } from '@/workspace/snap';
+import { DEFAULT_SNAP_SETTINGS, loadSnapSettings, saveSnapSettings, type SnapSettings } from './snapSettings';
 
 export type ToolId =
   | 'select'
@@ -53,7 +55,13 @@ export interface AppState {
 
   gridSize: number;
   showGrid: boolean;
+  /**
+   * Snap preferences. `enabled` is the master switch; the individual kinds
+   * live in `snapSettings` so new ones (guides, tangents) never need another
+   * top-level flag.
+   */
   snapToGrid: boolean;
+  snapSettings: SnapSettings;
   /** Keep the aspect ratio when scaling from the W/H fields or the corners */
   lockAspect: boolean;
 
@@ -65,6 +73,8 @@ export interface AppState {
   /** Live measurements while moving / scaling / rotating a selection. */
   measure: LiveMeasure | null;
 
+  /** Active snap indicator (kind + scene position), shown in the status bar. */
+  snapHint: { kind: SnapKind; x: number; y: number } | null;
 
   canUndo: boolean;
   canRedo: boolean;
@@ -113,6 +123,7 @@ function loadOptimization(): OptimizationSettings {
 
 function initialState(): AppState {
   const doc = createEmptyDocument();
+  const snapSettings = loadSnapSettings();
   return {
     doc,
     filePath: null,
@@ -122,13 +133,15 @@ function initialState(): AppState {
     polygonSides: 6,
     gridSize: 10,
     showGrid: true,
-    snapToGrid: false,
+    snapToGrid: snapSettings.enabled && snapSettings.grid,
+    snapSettings,
     lockAspect: true,
     zoom: 1,
     selection: null,
     cursor: null,
     statusText: 'Ready',
     measure: null,
+    snapHint: null,
     canUndo: false,
     canRedo: false,
     showPreview: false,
@@ -156,6 +169,29 @@ class AppStore {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
+
+  /**
+   * Update snap preferences. `snapToGrid` is kept in sync for the legacy
+   * status-bar toggle; the controller reads `snapSettings` directly.
+   */
+  setSnapSettings(patch: Partial<Omit<SnapSettings, 'version'>>): void {
+    const snapSettings: SnapSettings = { ...this.state.snapSettings, ...patch, version: 1 };
+    saveSnapSettings(snapSettings);
+    this.setState({
+      snapSettings,
+      snapToGrid: snapSettings.enabled && snapSettings.grid,
+    });
+  }
+
+  /** Flip the master snap switch (status-bar button). */
+  toggleSnap(): void {
+    this.setSnapSettings({ enabled: !this.state.snapSettings.enabled });
+  }
+
+  /** Default settings, exported for tests and the First Run flow. */
+  resetSnapSettings(): void {
+    this.setSnapSettings({ ...DEFAULT_SNAP_SETTINGS });
+  }
 
   // ---- document helpers ---------------------------------------------------
 
