@@ -65,6 +65,7 @@ export interface AppState {
   /** Live measurements while moving / scaling / rotating a selection. */
   measure: LiveMeasure | null;
 
+
   canUndo: boolean;
   canRedo: boolean;
 
@@ -399,6 +400,11 @@ export interface WorkspaceApi {
   }): void;
   convertToPath(): Promise<void>;
   closePath(): void;
+  /** Node editing (WorkspaceController); no-ops outside node mode. */
+  deleteSelectedNodes(): boolean;
+  selectAllNodes(): void;
+  setSelectedNodeType(type: 'corner' | 'smooth' | 'symmetric'): void;
+  toggleSelectedSegment(): void;
   breakApart(): void;
   setStartPoint(): void;
   traceImage(): void;

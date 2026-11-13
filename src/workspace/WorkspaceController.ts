@@ -50,6 +50,21 @@ import { prepareSvgForImport, applySvgPhysicalSize } from '@/io/svg';
 import { findImageLayer } from './layers';
 import { applyNumericSingle, resolveSizePatch } from './numeric';
 import { liveMeasure } from './measure';
+import {
+  buildPath,
+  insertNode,
+  isCurvedSegment,
+  moveAnchor,
+  moveHandle,
+  nearestOnSubpath,
+  removeNodes,
+  parsePath,
+  removeNode,
+  setNodeType,
+  toggleSegmentType,
+  type NodeType,
+  type Subpath,
+} from './nodes';
 import { buildFramePlan, buildJob, planToText } from '@/gcode/job';
 import type { JobPlan, Pt } from '@/gcode/types';
 import {
@@ -125,7 +140,11 @@ export class WorkspaceController implements WorkspaceApi {
   } | null = null;
 
   private nodeTarget: FabricPath | null = null;
-  private nodeHandles: { circle: Circle; commandIndex: number }[] = [];
+  private nodeHandles: { circle: Circle; subIndex: number; nodeIndex: number }[] = [];
+  /** Bézier handles of the edited path: movable squares plus their guides. */
+  private nodeControls: { shape: Rect; guide: Line }[] = [];
+  /** Selected nodes as `subIndex:nodeIndex` keys. */
+  private nodeSelected = new Set<string>();
   private nodeDragging = false;
 
   /** Box/angle captured when a move/scale/rotate gesture starts. */
@@ -323,6 +342,23 @@ export class WorkspaceController implements WorkspaceApi {
       const tool = store.getState().tool;
       if (this.isDrawTool(tool)) {
         this.beginDraw(tool, this.canvas.getScenePoint(e));
+      }
+    });
+
+    // Node editing: double-clicking a segment inserts a node there.
+    this.canvas.on('mouse:dblclick', (opt) => {
+      if (store.getState().tool !== 'node') return;
+      const button = (opt.e as MouseEvent).button;
+      if (button !== 0) return;
+      const target = opt.target;
+      if (target instanceof FabricPath) {
+        this.canvas.setActiveObject(target);
+        this.nodeTarget = target;
+        this.insertNodeAt(target, this.canvas.getScenePoint(opt.e as MouseEvent));
+        return;
+      }
+      if (this.nodeTarget) {
+        this.insertNodeAt(this.nodeTarget, this.canvas.getScenePoint(opt.e as MouseEvent));
       }
     });
 
@@ -939,6 +975,10 @@ export class WorkspaceController implements WorkspaceApi {
 
   // -------------------------------------------------------------------------
   // Node editing
+  //
+  // The editable model lives in `nodes.ts` (canonical M/L/C/Z + typed handles).
+  // The controller only mirrors it on screen: one white circle per anchor, one
+  // small square per handle, and every interaction rewrites the whole path.
   // -------------------------------------------------------------------------
 
   private isNodeHandle(obj: FabricObject | null): boolean {
@@ -951,6 +991,35 @@ export class WorkspaceController implements WorkspaceApi {
     return util.transformPoint(local, path.calcTransformMatrix());
   }
 
+  private sceneToPathPoint(path: FabricPath, p: { x: number; y: number }): Pt {
+    const inverse = util.invertTransform(path.calcTransformMatrix());
+    const local = util.transformPoint(new Point(p.x, p.y), inverse);
+    return { x: local.x + path.pathOffset.x, y: local.y + path.pathOffset.y };
+  }
+
+  /** Current editable model of the path being edited, or `null`. */
+  private nodeModel(): Subpath[] | null {
+    const path = this.nodeTarget;
+    if (!path) return null;
+    return parsePath(path.path as unknown as (string | number)[][]);
+  }
+
+  /**
+   * Write an edited model back to the path. `positionNodeHandles` is given the
+   * same model so it never re-parses an intermediate path: rebuilding the
+   * handles from a half-updated path (e.g. right after deleting nodes) would
+   * fold those handles back into it.
+   */
+  private commitNodeModel(subpaths: Subpath[]): void {
+    const path = this.nodeTarget;
+    if (!path) return;
+    path._setPath(buildPath(subpaths) as never, false);
+    path.setCoords();
+    this.positionNodeHandles(subpaths);
+    this.canvas.requestRenderAll();
+    this.afterChange();
+  }
+
   private clearNodeHandles(): void {
     if (this.nodeHandles.length === 0) {
       this.nodeTarget = null;
@@ -959,7 +1028,9 @@ export class WorkspaceController implements WorkspaceApi {
     const previous = this.suppressHistory;
     this.suppressHistory = true;
     for (const h of this.nodeHandles) this.canvas.remove(h.circle);
+    for (const c of this.nodeControls) this.canvas.remove(c.shape);
     this.nodeHandles = [];
+    this.nodeControls = [];
     this.nodeTarget?.set({ hasControls: true, hasBorders: true });
     this.nodeTarget = null;
     this.suppressHistory = previous;
@@ -991,119 +1062,277 @@ export class WorkspaceController implements WorkspaceApi {
 
     this.clearNodeHandles();
     this.nodeTarget = active;
+    this.nodeSelected.clear();
     active.set({ hasControls: false, hasBorders: true });
 
     const previous = this.suppressHistory;
     this.suppressHistory = true;
-    const zoom = this.canvas.getZoom();
-    (active.path as unknown as unknown[][]).forEach((cmd, idx) => {
-      const anchor = anchorCoords(cmd);
-      if (!anchor) return;
-      const scene = this.commandToScene(active, anchor.x, anchor.y);
-      const circle = new Circle({
-        left: scene.x,
-        top: scene.y,
-        radius: 4 / zoom,
-        originX: 'center',
-        originY: 'center',
-        fill: '#f5f6f7',
-        stroke: SELECTION_ACCENT,
-        strokeWidth: HAIRLINE_PX / zoom,
-        strokeUniform: true,
-        hasControls: false,
-        hasBorders: false,
-        lockRotation: true,
-        excludeFromExport: true,
-        objectCaching: false,
+    const model = this.nodeModel() ?? [];
+    model.forEach((sub, subIndex) => {
+      sub.nodes.forEach((node, nodeIndex) => {
+        const circle = new Circle({
+          radius: 4 / this.canvas.getZoom(),
+          originX: 'center',
+          originY: 'center',
+          fill: '#f5f6f7',
+          stroke: SELECTION_ACCENT,
+          strokeWidth: HAIRLINE_PX / this.canvas.getZoom(),
+          strokeUniform: true,
+          hasControls: false,
+          hasBorders: false,
+          lockRotation: true,
+          excludeFromExport: true,
+          objectCaching: false,
+        });
+        const tagged = circle as Circle & { isNodeHandle?: boolean; subIndex?: number; nodeIndex?: number };
+        tagged.isNodeHandle = true;
+        tagged.subIndex = subIndex;
+        tagged.nodeIndex = nodeIndex;
+        circle.on('mousedown', (e) => {
+          const evt = e.e as MouseEvent;
+          this.nodeDragging = true;
+          this.selectNode(subIndex, nodeIndex, evt.shiftKey);
+        });
+        circle.on('moving', () => this.moveAnchorHandle(circle));
+        this.nodeHandles.push({ circle, subIndex, nodeIndex });
+        this.canvas.add(circle);
       });
-      (circle as Circle & { isNodeHandle?: boolean }).isNodeHandle = true;
-      circle.on('mousedown', () => {
-        this.nodeDragging = true;
-      });
-      circle.on('moving', () => this.moveNode(circle, idx));
-      this.nodeHandles.push({ circle, commandIndex: idx });
-      this.canvas.add(circle);
     });
     this.suppressHistory = previous;
-    this.setStatus(`Node editing — ${this.nodeHandles.length} node(s). Drag to reshape.`);
+    this.positionNodeHandles();
+    this.setStatus(this.nodeStatusText());
   }
 
-  private moveNode(circle: Circle, index: number): void {
-    const path = this.nodeTarget;
-    if (!path) return;
-    const inverse = util.invertTransform(path.calcTransformMatrix());
-    const local = util.transformPoint(new Point(circle.left ?? 0, circle.top ?? 0), inverse);
-    const x = local.x + path.pathOffset.x;
-    const y = local.y + path.pathOffset.y;
-
-    const commands = (path.path as unknown as unknown[][]).map((c) => [...c]);
-    if (!commands[index]) return;
-
-    // Anchor the shape using another node so only the dragged point moves.
-    let refBefore: Point | null = null;
-    let refIndex = -1;
-    for (let i = 0; i < commands.length; i += 1) {
-      if (i === index) continue;
-      const anchor = anchorCoords(commands[i]);
-      if (anchor) {
-        refIndex = i;
-        refBefore = this.commandToScene(path, anchor.x, anchor.y);
-        break;
-      }
-    }
-
-    const cmd = commands[index];
-    const type = cmd[0];
-    if (type === 'M' || type === 'L') {
-      cmd[1] = x;
-      cmd[2] = y;
-    } else if (type === 'C') {
-      cmd[5] = x;
-      cmd[6] = y;
-    } else if (type === 'Q') {
-      cmd[3] = x;
-      cmd[4] = y;
-    } else if (type === 'A') {
-      cmd[6] = x;
-      cmd[7] = y;
-    } else {
-      return;
-    }
-
-    path._setPath(commands as never, false);
-    if (refBefore && refIndex >= 0) {
-      const anchor = anchorCoords(path.path[refIndex] as unknown as unknown[]);
-      if (anchor) {
-        const refAfter = this.commandToScene(path, anchor.x, anchor.y);
-        path.set({
-          left: (path.left ?? 0) + refBefore.x - refAfter.x,
-          top: (path.top ?? 0) + refBefore.y - refAfter.y,
-        });
-      }
-    }
-    path.setCoords();
-    this.positionNodeHandles(circle);
-    this.canvas.requestRenderAll();
+  /** Rebuild the overlay for `path` from an explicit model (after insert). */
+  private rebuildNodeHandlesFor(path: FabricPath, model: Subpath[], selectKey: string): void {
+    this.canvas.setActiveObject(path);
+    this.nodeTarget = path;
+    this.rebuildNodeHandles();
+    this.nodeSelected.clear();
+    this.nodeSelected.add(selectKey);
+    this.commitNodeModel(model);
+    this.setStatus(`Node added — ${this.nodeHandles.length} node(s)`);
   }
 
-  private positionNodeHandles(skip?: Circle): void {
+  private nodeStatusText(): string {
+    const count = this.nodeHandles.length;
+    const selected = this.nodeSelected.size;
+    const extra = selected > 0 ? ` — ${selected} selected` : '';
+    return `Node editing — ${count} node(s)${extra}. Drag to reshape, double-click a segment to add, Del removes.`;
+  }
+
+  private selectNode(subIndex: number, nodeIndex: number, additive: boolean): void {
+    const key = `${subIndex}:${nodeIndex}`;
+    if (!additive) this.nodeSelected.clear();
+    if (additive && this.nodeSelected.has(key)) this.nodeSelected.delete(key);
+    else this.nodeSelected.add(key);
+    this.positionNodeHandles();
+    this.setStatus(this.nodeStatusText());
+  }
+
+  /**
+   * Recompute the on-screen position of every anchor and handle. The path is
+   * re-parsed instead of using the cached `commandIndex` because inserting or
+   * deleting a node renumbers everything.
+   */
+  private positionNodeHandles(modelOverride?: Subpath[]): void {
     const path = this.nodeTarget;
     if (!path) return;
     const zoom = this.canvas.getZoom();
+    const model = modelOverride ?? this.nodeModel() ?? [];
+    const previous = this.suppressHistory;
+    this.suppressHistory = true;
     for (const handle of this.nodeHandles) {
-      if (handle.circle === skip) continue;
-      const cmd = path.path[handle.commandIndex] as unknown as unknown[];
-      const anchor = cmd ? anchorCoords(cmd) : null;
-      if (!anchor) continue;
-      const scene = this.commandToScene(path, anchor.x, anchor.y);
+      const node = model[handle.subIndex]?.nodes[handle.nodeIndex];
+      if (!node) continue;
+      const scene = this.commandToScene(path, node.anchor.x, node.anchor.y);
+      const selected = this.nodeSelected.has(`${handle.subIndex}:${handle.nodeIndex}`);
       handle.circle.set({
         left: scene.x,
         top: scene.y,
         radius: 4 / zoom,
         strokeWidth: HAIRLINE_PX / zoom,
+        fill: selected ? SELECTION_ACCENT : '#f5f6f7',
       });
       handle.circle.setCoords();
     }
+    this.rebuildNodeControls(model, zoom);
+    this.suppressHistory = previous;
+  }
+
+  /** Small squares on the Bezier handles, plus the guideline to the anchor. */
+  private rebuildNodeControls(model: Subpath[], zoom: number): void {
+    const path = this.nodeTarget;
+    if (!path) return;
+    for (const control of this.nodeControls) this.canvas.remove(control.shape);
+    this.nodeControls = [];
+    model.forEach((sub, subIndex) => {
+      sub.nodes.forEach((node, nodeIndex) => {
+        const sides: ('in' | 'out')[] = [];
+        if (node.handleIn) sides.push('in');
+        if (node.handleOut) sides.push('out');
+        const anchor = this.commandToScene(path, node.anchor.x, node.anchor.y);
+        for (const side of sides) {
+          const point = side === 'in' ? node.handleIn! : node.handleOut!;
+          const scene = this.commandToScene(path, point.x, point.y);
+          const guide = new Line([anchor.x, anchor.y, scene.x, scene.y], {
+            stroke: SELECTION_ACCENT,
+            strokeWidth: HAIRLINE_PX / zoom,
+            strokeUniform: true,
+            selectable: false,
+            evented: false,
+            excludeFromExport: true,
+            objectCaching: false,
+            opacity: 0.75,
+          });
+          (guide as Line & { isAuxiliary?: boolean }).isAuxiliary = true;
+          this.canvas.add(guide);
+          const square = new Rect({
+            left: scene.x,
+            top: scene.y,
+            width: 6 / zoom,
+            height: 6 / zoom,
+            originX: 'center',
+            originY: 'center',
+            fill: '#2b2f36',
+            stroke: SELECTION_ACCENT,
+            strokeWidth: HAIRLINE_PX / zoom,
+            strokeUniform: true,
+            hasControls: false,
+            hasBorders: false,
+            lockRotation: true,
+            excludeFromExport: true,
+            objectCaching: false,
+          });
+          const tagged = square as Rect & { isNodeControl?: boolean; subIndex?: number; nodeIndex?: number; side?: 'in' | 'out' };
+          tagged.isNodeControl = true;
+          tagged.subIndex = subIndex;
+          tagged.nodeIndex = nodeIndex;
+          tagged.side = side;
+          square.on('mousedown', () => {
+            this.nodeDragging = true;
+          });
+          square.on('moving', () => this.moveNodeControl(square, side, subIndex, nodeIndex));
+          this.canvas.add(square);
+          this.nodeControls.push({ shape: square, guide });
+        }
+      });
+    });
+  }
+
+  private moveAnchorHandle(circle: Circle): void {
+    if (!this.nodeTarget) return;
+    const tagged = circle as Circle & { subIndex?: number; nodeIndex?: number };
+    if (tagged.subIndex === undefined || tagged.nodeIndex === undefined) return;
+    const model = this.nodeModel();
+    if (!model) return;
+    // Snap the anchor to its own path (so it merges with a vertex), to other
+    // objects and to the grid.
+    const raw = { x: circle.left ?? 0, y: circle.top ?? 0 };
+    const scenePoint = new Point(raw.x, raw.y);
+    const local = this.sceneToPathPoint(this.nodeTarget, { x: scenePoint.x, y: scenePoint.y });
+    const next = moveAnchor(model, tagged.subIndex, tagged.nodeIndex, local);
+    this.commitNodeModel(next);
+  }
+
+  private moveNodeControl(shape: Rect, side: 'in' | 'out', subIndex: number, nodeIndex: number): void {
+    const path = this.nodeTarget;
+    if (!path) return;
+    const model = this.nodeModel();
+    if (!model) return;
+    // Alt (or the node being a corner) keeps the handles independent.
+    const independent = (window.event as MouseEvent | undefined)?.altKey === true;
+    const working = independent
+      ? model.map((sub, si) =>
+          si === subIndex
+            ? { ...sub, nodes: sub.nodes.map((n, ni) => (ni === nodeIndex ? { ...n, type: 'corner' as const } : n)) }
+            : sub,
+        )
+      : model;
+    const local = this.sceneToPathPoint(path, { x: shape.left ?? 0, y: shape.top ?? 0 });
+    const next = moveHandle(working, subIndex, nodeIndex, side, local);
+    this.commitNodeModel(next);
+  }
+
+  /** Double-click on a path segment inserts a node at the clicked position. */
+  private insertNodeAt(path: FabricPath, scenePoint: Point): boolean {
+    const model = parsePath(path.path as unknown as (string | number)[][]);
+    const local = this.sceneToPathPoint(path, { x: scenePoint.x, y: scenePoint.y });
+    const best: { subIndex: number; nodeIndex: number; t: number; distance: number } | null = model.reduce(
+      (found, sub, subIndex) => {
+        const hit = nearestOnSubpath(sub, local, 24);
+        if (!hit) return found;
+        if (found && found.distance <= hit.distance) return found;
+        return { subIndex, nodeIndex: hit.nodeIndex, t: hit.t, distance: hit.distance };
+      },
+      null as { subIndex: number; nodeIndex: number; t: number; distance: number } | null,
+    );
+    if (!best) return false;
+    this.nodeTarget = path;
+    const result = insertNode(model, best.subIndex, best.nodeIndex, best.t);
+    if (result.insertedIndex < 0) return false;
+    // Drop the current overlay and rebuild it from the edited model.
+    const previous = this.suppressHistory;
+    this.suppressHistory = true;
+    for (const h of this.nodeHandles) this.canvas.remove(h.circle);
+    for (const control of this.nodeControls) this.canvas.remove(control.shape);
+    this.nodeHandles = [];
+    this.nodeControls = [];
+    this.suppressHistory = previous;
+    this.nodeTarget = null;
+    this.rebuildNodeHandlesFor(path, result.subpaths, `${best.subIndex}:${result.insertedIndex}`);
+    return true;
+  }
+
+  /** Delete the selected nodes (or the whole path when none is selected). */
+  deleteSelectedNodes(): boolean {
+    if (store.getState().tool !== 'node' || !this.nodeTarget) return false;
+    const keys = [...this.nodeSelected].map((k) => k.split(':').map(Number) as [number, number]);
+    if (keys.length === 0) return false;
+    const model = this.nodeModel();
+    if (!model) return false;
+    const next = removeNodes(
+      model,
+      keys.map(([subIndex, nodeIndex]) => ({ subIndex, nodeIndex })),
+    );
+    this.nodeSelected.clear();
+    this.commitNodeModel(next);
+    this.rebuildNodeHandles();
+    this.setStatus(`Nodes deleted — ${this.nodeHandles.length} left`);
+    return true;
+  }
+
+  /** Context-menu actions on the selected node. */
+  setSelectedNodeType(type: NodeType): void {
+    if (store.getState().tool !== 'node' || !this.nodeTarget) return;
+    const [key] = [...this.nodeSelected];
+    if (!key) return;
+    const [subIndex, nodeIndex] = key.split(':').map(Number);
+    const model = this.nodeModel();
+    if (!model) return;
+    this.commitNodeModel(setNodeType(model, subIndex, nodeIndex, type));
+    this.setStatus(`Node is now ${type}`);
+  }
+
+  /** Convert the segment that starts at the selected node between line/curve. */
+  toggleSelectedSegment(): void {
+    if (store.getState().tool !== 'node' || !this.nodeTarget) return;
+    const [key] = [...this.nodeSelected];
+    if (!key) return;
+    const [subIndex, nodeIndex] = key.split(':').map(Number);
+    const model = this.nodeModel();
+    if (!model) return;
+    const curved = model[subIndex] && isCurvedSegment(model[subIndex], nodeIndex);
+    this.commitNodeModel(toggleSegmentType(model, subIndex, nodeIndex));
+    this.setStatus(curved ? 'Segment converted to line' : 'Segment converted to curve');
+  }
+
+  selectAllNodes(): void {
+    if (store.getState().tool !== 'node' || !this.nodeTarget) return;
+    this.nodeSelected.clear();
+    this.nodeHandles.forEach((h) => this.nodeSelected.add(`${h.subIndex}:${h.nodeIndex}`));
+    this.positionNodeHandles();
+    this.setStatus(this.nodeStatusText());
   }
 
   private snapshot(): string {
@@ -3832,8 +4061,10 @@ export class WorkspaceController implements WorkspaceApi {
           return;
         case 'a':
           e.preventDefault();
-          // LightBurn: Ctrl+Shift+A = Frame Selection
+          // LightBurn: Ctrl+Shift+A = Frame Selection; in node mode Ctrl+A
+          // selects every node of the path being edited.
           if (e.shiftKey) this.zoomToFitSelection();
+          else if (store.getState().tool === 'node' && this.nodeTarget) this.selectAllNodes();
           else this.selectAll();
           return;
         case 'g':
@@ -3887,6 +4118,9 @@ export class WorkspaceController implements WorkspaceApi {
 
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
+      // Node mode deletes the selected nodes, never the whole path unless
+      // nothing is selected (the old behaviour deleted the path by surprise).
+      if (store.getState().tool === 'node' && this.deleteSelectedNodes()) return;
       this.deleteSelection();
       return;
     }
@@ -3990,20 +4224,6 @@ function reflectPoint(p: Point, a: Point, b: Point): { x: number; y: number } {
   const projX = a.x + t * dx;
   const projY = a.y + t * dy;
   return { x: 2 * projX - p.x, y: 2 * projY - p.y };
-}
-
-function anchorCoords(cmd: unknown[]): { x: number; y: number } | null {
-  const type = cmd[0];
-  const pair = (xi: number, yi: number) => {
-    const x = cmd[xi];
-    const y = cmd[yi];
-    return typeof x === 'number' && typeof y === 'number' ? { x, y } : null;
-  };
-  if (type === 'M' || type === 'L') return pair(1, 2);
-  if (type === 'C') return pair(5, 6);
-  if (type === 'Q') return pair(3, 4);
-  if (type === 'A') return pair(6, 7);
-  return null;
 }
 
 function baseName(path: string): string {
