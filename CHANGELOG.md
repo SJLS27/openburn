@@ -25,6 +25,13 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 - **Preferencias de snapping versionadas** (`src/state/snapSettings.ts`,
   `openburn.snap`), con migración desde el antiguo booleano `snapToGrid`.
 
+### Desarrollo
+- **Ciclo de verificación headless**: `npm run dev:build` mantiene `dist/` y
+  `dist-electron/` en watch sin abrir la app, `npm run test:e2e:fast` ejecuta
+  Playwright contra el build existente y `npm run test:e2e:watch` combina ambos
+  para iterar sin recompilar. La comprobación del Flatpak pasa a
+  `scripts/flatpak-local.sh` + `flatpak info`, sin lanzar la aplicación.
+
 ### Preparado para lo siguiente
 - Contratos estables para `SnapKind`/`SnapTarget` (con `guide` reservado) y
   `NodeType`: guías inteligentes, tangentes, texto sobre trazado y

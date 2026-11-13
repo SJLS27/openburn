@@ -120,6 +120,8 @@ Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
 - [x] `workspace/nodes`, `workspace/snap`, `state/snapSettings` y `ui/StatusBar` (snap)
 - [ ] Ampliar cobertura: round-trip `io/lightburn`, `core/serialize`, `geometry/offset`, `serial/grbl` y simulador
 - [x] E2E de edición de nodos y snapping (`e2e/nodes-snap.spec.ts`)
+- [x] Ciclo de desarrollo headless (`dev:build`, `test:e2e:fast`, `test:e2e:watch`); el Flatpak se verifica con `flatpak info` sin abrir la app
+- [ ] `WorkspaceController.test.ts` con un `Canvas` falso para cubrir nodos/snapping sin Electron
 - [ ] E2E de flujos completos: dibujar/transformar, import/export `.obrn`/`.lbrn2`, preview y job en el simulador
 - [ ] Umbral de cobertura mínimo en CI (p. ej. 60 % en `src/core` y `src/gcode`)
 - [ ] Linter + formateo (ESLint + Prettier) y pre-commit hook

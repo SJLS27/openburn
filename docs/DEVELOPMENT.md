@@ -20,12 +20,15 @@ npm install
 | --- | --- |
 | `npm run dev` | Vite en el navegador con HMR |
 | `npm run dev:electron` | Vite + Electron (ventana de escritorio) |
+| `npm run dev:build` | Vite y Electron en modo watch (sin abrir ventana) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run build` | TypeScript + Vite + compilación de Electron |
 | `npm run test` | Tests unitarios y de componentes (Vitest) |
 | `npm run test:watch` | Vitest en modo watch |
 | `npm run test:coverage` | Tests + cobertura v8 en `coverage/` |
 | `npm run test:e2e` | Build + Playwright sobre Electron |
+| `npm run test:e2e:fast` | Playwright sin recompilar (usa `dist/` actual) |
+| `npm run test:e2e:watch` | Build en watch + Playwright, ciclo de desarrollo headless |
 | `npm run check:flatpak-sources` | Valida que `flatpak/node-sources.json` cubre el lockfile |
 | `npm run build:app` | Instalador con electron-builder |
 | `npm run preview` | Sirve el build de producción |
@@ -55,9 +58,25 @@ La política y las plantillas están en [AGENTS.md](../AGENTS.md).
 ```bash
 npm run test                    # unitarios + componentes
 npm run test -- src/core        # filtrar por ruta
-npm run test:e2e                # e2e (compila antes)
+npm run test:e2e                # e2e (compila antes, para CI)
 xvfb-run -a npm run test:e2e    # Linux sin pantalla
 ```
+
+### Ciclo headless (sin abrir la app)
+
+Los tests **nunca abren la app en el escritorio**: Vitest corre en jsdom y
+Playwright lanza su propio Electron con un perfil temporal que se borra al
+terminar. Para iterar rápido sin recompilar cada vez:
+
+```bash
+npm run test:e2e:watch                     # terminal 1: build en watch + e2e
+npx playwright test e2e/nodes-snap.spec.ts # terminal 2: solo el spec tocado
+```
+
+- `npm run dev:build` mantiene `dist/` y `dist-electron/` actualizados sin
+  levantar la ventana.
+- `npm run test:e2e:fast` ejecuta Playwright contra el build existente.
+- `npm run dev:electron` (ventana real) queda reservado al usuario.
 
 ## Estructura
 

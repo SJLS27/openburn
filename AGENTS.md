@@ -16,13 +16,16 @@ repo debe seguirlo.
 | --- | --- |
 | `npm install` | Instala dependencias |
 | `npm run dev` | Renderer en el navegador (HMR) |
-| `npm run dev:electron` | App de escritorio con Vite + Electron |
+| `npm run dev:electron` | App de escritorio con Vite + Electron (ventana real, solo si el usuario lo pide) |
+| `npm run dev:build` | Vite + Electron en watch; actualiza `dist/` sin abrir ventana |
 | `npm run typecheck` | `tsc --noEmit` sobre `src/` y `electron/` |
 | `npm run build` | Typecheck + Vite + compilación del proceso principal |
 | `npm run test` | Tests unitarios y de componentes (Vitest) |
 | `npm run test:watch` | Vitest en modo watch |
 | `npm run test:coverage` | Tests + informe de cobertura (`coverage/`) |
-| `npm run test:e2e` | Build + tests end-to-end (Playwright + Electron) |
+| `npm run test:e2e` | Build + tests end-to-end (Playwright + Electron), para CI |
+| `npm run test:e2e:fast` | Playwright sin recompilar (usa `dist/` actual) |
+| `npm run test:e2e:watch` | Build en watch + Playwright (ciclo headless) |
 | `npm run build:app` | Instaladores con electron-builder |
 
 Comprobación mínima antes de dar un cambio por terminado:
@@ -32,7 +35,29 @@ npm run typecheck && npm run test && npm run build
 ```
 
 Para cambios que afecten a la UI de escritorio o al proceso principal, añade
-además `npm run test:e2e` (en Linux sin pantalla: `xvfb-run -a npm run test:e2e`).
+además el e2e: `npm run test:e2e` (compila antes; es lo que corre CI) o
+`npx playwright test <spec>` si ya hay un build reciente. En Linux sin pantalla:
+`xvfb-run -a npm run test:e2e`.
+
+### Verificar sin abrir la app (headless)
+
+**La app no se abre en el escritorio del usuario durante la verificación.** Todo
+se prueba de forma no interactiva:
+
+| Qué | Comando | Abre ventana |
+| --- | --- | --- |
+| Lógica, estado, componentes y proceso principal | `npm run test` | No (jsdom + mocks) |
+| App real (Electron + renderer + IPC) | `npx playwright test <spec>` | No (Electron lanzado por el spec, perfil temporal en `/tmp`) |
+| Ciclo rápido mientras editas | `npm run test:e2e:watch` | No |
+| Empaquetado Flatpak | `sh scripts/flatpak-local.sh` y `flatpak info io.github.SJLS27.OpenBurn` | No |
+
+- Cada spec usa su propio perfil (`OPENBURN_USER_DATA_DIR`) y cierra el proceso
+  al terminar, así que no toca la configuración real del usuario.
+- El controlador del lienzo se expone en `window.__openburn`; los e2e invocan
+  comandos con `page.evaluate` en lugar de manejar la UI con decenas de clics.
+- `npm run dev:electron` y `flatpak run io.github.SJLS27.OpenBurn` abren la
+  ventana real: úsalos solo si el usuario lo pide expresamente.
+
 
 ---
 
