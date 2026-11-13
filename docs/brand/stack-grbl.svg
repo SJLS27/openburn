@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="90" height="32" viewBox="0 0 90 32" role="img" aria-label="GRBL">
+  <rect x="0.5" y="0.5" width="89" height="31" rx="8" fill="#25282e" stroke="#3a3e45"/>
+  <g transform="translate(9 6) scale(0.83)"><path d="M12 2.2 20.5 7v10L12 21.8 3.5 17V7L12 2.2Z" fill="none" stroke="#7ee787" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M9 8v8M9 8h4.2a2.4 2.4 0 0 1 0 4.8H9M13 12.8l3 3.2" fill="none" stroke="#7ee787" stroke-width="1.6" stroke-linecap="round"/></g>
+  <text x="38" y="21" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#f4f5f6">GRBL</text>
+</svg>

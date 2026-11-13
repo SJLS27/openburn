@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360" role="img" aria-label="OpenBurn — open-source laser cutting and engraving software">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b1d21"/>
+      <stop offset="0.55" stop-color="#25282e"/>
+      <stop offset="1" stop-color="#1b1d21"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#d2691e" stop-opacity="0.55"/>
+      <stop offset="0.6" stop-color="#d2691e" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#d2691e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="flame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffb066"/>
+      <stop offset="0.55" stop-color="#e07a2c"/>
+      <stop offset="1" stop-color="#b84d12"/>
+    </linearGradient>
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d2691e"/>
+      <stop offset="1" stop-color="#d2691e" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#ffffff" stroke-opacity="0.045" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="360" fill="url(#bg)"/>
+  <rect width="1280" height="360" fill="url(#grid)"/>
+  <circle cx="215" cy="180" r="230" fill="url(#glow)"/>
+
+  <g transform="translate(96 78) scale(3.4)">
+    <path d="M32 8c4.3 8.6.8 12.6-2.4 16.4-3.2 3.8-6.4 7.5-3.2 13.4 0-3.7 2.4-5.9 4.8-8 .5 2.9 2.1 5.1 4.3 6.7 2.4 1.8 3.2 4 1.9 7 5.9-3.2 9.4-8.8 9.4-15.3 0-9.7-6.7-16.6-14.8-20.2Z" fill="url(#flame)"/>
+  </g>
+
+  <text x="336" y="178" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="78" font-weight="800" fill="#f4f5f6" letter-spacing="0.5">OpenBurn</text>
+  <text x="340" y="222" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="24" fill="#aeb4bc">Open-source laser cutting &amp; engraving software</text>
+  <text x="340" y="264" font-family="'JetBrains Mono', 'Fira Code', monospace" font-size="15" fill="#7f8791" letter-spacing="1.3">GRBL CONTROL · LIGHTBURN .LBRN2 FILES · ANIMATED PREVIEW</text>
+
+  <rect x="340" y="290" width="104" height="4" rx="2" fill="#d2691e"/>
+  <rect x="452" y="290" width="72" height="4" rx="2" fill="url(#rule)"/>
+  <text x="540" y="296" font-family="Inter, sans-serif" font-size="13" fill="#6f7680">Windows · macOS · Linux · MIT</text>
+</svg>

@@ -44,6 +44,22 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
   solo los nodos seleccionados (el objeto se borra como siempre cuando no hay
   ningún nodo seleccionado).
 
+### Documentación
+- **README internacional**: el README principal pasa a inglés y la versión en
+  español se conserva en `README.es.md`, con selectores de idioma en ambos.
+  Estructura centrada en el lector (*Why OpenBurn*, *Quick start*, *Screenshots*)
+  y badges propios del stack en `docs/brand/`.
+- **Banner y recursos de marca** rediseñados (`docs/brand/banner.svg`,
+  badges SVG del stack e icono `docs/app-icon.png`), generados por
+  `npm run docs:brand` y `npm run docs:icon`.
+- **Capturas actualizadas a la 0.10**: `e2e/screenshot-docs.spec.ts` (opt-in con
+  `npm run docs:screenshots`) monta la escena con las herramientas reales y
+  regenera `docs/screenshots/` y los WebP de la web. Las capturas muestran la
+  edición de nodos, el snapping, el planner y la escena nueva con el logo
+  vectorial.
+- **Roadmap**: se anota la migración a Tauri como idea a explorar (enfoque
+  multi-plataforma y tamaño del instalador).
+
 ## [0.10.0] — 2026-11-08
 
 ### Añadido

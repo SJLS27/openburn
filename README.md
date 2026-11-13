@@ -1,343 +1,375 @@
 <p align="center">
-  <img src="docs/banner.svg" alt="OpenBurn — diseño y control de corte/grabado láser" width="100%" />
+  <img src="docs/brand/banner.svg" alt="OpenBurn — open-source laser cutting & engraving software" width="100%" />
+</p>
+
+<h1 align="center">OpenBurn</h1>
+
+<p align="center">
+  Open-source <strong>laser cutting and engraving software</strong> for GRBL machines.<br/>
+  Design, preview the toolpath and run the job — with native
+  <code>.lbrn</code> / <code>.lbrn2</code> import and export.
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <a href="https://openburn.pages.dev"><img alt="Website" src="https://img.shields.io/badge/website-openburn.pages.dev-d2691e.svg"></a>
+  <a href="https://github.com/SJLS27/openburn/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/SJLS27/openburn?color=d2691e&label=download"></a>
   <a href="https://github.com/SJLS27/openburn/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SJLS27/openburn/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.10.0-orange.svg">
-  <a href="https://openburn.pages.dev"><img alt="Website" src="https://img.shields.io/badge/website-openburn.pages.dev-blue.svg"></a>
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="GRBL" src="https://img.shields.io/badge/GRBL-ready-brightgreen.svg">
-  <img alt="LightBurn" src="https://img.shields.io/badge/LightBurn-.lbrn%20%7C%20.lbrn2-8a63d2.svg">
-  <img alt="Electron" src="https://img.shields.io/badge/Electron-45-47848f.svg">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178c6.svg">
+  <img alt="LightBurn files" src="https://img.shields.io/badge/LightBurn-.lbrn%20%7C%20.lbrn2-8a63d2.svg">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.10.0-orange.svg">
 </p>
 
 <p align="center">
-  Software open-source de <strong>diseño, previsualización y control de máquinas láser</strong>.<br/>
-  Alternativa libre inspirada en el flujo de trabajo de LightBurn, con importación y exportación de sus proyectos <code>.lbrn</code> y <code>.lbrn2</code>.
+  <img alt="Electron" src="docs/brand/stack-electron.svg">
+  <img alt="React 18" src="docs/brand/stack-react.svg">
+  <img alt="TypeScript" src="docs/brand/stack-typescript.svg">
+  <img alt="Vite" src="docs/brand/stack-vite.svg">
+  <img alt="Fabric.js" src="docs/brand/stack-fabric.svg">
+  <img alt="Paper.js" src="docs/brand/stack-paper.svg">
+  <img alt="GRBL" src="docs/brand/stack-grbl.svg">
+  <img alt="Web Serial" src="docs/brand/stack-serial.svg">
+  <img alt="Runs offline" src="docs/brand/stack-offline.svg">
 </p>
 
 <p align="center">
-  <a href="#-características">Características</a> ·
-  <a href="#-capturas">Capturas</a> ·
-  <a href="#-inicio-rápido">Inicio rápido</a> ·
-  <a href="#web-oficial">Web</a> ·
-  <a href="#-compatibilidad-con-lightburn">LightBurn</a> ·
-  <a href="#-documentación">Documentación</a> ·
-  <a href="#-roadmap">Roadmap</a>
+  <strong>English</strong> ·
+  <a href="README.es.md">Español</a> ·
+  <a href="https://openburn.pages.dev">Website</a> ·
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="https://openburn.pages.dev/es/">Sitio en español</a>
 </p>
 
-![Vista general de OpenBurn](docs/screenshots/overview.png)
+<p align="center">
+  <a href="https://github.com/SJLS27/openburn/releases/latest"><b>Download the latest release</b></a> ·
+  <a href="docs/USAGE.md">User guide</a> ·
+  <a href="https://openburn.pages.dev">openburn.pages.dev</a>
+</p>
+
+![OpenBurn editor with the demo name plate](docs/screenshots/overview.png)
 
 ---
 
-## 🆕 Novedades 0.10.0
+## Why OpenBurn?
 
-Versión centrada en la **edición de formas y la fluidez del editor**.
+- **A working LightBurn alternative, not a mockup.** Vectors, layers, booleans,
+  text outlines, image engraving, cut planning, preview and GRBL streaming
+  already work end to end.
+- **Your `.lbrn2` files are welcome.** Open an existing LightBurn project, keep
+  its layers and cut settings, edit it here and export it back.
+- **Talk to the machine, not the cloud.** Native GRBL over Web Serial, plus a
+  built-in simulator so you can rehearse a job without a laser.
+- **Free, MIT and offline.** No account, no telemetry, no ads. The installer is
+  a plain desktop app; your designs never leave your computer.
 
-- **Alineación de texto**: izquierda, centro y derecha desde la barra de texto o *Tools → Align Text …*, también para textos dentro de un grupo; el contorno exportado a GCode y LightBurn la respeta.
-- **Campos numéricos de forma**: `X`/`Y`/`W`/`H` operan sobre el bounding box real, con **candado de proporción** (también al arrastrar esquinas).
-- **Reglas** en los bordes del lienzo y **medida en vivo** (`W × H`, `ΔX`/`ΔY`, ángulo y longitud) al mover, escalar o rotar.
-- **Preview más fluido**: capas cacheadas de fondo, trazos y raster, con raster escrito con `ImageData` en vez de punto por punto.
-- **Script de Flatpak local** (`scripts/flatpak-local.sh`) para empaquetar el worktree sin commitear.
+## What's new in 0.10
 
-Detalle completo en [CHANGELOG.md](CHANGELOG.md).
+- **Full node editing** — drag Bézier handles, double-click a segment to add a
+  node, delete nodes, switch between corner / smooth / symmetric and between
+  line and curve.
+- **Object snapping** — vertices, centres, midpoints and intersections, with
+  alignment guides while dragging and a configurable capture radius.
+- **Rules and live measurements** around the canvas: `W × H`, `ΔX`/`ΔY`, angle
+  and length while you move, scale or rotate.
+- **Text alignment** (left / centre / right), also inside groups, honoured by
+  GCode and LightBurn exports.
+- **Shape fields operate on the real bounding box**, with an aspect-ratio lock
+  that also applies while dragging corners.
+- **A much smoother preview** thanks to cached background, path and raster
+  layers.
 
----
-
-## ✨ Características
-
-### Diseño vectorial
-- Línea, rectángulo, rectángulo redondeado, elipse, polígono, texto y medida.
-- Selección múltiple, mover, escalar, rotar, voltear, alinear, distribuir, agrupar/desagrupar y orden.
-- **Booleanos** (unión, resta, intersección, exclusión) con Paper.js.
-- **Offset** de contornos, arrays en cuadrícula/circulares y **edición de nodos** completa (añadir y borrar nodos, asas de Bézier, recta ↔ curva, nodos suaves y simétricos).
-- **Snapping** a rejilla, vértices, centros, puntos medios e intersecciones, con guías de alineación al mover y opciones de captura en la barra de estado.
-
-- **Texto a contornos** con opentype.js (fuente Inter incluida) para cortar o grabar sin depender de fuentes.
-- **Add Tabs**: puentes en contornos para que las piezas no se suelten.
-- **Pegado desde el portapapeles del sistema**: texto, SVG (incluido el SVG comprimido de Inkscape) e imágenes, además de menú contextual en el lienzo.
-
-### Capas y operaciones
-- Paleta de colores tipo LightBurn (`C00`, `C01`, …), cada color es una capa.
-- **Ventana Cuts / Layers tipo LightBurn**: tabla con Modo, Spd/Pwr, Output, Show y Air, reordenación de capas, menús contextuales (activar/ocultar todo, invertir, Sort Cuts Last, copiar/pegar ajustes) y campos rápidos de Passes, Speed, Power Max, Power Min e Interval.
-- **Cut Settings Editor** con pestañas Common/Advanced y campos por modo: Min Power, perforación (Cut/Skip), overcut, pausas de inicio/fin con Cut Through, lead-in/lead-out (línea o arco), Z offset y Z step por pasada.
-- Modos **Line**, **Fill**, **Offset Fill** e **Image** con velocidad, potencia, pasadas, intervalo, overscan, bi-direccional, cross-hatch, flood fill, ramp y agrupación de relleno.
-- **Imagen tipo LightBurn**: Threshold, Ordered, Atkinson, Dither, Stucki, Jarvis, Newsprint, Halftone, Sketch y Grayscale, con Negative, Dot Width Correction, Angle Increment y Pass-Through.
-- **Kerf compensation** por capa (expande o contrae cortes cerrados), **ángulo de scan**, **cross-hatch** y **scan offset**.
-- Trazos **hairline** de 1 px como LightBurn, independientes del zoom (también en grupos anidados y en la exportación SVG).
-- **Biblioteca de materiales editable** (nombre, espesor, velocidad, potencia, pasadas, modo y kerf) con persistencia local.
-- Overrides de corte por objeto (usados por los tests de material).
-- Capa de anotaciones `NOTES` que nunca se envía al láser.
-
-### Preview y GCode
-- Generación de GCode GRBL por capas, con mapeo de origen y `M3`/`M4`.
-- **Preview animado** con scrub, velocidad, cabeza láser, tiempo estimado y estadísticas por capa.
-- **Recorrido de máquina visible**: líneas de travel entre cortes y cabeza animada que recorre también los movimientos en vacío (como LightBurn).
-- **Planificador de corte tipo LightBurn** (Optimization Settings): Order by Layer/Group/Priority, corte de formas interiores primero, orden por dirección, reducción de viajes con búsqueda local, mejor punto de inicio, esquinas preferidas, mejor dirección, reducción de cambios de dirección y eliminación de líneas solapadas.
-- Exportación de GCode (`.nc`) y LightBurn (`.lbrn` / `.lbrn2`).
-
-### Control GRBL
-- Conexión por **Web Serial** o **simulador integrado** (sin hardware).
-- Streaming con control de flujo, `Frame`, `Start`, `Pause/Resume`, `Stop`.
-- Jog (`$J`), homing (`$H`), unlock (`$X`), set origin (`G10 L20`).
-- Consola bidireccional y macros persistentes.
-- Estado en vivo: posición, feed, spindle, progreso y tiempo restante.
-
-### Actualizaciones
-- **Auto-update** con `electron-updater`: comprueba al arrancar, descarga en segundo plano y ofrece **Restart & install**.
-- Release manual desde **Help → Check for Updates…**.
-- Artefactos publicados automáticamente en GitHub Releases al crear un tag `v*` (AppImage, NSIS y DMG/ZIP).
-
-### Escritorio y flujo de trabajo
-- **Autoguardado** en el perfil de la app y recuperación del trabajo sin guardar tras un cierre inesperado.
-- **Pantalla de bienvenida** con New Design, Open Project y la lista de recientes.
-- **Archivos recientes** en *File → Open Recent*, con opción de limpiar la lista.
-- **Drag & drop** de proyectos, SVG, DXF e imágenes en el punto donde se sueltan.
-- **Ventana persistente** (tamaño, posición y maximizado) e **historial de undo/redo acotado** para sesiones largas.
-- Confirmación **Guardar / Descartar / Cancelar** antes de descartar cambios.
-
-### Calibración
-- **Material Test** potencia × velocidad con **sublayers reales** (una capa por celda), **Interval Test**, **Focus Test** con rampa de eje Z y **Kerf Test** (ranura o span de líneas).
-- **Biblioteca de materiales** guardable y reutilizable con un clic, incluido el kerf medido.
-- Eje **Z** configurable: offsets por objeto y movimientos `G1 Z` en el GCode.
-
-### Imágenes
-- Importación de PNG/JPG/GIF/BMP/WebP.
-- **Adjust Image**: brillo, contraste, gamma, niveles, curva de tonos, umbral e invertir, con previsualización en vivo.
-- **Trace Image**: vectorización monochrome o color con control de umbral y detalle, **preview antes de aplicar** y opción de **una capa por color**.
-- **Apply Mask to Image**: recorta una imagen con una forma vectorial.
-
-### Compatibilidad LightBurn
-- **Abre** proyectos `.lbrn` y `.lbrn2` (rectángulos, elipses, polígonos, paths con Bézier, grupos, texto con *backup path*, bitmaps y cut settings).
-- **Exporta** `.lbrn` (legado, legible) y `.lbrn2` (compacto) con geometría, texto en contornos, bitmaps y capas.
-- Ver [Compatibilidad con LightBurn](#-compatibilidad-con-lightburn).
+Full details in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
-## 📸 Capturas
+## Screenshots
 
 <table>
   <tr>
-    <td width="50%" align="center"><img src="docs/screenshots/preview.png" alt="Preview animado de trayectorias" width="100%"><br/><sub><strong>Preview</strong> — trayectorias, tiempos y cabeza láser</sub></td>
-    <td width="50%" align="center"><img src="docs/screenshots/material-test.png" alt="Material Test" width="100%"><br/><sub><strong>Material Test</strong> — matriz potencia × velocidad</sub></td>
+    <td width="50%" align="center"><img src="docs/screenshots/nodes-snapping.png" alt="Node editing a Bézier path with the node tool" width="100%"><br/><sub><strong>Node editing</strong> — handles, node types and snapping</sub></td>
+    <td width="50%" align="center"><img src="docs/screenshots/preview.png" alt="Animated preview with the laser head and job summary" width="100%"><br/><sub><strong>Preview</strong> — toolpath, times and per-layer stats</sub></td>
   </tr>
   <tr>
-    <td width="50%" align="center"><img src="docs/screenshots/lightburn.png" alt="Importar y exportar LightBurn" width="100%"><br/><sub><strong>LightBurn</strong> — abrir y exportar .lbrn/.lbrn2</sub></td>
-    <td width="50%" align="center"><img src="docs/screenshots/image-tools.png" alt="Ajuste de imagen" width="100%"><br/><sub><strong>Adjust Image</strong> — previsualización en escala de grises</sub></td>
+    <td width="50%" align="center"><img src="docs/screenshots/material-test.png" alt="Material test grid with power and speed sublayers" width="100%"><br/><sub><strong>Material test</strong> — power × speed with real sublayers</sub></td>
+    <td width="50%" align="center"><img src="docs/screenshots/lightburn.png" alt="File menu with the LightBurn import and export entries" width="100%"><br/><sub><strong>LightBurn</strong> — open and export .lbrn / .lbrn2</sub></td>
   </tr>
   <tr>
-    <td colspan="2" align="center"><img src="docs/screenshots/focus-test.png" alt="Focus Test con eje Z" width="78%"><br/><sub><strong>Focus Test</strong> — rampa de Z con etiquetas y offsets por objeto</sub></td>
+    <td width="50%" align="center"><img src="docs/screenshots/focus-test.png" alt="Focus test Z ramp" width="100%"><br/><sub><strong>Focus test</strong> — a Z ramp to find the perfect focus</sub></td>
+    <td width="50%" align="center"><img src="docs/screenshots/image-tools.png" alt="Adjust Image dialog with a grayscale preview" width="100%"><br/><sub><strong>Adjust image</strong> — levels, curves and live preview</sub></td>
   </tr>
 </table>
 
 ---
 
-## 🚀 Inicio rápido
+## Features
 
-### Requisitos
-- Node.js **22.22+** y npm **10+**
-- Linux, macOS o Windows
-- Opcional: máquina GRBL conectada por USB/serie
+### Vector design
+- Line, rectangle, rounded rectangle, ellipse, polygon, text and measure tools.
+- Select, move, scale, rotate, flip, align, distribute, group/ungroup and
+  reorder.
+- **Booleans** (union, subtract, intersect, exclude) powered by Paper.js.
+- **Offset**, grid/circular arrays and full **node editing** (add/remove nodes,
+  Bézier handles, line ↔ curve, corner / smooth / symmetric).
+- **Snapping** to the grid, vertices, centres, midpoints and intersections,
+  with alignment guides.
+- **Text to outlines** with opentype.js (Inter bundled) so you can cut or
+  engrave without fonts installed.
+- **Add Tabs** to keep pieces attached, and **paste from the system
+  clipboard** (text, SVG including Inkscape's compressed SVG, images).
+
+### Layers and cut settings
+- LightBurn-style palette (`C00`, `C01`, …): every colour is a layer.
+- **Cuts / Layers panel** with mode, speed/power, output, show and air columns,
+  layer reordering, context menus and quick fields for passes, speed, power and
+  interval.
+- **Cut Settings Editor** with Common/Advanced tabs: min power, dwell, overcut,
+  lead-in/lead-out, Z offset and Z step per pass.
+- **Line**, **Fill**, **Offset Fill** and **Image** modes with overscan,
+  bidirectional, cross-hatch, flood fill and ramp.
+- **Image engraving** modes: Threshold, Ordered, Atkinson, Dither, Stucki,
+  Jarvis, Newsprint, Halftone, Sketch and Grayscale, plus Negative, dot width
+  correction, angle increment and pass-through.
+- **Kerf compensation** per layer, scan angle, cross-hatch and scan offset.
+- Hairline preview strokes that stay 1 px at any zoom.
+- Editable **material library** (name, thickness, speed, power, passes, mode
+  and kerf) and per-object cut overrides.
+
+### Preview and GCode
+- GRBL GCode generated per layer, with origin mapping and `M3`/`M4`.
+- **Animated preview** with scrub, speed control, laser head, estimated time
+  and per-layer statistics.
+- **Visible machine travel**, like LightBurn.
+- **LightBurn-style cut planner** (Optimization Settings): order by layer, group
+  or priority, cut inner shapes first, direction ordering, travel reduction,
+  best start point, preferred corners, direction optimisation and removal of
+  overlapping lines.
+- Export to GCode (`.nc`) and LightBurn (`.lbrn` / `.lbrn2`).
+
+### GRBL control
+- Connect over **Web Serial** or the **built-in simulator** (no hardware
+  needed).
+- Flow-controlled streaming, `Frame`, `Start`, `Pause/Resume` and `Stop`.
+- Jog (`$J`), homing (`$H`), unlock (`$X`) and set origin (`G10 L20`).
+- Two-way console and persistent macros.
+- Live status: position, feed, spindle, progress and time remaining.
+
+### Calibration
+- **Material Test** (power × speed with real sublayers), **Interval Test**,
+  **Focus Test** with a Z ramp and **Kerf Test**.
+- **Material library** you can save and reuse in one click, including the
+  measured kerf.
+- Configurable **Z axis** with per-object offsets and `G1 Z` moves in the GCode.
+
+### Images
+- Import PNG, JPG, GIF, BMP and WebP.
+- **Adjust Image**: brightness, contrast, gamma, levels, tone curve, threshold
+  and invert, with a live grayscale preview.
+- **Trace Image**: monochrome or colour vectorisation with threshold and detail
+  control, a preview before applying and one layer per colour.
+- **Apply Mask to Image** to crop a bitmap with a vector shape.
+
+### Desktop workflow
+- **Autosave** and recovery of unsaved work after an unexpected exit.
+- **Welcome screen** with new, open and recent designs.
+- **Recent files**, drag & drop of projects/SVG/DXF/images onto the exact spot
+  they are dropped, persistent window size and bounded undo/redo.
+- **Auto-update**: checks at startup, downloads in the background and offers
+  *Restart & install*.
+
+### LightBurn compatibility
+- **Opens** `.lbrn` and `.lbrn2` projects: rectangles, ellipses, polygons,
+  Bézier paths, groups, text with backup paths, bitmaps and cut settings.
+- **Exports** both formats with geometry, text outlines, bitmaps and layers.
+
+---
+
+## Quick start
+
+### Requirements
+- Node.js **22.22+** and npm **10+** (only for development)
+- Linux, macOS or Windows
+- Optional: a GRBL machine connected over USB/serial
+
+### Install
+
+**AppImage (Linux x64)** — download it from the
+[latest release](https://github.com/SJLS27/openburn/releases/latest):
+
+```bash
+chmod +x OpenBurn-*.AppImage
+./OpenBurn-*.AppImage
+```
+
+**Windows** (NSIS installer) and **macOS** (DMG/ZIP) builds are published on the
+same release page. **Flatpak**: the manifest and offline sources live in
+[`flatpak/`](flatpak/README.md); Flathub submission is pending review.
+
+**Build from source:**
 
 ```bash
 git clone https://github.com/SJLS27/openburn.git
 cd openburn
 npm install
+npm run dev            # browser with hot reload
+npm run dev:electron   # desktop app (Electron + Vite)
+npm run build:app      # installer: AppImage / NSIS / DMG
 ```
 
-### Desarrollo
+### First job
+1. Choose **New Design** or **Open Project** on the welcome screen, or drag a
+   `.obrn`, `.lbrn2`, SVG, DXF or image onto the canvas.
+2. Pick a tool on the left bar and draw.
+3. Assign a colour/layer in the palette and set speed and power in
+   **Cuts / Layers**.
+4. Press **Preview** (`Alt+P`) to check the toolpath and timings.
+5. In the **Laser** panel connect your GRBL board or the **Simulator**, then
+   press **Start**.
+6. Save as `.obrn` (`Ctrl+S`) or export to LightBurn / GCode from **File**.
 
-```bash
-npm run dev            # navegador con recarga en caliente
-npm run dev:electron   # app de escritorio (Electron + Vite)
-npm run test           # tests unitarios y de componentes (Vitest)
-npm run test:e2e       # tests end-to-end (Playwright + Electron)
-```
+> **Native format:** `.obrn`. Legacy `.ovbrn` projects still open; they are
+> converted to `.obrn` when saved.
 
-### Producción
+### Keyboard shortcuts
 
-```bash
-npm run build          # TypeScript + Vite + proceso principal
-npm run build:app      # instalador (AppImage / NSIS / DMG) con electron-builder
-```
-
-### Descarga e instalación
-
-- **AppImage (Linux x64)**: descarga el artefacto de la última
-  [Release](https://github.com/SJLS27/openburn/releases/latest) y ejecútalo:
-
-  ```bash
-  chmod +x OpenBurn-*.AppImage
-  ./OpenBurn-*.AppImage
-  ```
-
-- **Flatpak**: el manifiesto y las fuentes offline están en
-  [`flatpak/`](flatpak/README.md). La publicación en Flathub está pendiente de
-  revisión.
-
-### Web oficial
-
-La web del proyecto está **en producción** en Cloudflare Pages:
-**<https://openburn.pages.dev>** (inglés) · **<https://openburn.pages.dev/es/>** (español).
-
-Está **verificada en Google Search Console** (1 de noviembre de 2026, método de
-archivo HTML) y publica `robots.txt` y `sitemap-index.xml`. Quedan pendientes la
-solicitud de indexación, el alta en Bing Webmaster Tools y la analítica sin
-cookies (GoatCounter).
-
-Incluye versión en inglés y español, descargas por plataforma, comparativa con
-LightBurn, FAQ y datos estructurados para Google.
-
-```bash
-npm run site:dev      # http://localhost:4321
-npm run site:build    # sitio estático en website/dist/
-npm run site:test     # build + smoke tests de SEO, sitemap, assets y enlaces
-npm run site:deploy   # build + deploy a openburn.pages.dev (requiere wrangler login)
-```
-
-Los mismos comandos están disponibles dentro de [`website/`](website/README.md)
-(`npm run dev`, `build`, `test` y `deploy`). El despliegue y la verificación en
-Search Console están documentados en [`website/README.md`](website/README.md).
-
-### Primeros pasos
-1. Al abrir, elige **New Design** u **Open Project** en la pantalla de bienvenida; también puedes arrastrar un `.obrn`, `.lbrn2`, SVG, DXF o una imagen al lienzo.
-2. Elige una herramienta en la barra izquierda y dibuja en el lienzo.
-3. Asigna color/capa desde la paleta y ajusta velocidad/potencia en **Cuts / Layers**.
-4. Pulsa **Preview** (`Alt+P`) para revisar trayectorias y tiempos.
-5. En el panel **Laser**, conecta tu GRBL o el **Simulator (demo)** y pulsa **Start**.
-6. Guarda como `.obrn` (`Ctrl+S`) o exporta a LightBurn / GCode desde **File**.
-
-> **Formato nativo:** `.obrn`. Los proyectos antiguos `.ovbrn` se pueden abrir; al guardar se
-> convierten a `.obrn`.
-
----
-
-## ⌨️ Atajos principales
-
-| Acción | Atajo |
+| Action | Shortcut |
 | --- | --- |
-| Nuevo / Abrir / Guardar | `Ctrl+N` / `Ctrl+O` / `Ctrl+S` |
-| Importar artwork / Exportar GCode | `Ctrl+I` / `Ctrl+E` |
-| Deshacer / Rehacer | `Ctrl+Z` / `Ctrl+Shift+Z` (`Ctrl+Y` también) |
-| Copiar / Cortar / Pegar / Duplicar | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Ctrl+D` |
-| Pegar en su sitio | `Alt+V` |
-| Seleccionar todo / Eliminar | `Ctrl+A` / `Supr` |
-| Agrupar / Desagrupar | `Ctrl+G` / `Ctrl+U` (`Ctrl+Shift+G` también) |
-| Voltear horizontal / vertical | `H` / `V` |
-| Rotar 90° horario / antihorario | `.` / `,` |
-| Espejo respecto a una línea / rotar por dos puntos | `Ctrl+Shift+M` / `Ctrl+2` |
-| Invertir selección / eliminar duplicados | `Ctrl+Shift+I` / `Alt+D` |
-| Herramientas | `S` seleccionar · `N` nodos · `L` línea · `R` rectángulo · `E` elipse · `P` polígono · `T` texto · `M` medir |
+| New / Open / Save | `Ctrl+N` / `Ctrl+O` / `Ctrl+S` |
+| Import artwork / Export GCode | `Ctrl+I` / `Ctrl+E` |
+| Undo / Redo | `Ctrl+Z` / `Ctrl+Shift+Z` (`Ctrl+Y` too) |
+| Copy / Cut / Paste / Duplicate | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` / `Ctrl+D` |
+| Paste in place | `Alt+V` |
+| Select all / Delete | `Ctrl+A` / `Del` |
+| Group / Ungroup | `Ctrl+G` / `Ctrl+U` |
+| Flip horizontally / vertically | `H` / `V` |
+| Rotate 90° clockwise / anticlockwise | `.` / `,` |
+| Mirror across a line / rotate by two points | `Ctrl+Shift+M` / `Ctrl+2` |
+| Tools | `S` select · `N` nodes · `L` line · `R` rect · `E` ellipse · `P` polygon · `T` text · `M` measure |
 | Preview | `Alt+P` |
-| Zoom a página / a selección | `Ctrl+0` / `Ctrl+Shift+A` |
+| Zoom to page / selection | `Ctrl+0` / `Ctrl+Shift+A` |
 | Zoom in / out | `+` / `-` |
-| Paneo | `Espacio` + arrastrar, o botón central |
-| Pegar desde el sistema (con portapapeles interno lleno) | `Ctrl+Shift+V` |
+| Pan | `Space` + drag, or middle mouse |
+| Paste from the system clipboard (internal clipboard filled) | `Ctrl+Shift+V` |
 
 ---
 
-## 🔄 Compatibilidad con LightBurn
+## LightBurn compatibility
 
-OpenBurn lee y escribe el formato XML de LightBurn sin usar su código original.
+OpenBurn reads and writes LightBurn's XML format without using its source code.
 
-### Abrir
-- **File → Open LightBurn Project…** o simplemente **File → Open…** con un `.lbrn`/`.lbrn2`.
-- Se importan capas (CutSetting), colores por índice, geometría, grupos, texto con contornos de respaldo, imágenes y ajustes de corte.
+**Open:** *File → Open LightBurn Project…* or *File → Open…* with a
+`.lbrn`/`.lbrn2` file. Layers, colours, geometry, groups, text backup paths,
+images and cut settings are imported.
 
-### Exportar
-- **File → Export LightBurn (.lbrn)…** — formato legado, XML legible.
-- **File → Export LightBurn 2 (.lbrn2)…** — formato compacto actual.
+**Export:** *File → Export LightBurn (.lbrn)…* (legacy, readable XML) or
+*File → Export LightBurn 2 (.lbrn2)…* (compact, current).
 
-### Detalles y límites
-- Los colores de capa en LightBurn se derivan del **índice** de la capa; los colores personalizados de OpenBurn pueden mostrarse con el color de la paleta en LightBurn.
-- Los grupos se aplanan al exportar.
-- Los overrides por objeto (Material Test) se exportan como ajustes de capa.
-- Las imágenes rotadas se exportan sin rotación (con aviso).
-- Texto: al exportar se convierten a contornos (no dependen de fuentes); al importar se usan los contornos de respaldo si existen.
-- El formato no está documentado oficialmente; la implementación se validó contra archivos reales y round-trip. Si encuentras un proyecto que no abre, abre un issue con el archivo (o una versión anonimizada).
+**Limits worth knowing**
+- Layer colours in LightBurn come from the layer index; custom OpenBurn colours
+  show as the palette colour there.
+- Groups are flattened on export.
+- Per-object overrides (material tests) export as layer settings.
+- Rotated images export without rotation (with a warning).
+- Text is exported as outlines, and imported text uses its backup paths.
 
-Más detalles en [docs/FILE-FORMATS.md](docs/FILE-FORMATS.md).
+Details in [docs/FILE-FORMATS.md](docs/FILE-FORMATS.md). If a project does not
+open, please [open an issue](https://github.com/SJLS27/openburn/issues) with the
+file (or an anonymised copy).
 
 ---
 
-## 🧱 Arquitectura
+## Architecture
 
 ```
 openburn/
-├─ electron/           # proceso principal, preload y auto-update (IPC, diálogos, assets)
+├─ electron/           # main process, preload, auto-update (IPC, dialogs, assets)
 ├─ src/
-│  ├─ core/            # .obrn, unidades, DXF, acceso a archivos
-│  ├─ geometry/        # booleanos, offset, tabs (Paper.js)
-│  ├─ gcode/           # planificación, optimización y generación de GCode
-│  ├─ image/           # ajuste de imagen y vectorización
-│  ├─ io/              # import/export LightBurn (.lbrn/.lbrn2)
-│  ├─ serial/          # transportes, controlador GRBL y simulador
-│  ├─ state/           # store observable + API del workspace
-│  ├─ text/            # texto a contornos (opentype.js)
-│  ├─ types/           # modelo de documento y tipos
-│  ├─ ui/              # menús, toolbars, paneles, diálogos, iconos
-│  └─ workspace/       # controlador Fabric.js (herramientas, historial)
-├─ e2e/                # tests end-to-end (Playwright + Electron)
-├─ public/fonts/       # Inter (OFL) para contornos
-└─ docs/               # documentación y capturas
+│  ├─ core/            # .obrn document, units, DXF, file access
+│  ├─ geometry/        # booleans, offset, tabs (Paper.js)
+│  ├─ gcode/           # planning, optimisation and GCode generation
+│  ├─ image/           # image adjustment and tracing
+│  ├─ io/              # LightBurn import/export (.lbrn/.lbrn2)
+│  ├─ serial/          # transports, GRBL controller and simulator
+│  ├─ state/           # observable store + workspace API
+│  ├─ text/            # text to outlines (opentype.js)
+│  ├─ types/           # document model and types
+│  ├─ ui/              # menus, toolbars, panels, dialogs, icons
+│  └─ workspace/       # Fabric.js controller (tools, history)
+├─ e2e/                # end-to-end tests (Playwright + Electron)
+├─ public/fonts/       # Inter (OFL) for outlines
+└─ docs/               # documentation, screenshots and brand assets
 ```
 
-Puntos clave: el documento vive en un **store observable**, el lienzo en **Fabric.js**, la geometría de mecanizado en **Paper.js**, y el envío a la máquina en un **controlador GRBL** con transporte intercambiable (Web Serial o simulador).
+The document lives in an **observable store**, the canvas is **Fabric.js**, the
+toolpath geometry is **Paper.js**, and jobs are sent by a **GRBL controller**
+with interchangeable transports (Web Serial or simulator).
 
-Más en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
-## 📚 Documentación
+## Documentation
 
-| Documento | Contenido |
+| Document | Contents |
 | --- | --- |
-| [docs/USAGE.md](docs/USAGE.md) | Guía de uso: diseño, capas, preview, GRBL, tests, imágenes y tabs |
-| [docs/FILE-FORMATS.md](docs/FILE-FORMATS.md) | `.obrn` y mapeo detallado `.lbrn`/`.lbrn2` |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Módulos, flujo de datos y pipeline de GCode |
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Entorno, scripts, pruebas y empaquetado |
-| [website/README.md](website/README.md) | Web pública: contenido bilingüe, despliegue en Cloudflare Pages y Search Console |
-| [CHANGELOG.md](CHANGELOG.md) | Novedades por versión |
-| [AGENTS.md](AGENTS.md) | Política de tests, convenciones y checklist para agentes/contribuidores |
-| [TODO.md](TODO.md) | Lista de tareas y roadmap |
+| [docs/USAGE.md](docs/USAGE.md) | User guide: design, layers, preview, GRBL, tests, images and tabs |
+| [docs/FILE-FORMATS.md](docs/FILE-FORMATS.md) | `.obrn` and the detailed `.lbrn`/`.lbrn2` mapping |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Modules, data flow and the GCode pipeline |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Environment, scripts, tests and packaging |
+| [website/README.md](website/README.md) | Public site: bilingual content, Cloudflare Pages and Search Console |
+| [CHANGELOG.md](CHANGELOG.md) | Changes per release |
+| [AGENTS.md](AGENTS.md) | Testing policy, conventions and checklist for agents/contributors |
+| [TODO.md](TODO.md) | Task list and roadmap |
+
+### Contributing
+Issues and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+Every change must keep `npm run typecheck`, `npm run test` and `npm run build`
+green; new features come with tests ([AGENTS.md](AGENTS.md)).
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
-- [x] **Auto-update** — comprobación al arrancar, descarga en segundo plano, aviso de reinicio y publicación automática en GitHub Releases
-- [x] **Testing** — Vitest + Testing Library, Playwright/Electron, CI y política en [`AGENTS.md`](AGENTS.md)
-- [x] Fase 1 — Núcleo de diseño vectorial y capas
-- [x] Fase 2 — Preview, GCode y control GRBL
-- [x] Fase 3 — Texto a contornos, Material/Interval/Focus Test, imágenes (ajuste/trace), tabs y optimización
-- [x] Calibración fina — kerf, ángulo/cross-hatch, scan offset, biblioteca de materiales, eje Z y Kerf Test
-- [x] Compatibilidad LightBurn (lectura y escritura `.lbrn`/`.lbrn2`)
-- [x] **P6 — Fundamentos de escritorio** — autoguardado y recuperación, recientes, pantalla de bienvenida, drag & drop, ventana persistente e historial acotado
-- [ ] **P6b — Varios documentos** — pestañas/ventanas con store multi-documento
-- [ ] Rotary, cámaras y Print & Cut
-- [ ] Ruida/DSP y galvo (EZCad)
-- [ ] Empaquetado firmado (certificados Windows/macOS)
+- [x] **Auto-update** — startup check, background download, restart prompt and
+  automatic publishing to GitHub Releases
+- [x] **Testing** — Vitest + Testing Library, Playwright/Electron, CI and the
+  policy in [AGENTS.md](AGENTS.md)
+- [x] Vector design core and layers
+- [x] Preview, GCode and GRBL control
+- [x] Text outlines, Material/Interval/Focus tests, images, tabs and planner
+- [x] Kerf, cross-hatch, scan offset, material library, Z axis and kerf test
+- [x] LightBurn compatibility (`.lbrn`/`.lbrn2` read and write)
+- [x] **Desktop fundamentals** — autosave and recovery, recents, welcome screen,
+  drag & drop, persistent window, bounded history
+- [x] **Node editing and snapping**
+- [ ] **Multiple documents** — tabs/windows with a multi-document store
+- [ ] Rotary, cameras and Print & Cut
+- [ ] Ruida/DSP and galvo (EZCad) controllers
+- [ ] Signed packages (Windows/macOS certificates)
+- [ ] **Tauri migration (exploration)** — evaluate an alternative desktop shell
+  (Rust + webview) to shrink the installer and memory footprint; an open idea,
+  not planned for a specific release
 
-Detalle y estado en [TODO.md](TODO.md).
+Status and details in [TODO.md](TODO.md).
 
 ---
 
-## 🧩 Stack
+## License and credits
 
-**Electron** · **React 18** · **TypeScript** · **Vite** · **Fabric.js 6** · **Paper.js** · **opentype.js** · **ImageTracer** · **Web Serial**
+- Code: **MIT** — see [LICENSE](LICENSE).
+- **Support the project:** [PayPal](https://paypal.me/openburn) ·
+  [support page](https://openburn.pages.dev/support/) (no ads, no cookies).
+- **Inter** font: SIL Open Font License 1.1 —
+  [public/fonts/Inter-LICENSE.txt](public/fonts/Inter-LICENSE.txt).
+- [Fabric.js](https://github.com/fabricjs/fabric.js) (MIT),
+  [Paper.js](https://github.com/paperjs/paper.js) (MIT),
+  [opentype.js](https://github.com/opentypejs/opentype.js) (MIT),
+  [ImageTracer](https://github.com/jankovicsandras/imagetracerjs) (Unlicense).
 
----
+> **Disclaimer:** OpenBurn is not affiliated with LightBurn Software Inc. The
+> interface was rebuilt from public documentation and the icons are original.
+> File compatibility was implemented from the XML format and public samples,
+> without using LightBurn's source code.
 
-## 📄 Licencia y créditos
-
-- Código: **MIT** — ver [LICENSE](LICENSE).
-- **Apoyar el proyecto:** [PayPal](https://paypal.me/openburn) · [página de apoyo](https://openburn.pages.dev/support/) (sin anuncios ni cookies).
-- Fuente **Inter**: SIL Open Font License 1.1 — [public/fonts/Inter-LICENSE.txt](public/fonts/Inter-LICENSE.txt).
-- [Fabric.js](https://github.com/fabricjs/fabric.js) (MIT), [Paper.js](https://github.com/paperjs/paper.js) (MIT), [opentype.js](https://github.com/opentypejs/opentype.js) (MIT), [ImageTracer](https://github.com/jankovicsandras/imagetracerjs) (Unlicense).
-
-> **Aviso:** OpenBurn no está afiliado a LightBurn Software Inc. La interfaz se reconstruyó a partir de documentación pública y los iconos son propios. La compatibilidad de archivos se implementó a partir del formato XML y ejemplos públicos, sin utilizar el código fuente de LightBurn.
-
-<p align="center"><sub>Hecho con ☕ y muchas pasadas de láser.</sub></p>
+<p align="center"><sub>Made with ☕ and many laser passes.</sub></p>

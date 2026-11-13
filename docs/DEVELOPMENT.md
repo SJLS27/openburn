@@ -30,6 +30,9 @@ npm install
 | `npm run test:e2e:fast` | Playwright sin recompilar (usa `dist/` actual) |
 | `npm run test:e2e:watch` | Build en watch + Playwright, ciclo de desarrollo headless |
 | `npm run check:flatpak-sources` | Valida que `flatpak/node-sources.json` cubre el lockfile |
+| `npm run docs:screenshots` | Reproduce las capturas de `docs/screenshots/` y los WebP de la web |
+| `npm run docs:icon` | Regenera `docs/app-icon.png` (icono de la app) |
+| `npm run docs:brand` | Regenera el banner y los badges de `docs/brand/` |
 | `npm run build:app` | Instalador con electron-builder |
 | `npm run preview` | Sirve el build de producción |
 
@@ -133,6 +136,33 @@ public/fonts/    # Inter (OFL)
 - Añade soporte para nuevos tipos de `Shape` en `parseShapeElement`.
 - Al exportar, los contornos se obtienen con `objectContours` (Paper.js); el texto se convierte antes con `textToScenePath`.
 - Documenta cualquier limitación nueva en `docs/FILE-FORMATS.md`.
+
+## Capturas de documentación
+
+Las capturas del README (`docs/screenshots/*.png`, 1600 × 1000) y los WebP de
+la web (`website/public/screenshots/`) se generan a partir de la app real, sin
+abrirla en el escritorio:
+
+```bash
+npm run docs:screenshots   # dev build + Playwright + WebP
+npm run docs:icon          # solo el icono 1024 × 1024
+npm run docs:brand         # banner y badges SVG del README
+```
+
+- `e2e/screenshot-docs.spec.ts` está detrás de `CAPTURE_DOCS=1`, así que CI no
+  lo ejecuta. Monta la escena de demostración con `e2e/demo.ts` (herramientas
+  reales, `window.__openburn` y los helpers de debug de `src/main.tsx`) y
+  captura con `e2e/capture.ts`.
+- La escena y los diálogos muestran la app en inglés, como la interfaz.
+- El build de captura se marca con `CAPTURE_SESSION=1` (`__CAPTURE_SESSION__` en
+  `vite.config.ts`) y arranca con `?capture=docs` para saltarse la bienvenida.
+  Es un build de depuración: no distribuyas `dist/` después de esta tarea
+  (`npm run build` lo restaura).
+- El tamaño lo decide el compositor; si no permite 1600 × 1000, `capture.ts`
+  compone la imagen sobre el fondo de la app y escala el contenido.
+- `scripts/build-docs-assets.sh` deriva `800/1200/1600` WebP para
+  `website/public/screenshots/`. Tras regenerar, comprueba la web con
+  `cd website && npm run check && npm run build && npm test`.
 
 ## Electron y assets
 

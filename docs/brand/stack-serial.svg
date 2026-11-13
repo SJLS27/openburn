@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="140" height="32" viewBox="0 0 140 32" role="img" aria-label="Web Serial">
+  <rect x="0.5" y="0.5" width="139" height="31" rx="8" fill="#25282e" stroke="#3a3e45"/>
+  <g transform="translate(9 6) scale(0.83)"><path d="M2.5 12h19M6.5 7 2.5 12l4 5M17.5 7l4 5-4 5" fill="none" stroke="#60c3f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+  <text x="38" y="21" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#f4f5f6">Web Serial</text>
+</svg>

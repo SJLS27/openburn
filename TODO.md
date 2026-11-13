@@ -246,6 +246,34 @@ falta migrar documentos ni preferencias guardadas.
 
 ---
 
+## 📸 Documentación y capturas
+
+- [x] **README bilingüe**: `README.md` (inglés) y `README.es.md`, banner y badges
+  propios en `docs/brand/` (`npm run docs:brand`).
+- [x] **Capturas reproducibles**: `npm run docs:screenshots` (manifest + WebP de
+  la web) e `npm run docs:icon`. Requiere build de depuración y
+  `CAPTURE_DOCS=1`; CI no las ejecuta. Proceso en `docs/DEVELOPMENT.md`.
+- [ ] Icono de aplicación definitivo (`.icns` / `.ico` / PNG de 512) a partir de
+  `docs/app-icon.png` e integración en electron-builder y Flatpak.
+
+### Migración a Tauri (exploración)
+
+Idea abierta, sin versión asignada: evaluar si merece la pena sustituir
+Electron por Tauri (Rust + webview del sistema) para reducir el instalador y el
+consumo de memoria.
+
+- Qué habría que rehacer: `electron/` → `src-tauri/` (ventana, IPC y diálogos),
+  `electron-updater` → `tauri-plugin-updater`, Web Serial → plugin de serie
+  nativo, `app:readAsset` → recursos empaquetados y la política de permisos de
+  serial en Linux.
+- Qué se mantiene: todo `src/` (React + Fabric/Paper + store), `e2e/` con
+  Playwright web y `.obrn`/`.lbrn2`.
+- Por qué merece la pena estudiarla: AppImage de menor tamaño, arranque más
+  rápido y menos RAM; frente a ello, más dependencia de la webview del sistema y
+  del toolchain de Rust.
+
+---
+
 ## ⚠️ Limitaciones conocidas
 
 - La compatibilidad LightBurn está validada por round-trip contra archivos reales; **aún no se probó abriendo un `.lbrn2` exportado en LightBurn 2.x** en una máquina con LightBurn instalado.

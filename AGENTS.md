@@ -27,6 +27,7 @@ repo debe seguirlo.
 | `npm run test:e2e:fast` | Playwright sin recompilar (usa `dist/` actual) |
 | `npm run test:e2e:watch` | Build en watch + Playwright (ciclo headless) |
 | `npm run build:app` | Instaladores con electron-builder |
+| `npm run docs:screenshots` | Capturas del README y WebP de la web (headless, opt-in) |
 
 Comprobación mínima antes de dar un cambio por terminado:
 
