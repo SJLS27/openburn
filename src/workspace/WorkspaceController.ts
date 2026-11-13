@@ -65,6 +65,16 @@ import {
   type NodeType,
   type Subpath,
 } from './nodes';
+import {
+  intersectionTargets,
+  snapDragDelta,
+  snapPoint,
+  targetsForShape,
+  type SnapKind,
+  type SnapOptions,
+  type SnapShape,
+  type SnapTarget,
+} from './snap';
 import { buildFramePlan, buildJob, planToText } from '@/gcode/job';
 import type { JobPlan, Pt } from '@/gcode/types';
 import {
@@ -116,6 +126,13 @@ export class WorkspaceController implements WorkspaceApi {
   private fabricEl: HTMLCanvasElement;
   private bgEl: HTMLCanvasElement;
   private resizeObserver?: ResizeObserver;
+
+  /** Monotonic counter backing `objectId` for snap targets. */
+  private snapIds = 0;
+  /** Guides drawn while a drag snaps to an object edge/centre. */
+  private snapGuides: Line[] = [];
+  /** Objects being dragged, so a selection never snaps to itself. */
+  private dragSnap: Set<string> | null = null;
 
   private drawing: DrawState | null = null;
   private panning = false;
@@ -414,15 +431,24 @@ export class WorkspaceController implements WorkspaceApi {
 
     // Live measurements: remember the box/angle when a gesture starts and
     // publish the delta (throttled) while it runs.
-    const beginGesture = () => this.beginMeasure();
+    const beginGesture = () => {
+      this.beginMeasure();
+      this.beginDragSnap();
+    };
     const trackGesture = () => this.trackMeasure();
     this.canvas.on('before:transform', beginGesture);
-    this.canvas.on('object:moving', trackGesture);
+    this.canvas.on('object:moving', (e) => {
+      this.trackMeasure();
+      this.applyDragSnap(e.target);
+    });
     this.canvas.on('object:scaling', trackGesture);
     this.canvas.on('object:rotating', trackGesture);
 
     this.canvas.on('object:modified', () => {
       this.endMeasure();
+      this.clearSnapGuides();
+      this.setSnapHint(null);
+      this.dragSnap = null;
       this.syncSelection();
       this.afterChange();
     });
@@ -583,14 +609,231 @@ export class WorkspaceController implements WorkspaceApi {
   // -------------------------------------------------------------------------
 
   private snap(p: Point): Point {
+    const target = this.snapTargetFor(p);
+    return target ?? p;
+  }
+
+  // -------------------------------------------------------------------------
+  // Snapping
+  // -------------------------------------------------------------------------
+
+  /** Engine options derived from the store and the current zoom. */
+  private snapOptions(exclude?: ReadonlySet<string>): SnapOptions {
     const s = store.getState();
-    if (!s.snapToGrid) return p;
-    const g = s.gridSize;
-    return new Point(Math.round(p.x / g) * g, Math.round(p.y / g) * g);
+    // In Fabric `getZoom()` is device pixels per scene unit, while the engine
+    // works in scene units per pixel.
+    const zoom = 1 / Math.max(this.canvas.getZoom(), 0.0001);
+    return {
+      enabled: s.snapSettings.enabled,
+      grid: s.snapSettings.grid,
+      objects: s.snapSettings.objects,
+      intersections: s.snapSettings.intersections,
+      radiusPx: s.snapSettings.radiusPx,
+      gridSize: s.gridSize,
+      zoom,
+      ...(exclude ? { exclude } : {}),
+    };
+  }
+
+  /**
+   * Corners of every non-handle object in the given list, in scene space.
+   * Images and paths use their bounding box, which is what LightBurn snaps to
+   * for shapes whose vertices are not meaningful.
+   */
+  private snapShapes(objects?: FabricObject[]): SnapShape[] {
+    const list = objects ?? this.canvas.getObjects();
+    const shapes: SnapShape[] = [];
+    for (const obj of list) {
+      if (this.isNodeHandle(obj) || this.isAuxiliaryObject(obj)) continue;
+      let rect: { left: number; top: number; width: number; height: number };
+      try {
+        const b = obj.getBoundingRect();
+        rect = { left: b.left, top: b.top, width: b.width, height: b.height };
+      } catch {
+        continue;
+      }
+      const corners: Pt[] = [
+        { x: rect.left, y: rect.top },
+        { x: rect.left + rect.width, y: rect.top },
+        { x: rect.left + rect.width, y: rect.top + rect.height },
+        { x: rect.left, y: rect.top + rect.height },
+      ];
+      shapes.push({ id: this.objectId(obj), corners });
+    }
+    return shapes;
+  }
+
+  /** Every snap target of the current scene, including intersections. */
+  private collectSnapTargets(shapes?: SnapShape[]): SnapTarget[] {
+    const list = shapes ?? this.snapShapes();
+    const targets: SnapTarget[] = [];
+    for (const shape of list) targets.push(...targetsForShape(shape));
+    if (store.getState().snapSettings.intersections && list.length > 1) {
+      targets.push(...intersectionTargets(list));
+    }
+    return targets;
+  }
+
+  /** Snap a scene point against the scene and publish the visual hint. */
+  private snapTargetFor(
+    p: Point,
+    mode: 'objects' | 'grid' | 'both' = 'both',
+    exclude?: ReadonlySet<string>,
+  ): Point | null {
+    const options = this.snapOptions(exclude);
+    if (!options.enabled) {
+      this.setSnapHint(null);
+      return null;
+    }
+    const scoped: SnapOptions = {
+      ...options,
+      objects: mode === 'grid' ? false : options.objects,
+      grid: mode === 'both' ? options.grid : false,
+    };
+    const shapes = scoped.objects ? this.snapShapes() : [];
+    const hit = snapPoint(p, scoped.objects ? this.collectSnapTargets(shapes) : [], scoped);
+    this.setSnapHint(hit ? { kind: hit.kind, x: hit.point.x, y: hit.point.y } : null);
+    return hit ? new Point(hit.point.x, hit.point.y) : null;
+  }
+
+  private setSnapHint(hint: { kind: SnapKind; x: number; y: number } | null): void {
+    const current = store.getState().snapHint;
+    if (!hint && !current) return;
+    if (hint && current && current.kind === hint.kind && current.x === hint.x && current.y === hint.y) return;
+    store.setState({ snapHint: hint });
+  }
+
+  /** Stable id per canvas object, used to stop objects snapping to themselves. */
+  private objectId(obj: FabricObject): string {
+    const tagged = obj as FabricObject & { __snapId?: string };
+    if (!tagged.__snapId) {
+      this.snapIds += 1;
+      tagged.__snapId = `o${this.snapIds}`;
+    }
+    return tagged.__snapId;
+  }
+
+  /** Helpers drawn by the editor (node handles, guides) are not snap targets. */
+  private isAuxiliaryObject(obj: FabricObject): boolean {
+    const tagged = obj as FabricObject & { isNodeHandle?: boolean; isSnapGuide?: boolean; isAuxiliary?: boolean };
+    return tagged.isNodeHandle === true || tagged.isSnapGuide === true || tagged.isAuxiliary === true;
+  }
+
+  /**
+   * Snap a drawn shape while it is created: the start point uses the objects
+   * and the grid, the current point prefers the grid so the size stays round.
+   */
+  private snapDrawPoint(p: Point, phase: 'start' | 'current'): Point {
+    return this.snapTargetFor(p, phase === 'start' ? 'both' : 'grid') ?? p;
+  }
+
+  // -------------------------------------------------------------------------
+  // Snapping while dragging a selection
+  // -------------------------------------------------------------------------
+
+  /**
+   * Capture the selection box and the starting position of every dragged
+   * object. Snapping is applied as a delta on top of Fabric's own movement, so
+   * the drag never fights the built-in transform.
+   */
+  private beginDragSnap(): void {
+    const active = this.canvas.getActiveObject();
+    if (!active) {
+      this.dragSnap = null;
+      return;
+    }
+    const objects = active instanceof ActiveSelection ? active.getObjects() : [active];
+    const targets = objects.filter((o) => !this.isNodeHandle(o) && !this.isAuxiliaryObject(o));
+    if (targets.length === 0) {
+      this.dragSnap = null;
+      return;
+    }
+    this.dragSnap = new Set(targets.map((o) => this.objectId(o)));
+  }
+
+  /**
+   * Resolve the snapped delta for the current drag frame and shift the active
+   * object (or selection) accordingly. Runs on every `object:moving`; the
+   * expensive target collection is skipped while snapping is off.
+   */
+  private applyDragSnap(target: FabricObject | undefined): void {
+    if (!target || this.isNodeHandle(target)) return;
+    const s = store.getState();
+    if (!s.snapSettings.enabled || !s.snapSettings.objects || !this.dragSnap) return;
+    const drag = this.dragSnap;
+    if (!drag) return;
+    const options = this.snapOptions(drag);
+    const active = this.canvas.getActiveObject();
+    if (!active) return;
+    const box = active instanceof ActiveSelection
+      ? this.selectionBounds(active.getObjects())
+      : this.selectionBounds([active]);
+    const shapes = this.snapShapes(this.canvas.getObjects().filter((o) => !drag.has(this.objectId(o))));
+    const targets = this.collectSnapTargets(shapes);
+    const snap = snapDragDelta(box, targets, options);
+    this.setSnapHint(
+      snap.guideX !== null || snap.guideY !== null
+        ? { kind: 'vertex', x: snap.guideX ?? box.left, y: snap.guideY ?? box.top }
+        : null,
+    );
+    this.drawSnapGuides(snap.guideX, snap.guideY);
+    if (snap.dx === 0 && snap.dy === 0) return;
+    if (active instanceof ActiveSelection) {
+      for (const obj of active.getObjects()) {
+        obj.left = (obj.left ?? 0) + snap.dx;
+        obj.top = (obj.top ?? 0) + snap.dy;
+        obj.setCoords();
+      }
+    } else {
+      active.left = (active.left ?? 0) + snap.dx;
+      active.top = (active.top ?? 0) + snap.dy;
+      active.setCoords();
+    }
+  }
+
+  private clearSnapGuides(): void {
+    if (this.snapGuides.length === 0) return;
+    const previous = this.suppressHistory;
+    this.suppressHistory = true;
+    for (const guide of this.snapGuides) this.canvas.remove(guide);
+    this.snapGuides = [];
+    this.suppressHistory = previous;
+    this.canvas.requestRenderAll();
+  }
+
+  /**
+   * Full-height/width dashed guides at the snapped edge. They are marked as
+   * auxiliary objects so they never become selection, export or snap targets.
+   */
+  private drawSnapGuides(x: number | null, y: number | null): void {
+    this.clearSnapGuides();
+    const { bed } = store.getState().doc;
+    const zoom = Math.max(this.canvas.getZoom(), 0.0001);
+    const previous = this.suppressHistory;
+    this.suppressHistory = true;
+    const add = (x1: number, y1: number, x2: number, y2: number) => {
+      const line = new Line([x1, y1, x2, y2], {
+        stroke: '#e0663f',
+        strokeDashArray: [6 / zoom, 4 / zoom],
+        strokeWidth: HAIRLINE_PX / zoom,
+        strokeUniform: true,
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        objectCaching: false,
+      });
+      (line as Line & { isSnapGuide?: boolean }).isSnapGuide = true;
+      this.snapGuides.push(line);
+      this.canvas.add(line);
+    };
+    if (x !== null) add(x, -10, x, bed.height + 10);
+    if (y !== null) add(-10, y, bed.width + 10, y);
+    this.suppressHistory = previous;
+    this.canvas.requestRenderAll();
   }
 
   private beginDraw(tool: ToolId, raw: Point): void {
-    const p = this.snap(raw);
+    const p = this.snapDrawPoint(raw, 'start');
     const layer = this.activeLayer();
 
     if (tool === 'text') {
@@ -683,15 +926,21 @@ export class WorkspaceController implements WorkspaceApi {
   private updateDraw(p: Point): void {
     const d = this.drawing;
     if (!d || !d.obj) return;
-    const s = this.snap(p);
+    const s = this.snapDrawPoint(p, 'current');
     const start = d.start;
     const obj = d.obj;
 
     if (d.tool === 'rect' || d.tool === 'roundedRect') {
-      const left = Math.min(start.x, s.x);
-      const top = Math.min(start.y, s.y);
-      const width = Math.abs(s.x - start.x);
-      const height = Math.abs(s.y - start.y);
+      // Snap the dragged corner, not only the fixed one, so a rectangle can be
+      // drawn edge-to-edge against another shape (like LightBurn).
+      // The dragged corner snaps to objects too, so a rectangle can be pulled
+      // to another shape's edge (its visible edge meets the target).
+      const dragged = this.snapTargetFor(new Point(p.x, p.y), 'both');
+      const end = dragged ?? s;
+      const left = Math.min(start.x, end.x);
+      const top = Math.min(start.y, end.y);
+      const width = Math.abs(end.x - start.x);
+      const height = Math.abs(end.y - start.y);
       obj.set({
         left,
         top,
@@ -1229,7 +1478,12 @@ export class WorkspaceController implements WorkspaceApi {
     // Snap the anchor to its own path (so it merges with a vertex), to other
     // objects and to the grid.
     const raw = { x: circle.left ?? 0, y: circle.top ?? 0 };
-    const scenePoint = new Point(raw.x, raw.y);
+    const snapped = this.snapTargetFor(
+      new Point(raw.x, raw.y),
+      'both',
+      new Set(this.canvas.getObjects().filter((o) => o !== this.nodeTarget && !this.isNodeHandle(o) && !this.isAuxiliaryObject(o)).map((o) => this.objectId(o))),
+    );
+    const scenePoint = snapped ?? new Point(raw.x, raw.y);
     const local = this.sceneToPathPoint(this.nodeTarget, { x: scenePoint.x, y: scenePoint.y });
     const next = moveAnchor(model, tagged.subIndex, tagged.nodeIndex, local);
     this.commitNodeModel(next);
