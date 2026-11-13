@@ -6,6 +6,37 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 
 ## [Unreleased]
 
+### Añadido
+- **Edición de nodos completa**: la herramienta de nodos (`N`) muestra las asas
+  de Bézier y permite arrastrarlas, añadir un nodo con doble clic sobre el
+  segmento (división de De Casteljau, sin deformar la curva), eliminar nodos
+  seleccionados con `Del`, cambiar el tipo de nodo (*Corner / Smooth /
+  Symmetric*) y convertir segmentos entre recta y curva desde *Tools*. Para
+  nodos suaves y simétricos las asas se mantienen colineales; `Shift+Alt` las
+  independiza. El modelo vive en `src/workspace/nodes.ts` (solo `M/L/C/Z`,
+  normalizando cuadráticas, arcos y atajos a cúbicas) y las curvas de cierre de
+  los paths se conservan en `closingCurve`.
+- **Snapping a objetos**: el motor `src/workspace/snap.ts` engancha vértices,
+  centros, puntos medios e intersecciones además de la rejilla, con radio en
+  píxeles de pantalla (constante con el zoom). Se aplica al crear formas, al
+  mover una selección (con guías rojas de alineación) y al arrastrar nodos. El
+  botón *Snap* de la barra de estado activa/desactiva y el botón `▾` abre las
+  opciones (*Enable*, *Grid*, *Objects*, *Intersections* y radio de captura).
+- **Preferencias de snapping versionadas** (`src/state/snapSettings.ts`,
+  `openburn.snap`), con migración desde el antiguo booleano `snapToGrid`.
+
+### Preparado para lo siguiente
+- Contratos estables para `SnapKind`/`SnapTarget` (con `guide` reservado) y
+  `NodeType`: guías inteligentes, tangentes, texto sobre trazado y
+  multi-selección de nodos entrarán como consumidores, sin migrar datos ni
+  romper `.obrn`. Detalle en `TODO.md` → *Siguiente update — nodos y snapping,
+  fase 2*.
+
+### Corregido
+- **`Del` en la herramienta de nodos** ya no borra el trazado completo: elimina
+  solo los nodos seleccionados (el objeto se borra como siempre cuando no hay
+  ningún nodo seleccionado).
+
 ## [0.10.0] — 2026-11-08
 
 ### Añadido

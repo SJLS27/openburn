@@ -41,7 +41,7 @@ flowchart LR
 | `electron/` | Ventana (tamaño/posición persistidos), IPC (diálogos, fs, assets, autoguardado, recientes), permisos Web Serial y auto-update |
 | `src/core/` | `.obrn`, unidades, DXF, acceso a archivos |
 | `src/state/` | Store observable, interfaz `WorkspaceApi`, autoguardado, archivos recientes y confirmación de descartes |
-| `src/workspace/` | `WorkspaceController`: herramientas, selección, zoom, nodos e `HistoryBuffer` con presupuesto de memoria |
+| `src/workspace/` | `WorkspaceController`: herramientas, selección, zoom, nodos y `HistoryBuffer` con presupuesto de memoria. Lógica pura: `nodes.ts` (modelo de nodos), `snap.ts` (motor de snapping), `ruler.ts`, `measure.ts`, `transform.ts`, `numeric.ts` |
 | `src/ui/` | Menús, toolbars, paneles, diálogos, iconos |
 | `src/geometry/` | Booleanos/offset (Paper.js), tabs |
 | `src/gcode/` | Geometría de mecanizado, planificación, optimización y GCode |
@@ -75,6 +75,36 @@ FabricObject.customProperties = ['layerId', 'cutOverride', 'imageAdjust'];
 - El espacio de trabajo usa **mm** y **Y hacia abajo** (origen arriba-izquierda).
 - Al importar LightBurn se aplica `y' = -y` y se normaliza el conjunto.
 - Al exportar se invierte con `y_lb = bed.height - y_scene`.
+
+---
+
+## 3b. Edición de nodos y snapping
+
+- **`src/workspace/nodes.ts`** es el modelo canónico de un trazado. Un nodo es
+  `{ anchor, handleIn: Pt | null, handleOut: Pt | null, type }`, sin campos
+  opcionales, y la representación interna usa solo `M/L/C/Z`. Cuadráticas,
+  arcos y atajos (`Q`, `T`, `A`, `H`, `V`) se normalizan a cúbicas al editar.
+  Un path que no se edita conserva sus comandos originales.
+- Al cerrar un path la curva de cierre se guarda en `closingCurve`, porque
+  `Z` solo dibuja una línea recta. `buildPath` la emite como cúbica antes de
+  `Z` y omite la línea de cierre redundante.
+- Operaciones puras probadas en `nodes.test.ts`: `insertNode` (división de
+  De Casteljau, sin deformar la curva), `removeNode`, `removeNodes` (varios a la
+  vez, índices independientes), `makeLine`/`makeCurve`, `setNodeType`,
+  `moveAnchor`/`moveHandle` y `nearestOnSubpath`.
+- **`src/workspace/snap.ts`** es el motor de snapping. `SnapTarget` tiene
+  `kind: 'grid' | 'vertex' | 'center' | 'midpoint' | 'intersection' | 'guide'`;
+  `guide` está reservado para las guías inteligentes del próximo update, igual
+  que el resto de objetos que consumirán `targetsForShape`. El radio se mide en
+  **píxeles de pantalla** (`snapRadiusScene`) y el controlador pasa
+  `zoom = 1 / canvas.getZoom()`.
+- El snapping se aplica al crear formas (`snapDrawPoint`), al mover una
+  selección (`applyDragSnap`, con guías rojas) y al arrastrar un nodo
+  (`moveAnchorHandle`). Los objetos se identifican con `objectId` para que nada
+  se enganche a sí mismo.
+- Las preferencias viven en `snapSettings` (`src/state/snapSettings.ts`),
+  versionadas y persistidas en `openburn.snap`; el antiguo booleano
+  `snapToGrid` se mantiene sincronizado como `enabled && grid`.
 
 ---
 
@@ -221,6 +251,9 @@ La política completa está en [AGENTS.md](../AGENTS.md).
   - Estado: `src/state/updateStore.test.ts`, `src/state/autosave.test.ts`,
     `src/state/recentStore.test.ts`.
   - Rendimiento/memoria: `src/workspace/history.test.ts`.
+  - Edición de nodos y snapping: `src/workspace/nodes.test.ts`,
+    `src/workspace/snap.test.ts`, `src/state/snapSettings.test.ts`,
+    `src/ui/StatusBar.test.tsx`.
   - Componentes: `src/ui/UpdateDialog.test.tsx`,
     `src/ui/WelcomeDialog.test.tsx`, `src/ui/DiscardChangesDialog.test.tsx`,
     `src/ui/RecoveryDialog.test.tsx`.
@@ -231,8 +264,8 @@ La política completa está en [AGENTS.md](../AGENTS.md).
   (`playwright.config.ts`, specs en `e2e/`). Cubre arranque de la ventana y
   pantalla de bienvenida, versión del proceso principal, actualizaciones,
   portapapeles, paneo, recuperación tras un cierre abrupto, drag & drop,
-  recientes y restauración del tamaño de ventana. Cada spec usa un perfil
-  temporal (`OPENBURN_USER_DATA_DIR`).
+  recientes, edición de nodos y snapping, y restauración del tamaño de
+  ventana. Cada spec usa un perfil temporal (`OPENBURN_USER_DATA_DIR`).
 - **Estáticos**: `npm run typecheck` y `npm run build`.
 - **CI**: `.github/workflows/ci.yml` ejecuta typecheck + tests + build, y un job
   separado de e2e con `xvfb-run`.

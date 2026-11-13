@@ -27,7 +27,7 @@ Esta guía cubre el flujo completo: diseñar, asignar capas, previsualizar, cali
 | Herramienta | Atajo | Nota |
 | --- | --- | --- |
 | Seleccionar | `S` | Mover/escalar/rotar con controles |
-| Nodos | `N` | Requiere un trazado; arrastra anclas |
+| Nodos | `N` | Requiere un trazado; edita anclas y asas |
 | Línea | `L` | Arrastrar de inicio a fin |
 | Rectángulo | `R` | `Shift` mantiene proporciones |
 | Rect. redondeado | — | Radio fijo inicial de 3 mm |
@@ -41,7 +41,20 @@ Esta guía cubre el flujo completo: diseñar, asignar capas, previsualizar, cali
 - **Candado de proporción**: el botón junto a `W`/`H` mantiene la relación de aspecto, tanto al escribir un valor como al arrastrar una esquina. Con el candado activo, `Shift` en una esquina estira libremente; con el candado desactivado, `Shift` fuerza la proporción.
 - **Offset**: *Tools → Offset Shapes…*; positivo expande, negativo contrae.
 - **Arrays**: *Tools → Grid Array…* / *Circular Array…*.
-- **Nodos**: convierte primero con *Tools → Convert to Path*, activa `N` y arrastra los nodos.
+- **Nodos**: convierte primero con *Tools → Convert to Path*, activa `N` y:
+  - arrastra un **ancla** (círculo) para mover el punto;
+  - arrastra un **asa** (cuadrado) para curvar el segmento; con el nodo `Symmetric` las dos asas se mueven juntas, con `Smooth` se mantienen colineales y con `Shift+Alt` al arrastrar un asa se rompe esa dependencia;
+  - **doble clic sobre un segmento** añade un nodo en ese punto (la curva no cambia de forma);
+  - `Del`/`Backspace` borra **solo los nodos seleccionados**; con la herramienta de nodos activa y nada seleccionado, `Del` borra el objeto entero como siempre;
+  - clic en un ancla la selecciona; `Shift+clic` añade a la selección; `Ctrl+A` selecciona todos los nodos;
+  - *Tools* ofrece **Node → Corner / Smooth / Symmetric** y **Segment → Line / Curve** para el nodo o segmento seleccionado.
+  - Al arrastrar un ancla se aplica el snapping activo, así que dos nodos distintos pueden quedar exactamente encima.
+- **Snapping**: el botón *Snap* de la barra de estado activa o desactiva la captura y el botón `▾` (o clic derecho) abre sus opciones:
+  - **Grid**: puntos de la rejilla (espaciado configurable).
+  - **Objects**: vértices, centros y puntos medios de otras formas. Al mover una selección se enganchan sus bordes y su centro, con una guía roja que muestra la alineación.
+  - **Intersections**: cruces entre los bordes de las formas.
+  - **Capture**: radio en píxeles de pantalla (constante con el zoom, como LightBurn).
+  - El radio y las opciones se guardan entre sesiones (`openburn.snap`).
 - **Texto a contornos**: *Tools → Convert to Path* sobre un texto. Usa la fuente Inter incluida; si el texto usaba otra familia, la barra de estado lo indica.
 - **Tabs**: *Tools → Add Tabs…* deja huecos en el contorno para que la pieza no se suelte. Usa modo **Line**.
 

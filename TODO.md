@@ -117,7 +117,9 @@ Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
 - [x] CI: typecheck + unit + build, y job de e2e con `xvfb`
 - [x] Tests de P6: `windowState`, `storage`, `autosave`, `recentFiles`, `HistoryBuffer`, `dropRouting`, diálogos de bienvenida/recuperación/descarte y e2e de recuperación tras crash, drag & drop, recientes y tamaño de ventana
 - [x] Procedimiento estándar documentado en `AGENTS.md`
+- [x] `workspace/nodes`, `workspace/snap`, `state/snapSettings` y `ui/StatusBar` (snap)
 - [ ] Ampliar cobertura: round-trip `io/lightburn`, `core/serialize`, `geometry/offset`, `serial/grbl` y simulador
+- [x] E2E de edición de nodos y snapping (`e2e/nodes-snap.spec.ts`)
 - [ ] E2E de flujos completos: dibujar/transformar, import/export `.obrn`/`.lbrn2`, preview y job en el simulador
 - [ ] Umbral de cobertura mínimo en CI (p. ej. 60 % en `src/core` y `src/gcode`)
 - [ ] Linter + formateo (ESLint + Prettier) y pre-commit hook
@@ -173,9 +175,9 @@ real, organizadas por prioridad. Se usa 🟡 cuando ya existe una base en OpenBu
 y solo falta completar la paridad.
 
 #### P1 — Editor (lo que se nota en los primeros 5 minutos)
-- [ ] 🟡 **Edición de nodos completa**: añadir/eliminar nodos, convertir segmento recto ↔ curva, asas de Bézier independientes — hoy solo se arrastran anclas existentes
-- [ ] 🟡 **Snapping**: a objetos (vértices, centros, intersecciones, punto medio) — hoy solo *snap to grid*
-- [ ] **Guías inteligentes** (líneas de alineación al mover) y **guías arrastrables** desde las reglas
+- [x] **Edición de nodos completa**: añadir (doble clic en el segmento) y eliminar nodos, convertir recta ↔ curva, asas de Bézier con nodos *corner / smooth / symmetric* y `Shift+Alt` para independizarlas — `src/workspace/nodes.ts`
+- [x] **Snapping**: rejilla, vértices, centros, puntos medios e intersecciones, con radio en píxeles, guías al mover y opciones en la barra de estado — `src/workspace/snap.ts`
+- [ ] **Guías inteligentes** (líneas de alineación al mover) y **guías arrastrables** desde las reglas — ver bloque *Siguiente update*
 - [x] **Reglas reales** en los bordes del viewport, con marcador del puntero y medida de distancias durante el movimiento (`src/workspace/ruler.ts`, `src/workspace/measure.ts`)
 - [x] **Campos numéricos de forma**: posición, tamaño y ángulo del bounding box con candado de proporción (también en el arrastre de esquinas)
 - [x] **Alineación de texto** horizontal (izquierda / centro / derecha) en la barra de texto y en *Tools*, incluida la exportación a contornos
@@ -184,6 +186,25 @@ y solo falta completar la paridad.
 - [ ] **Biblioteca de formas** (engranaje, espiral, caja, teselaciones, formas paramétricas)
 - [ ] Herramienta de **medida** ampliada: ángulo, radio, longitud de trazado
 - [ ] **Escalar a tamaño físico exacto** con un solo dato (p. ej. "make it 90 mm")
+
+#### 🔭 Siguiente update — nodos y snapping, fase 2
+
+Este bloque **extiende** los contratos de *Edición de nodos completa* y
+*Snapping* (P1). No los reformula: `SnapKind`, `SnapTarget`, `SnapOptions`,
+`NodeType` y `snapSettings` se congelan aquí y todo lo siguiente se añade como
+consumidor (nuevo `kind`, nuevo `source`, nueva propiedad del bloque). No hace
+falta migrar documentos ni preferencias guardadas.
+
+| Qué | Dónde engancha | Nota de implementación |
+| --- | --- | --- |
+| **Guías inteligentes** (alineación al mover) | `SnapTarget.kind = 'guide'` (ya reservado en `src/workspace/snap.ts`) | Las guías rojas actuales de `snapDragDelta` ya calculan `guideX`/`guideY`; falta persistir las guías y renderizarlas sin clic. |
+| **Guías arrastrables desde las reglas** | Se guardan en el **documento**, no en `snapSettings` | Entran como `SnapShape` extra en `collectSnapTargets`, así el motor no cambia. |
+| **Tangentes y centros de arco** | Nuevos `SnapKind`: `tangent`, `arcCenter` | `KIND_PRIORITY` es un `Record<SnapKind, number>`: añadir la clave basta. |
+| **Texto sobre trazado** | `parsePath`/`buildPath` de `src/workspace/nodes.ts` | El modelo ya soporta asas independientes y `closingCurve`; no toca el nodo. |
+| **Multi-selección de nodos con marco** | `nodeSelected` + `selectNode` del controlador | `removeNodes` ya borra varios a la vez con índices independientes. |
+| **Snap desde el panel numérico** (X/Y/W/H) | `snapPoint` con `zoom` fijo a 1 | El panel aplica `applyNumeric`; el snap sería un ajuste previo del valor. |
+| **Cortar nodo / insertar desde menú contextual** | `insertNode`/`removeNodes` | El doble clic ya existe; el menú añade el "cut" a mitad de segmento (usa `splitCubic`). |
+| **Previsualización del tipo de nodo** | `NodeType` cerrado a 3 valores | Si se necesita un cuarto tipo (p. ej. `cusp`) se añade a la unión, no a la estructura del nodo. |
 
 #### P2 — Cortes y capas (lo que convierte migrar desde LightBurn)
 - [ ] **Start From** (Absolute / Current Position / User Origin) — hoy solo hay `origin` de cama (bottom-left/top-left)

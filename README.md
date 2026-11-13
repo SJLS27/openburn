@@ -53,7 +53,9 @@ Detalle completo en [CHANGELOG.md](CHANGELOG.md).
 - Línea, rectángulo, rectángulo redondeado, elipse, polígono, texto y medida.
 - Selección múltiple, mover, escalar, rotar, voltear, alinear, distribuir, agrupar/desagrupar y orden.
 - **Booleanos** (unión, resta, intersección, exclusión) con Paper.js.
-- **Offset** de contornos, arrays en cuadrícula/circulares y **edición de nodos**.
+- **Offset** de contornos, arrays en cuadrícula/circulares y **edición de nodos** completa (añadir y borrar nodos, asas de Bézier, recta ↔ curva, nodos suaves y simétricos).
+- **Snapping** a rejilla, vértices, centros, puntos medios e intersecciones, con guías de alineación al mover y opciones de captura en la barra de estado.
+
 - **Texto a contornos** con opentype.js (fuente Inter incluida) para cortar o grabar sin depender de fuentes.
 - **Add Tabs**: puentes en contornos para que las piezas no se suelten.
 - **Pegado desde el portapapeles del sistema**: texto, SVG (incluido el SVG comprimido de Inkscape) e imágenes, además de menú contextual en el lienzo.
