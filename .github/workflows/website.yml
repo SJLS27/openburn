@@ -39,7 +39,8 @@ jobs:
       - name: Check internal links
         uses: lycheeverse/lychee-action@v2
         with:
-          # Run from the website folder (the workflow's default) and resolve
-          # root-relative links such as `/features/` against `dist`.
-          args: --no-progress --offline --include-fragments --root-dir ${{ github.workspace }}/website/dist dist
+          # Composite actions run from the repository root (not from the job's
+          # default working-directory), hence the explicit website/ paths.
+          # `--root-dir` resolves root-relative links such as `/features/`.
+          args: --no-progress --offline --include-fragments --root-dir ${{ github.workspace }}/website/dist website/dist
           fail: true
