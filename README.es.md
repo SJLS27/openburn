@@ -18,7 +18,7 @@
   <img alt="Plataformas" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="GRBL" src="https://img.shields.io/badge/GRBL-ready-brightgreen.svg">
   <img alt="Archivos LightBurn" src="https://img.shields.io/badge/LightBurn-.lbrn%20%7C%20.lbrn2-8a63d2.svg">
-  <img alt="Versión" src="https://img.shields.io/badge/version-0.10.0-orange.svg">
+  <img alt="Versión" src="https://img.shields.io/badge/version-0.11.0-orange.svg">
 </p>
 
 <p align="center">
@@ -63,21 +63,17 @@
 - **Libre, MIT y sin conexión.** Sin cuenta, sin telemetría, sin anuncios. Tus
   diseños no salen de tu ordenador.
 
-## Novedades de la 0.10
+## Novedades de la 0.11
 
 - **Edición de nodos completa**: arrastra las asas de Bézier, haz doble clic en
-  un segmento para añadir un nodo, borra nodos, cambia entre esquina / suave /
-  simétrico y entre recta y curva.
+  un segmento para añadir un nodo, elimina nodos seleccionados con `Supr`, cambia
+  entre esquina / suave / simétrico y entre segmento recto y curva.
 - **Snapping a objetos**: vértices, centros, puntos medios e intersecciones, con
-  guías de alineación al arrastrar y radio de captura configurable.
-- **Reglas y medidas en vivo** alrededor del lienzo: `W × H`, `ΔX`/`ΔY`, ángulo y
-  longitud al mover, escalar o rotar.
-- **Alineación de texto** (izquierda / centro / derecha), también dentro de
-  grupos, respetada por las exportaciones a GCode y LightBurn.
-- **Los campos de forma operan sobre el bounding box real**, con candado de
-  proporción que también se aplica al arrastrar esquinas.
-- **Preview mucho más fluido** gracias a capas cacheadas de fondo, trazos y
-  raster.
+  guías de alineación al arrastrar y opciones de control en la barra de estado.
+- **Preferencias de snapping versionadas**: persistencia de configuración con
+  migración limpia.
+- **Verificación headless de escritorio**: iteración rápida de desarrollo y
+  capturas de documentación automatizadas.
 
 Detalle completo en [CHANGELOG.md](CHANGELOG.md).
 

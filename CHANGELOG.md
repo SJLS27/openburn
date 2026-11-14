@@ -6,6 +6,8 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-13
+
 ### Añadido
 - **Edición de nodos completa**: la herramienta de nodos (`N`) muestra las asas
   de Bézier y permite arrastrarlas, añadir un nodo con doble clic sobre el

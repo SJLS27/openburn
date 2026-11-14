@@ -68,12 +68,21 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
-    <release version="0.10.0" date="2026-11-08">
+    <release version="0.11.0" date="2026-11-13">
       <description>
-        <p>Node editing and object snapping, plus a smoother editor.</p>
+        <p>Full Bézier node editing and object snapping with alignment guides.</p>
         <ul>
           <li>Full node editing: Bézier handles, add/delete nodes, corner/smooth/symmetric, line ↔ curve.</li>
           <li>Object snapping to vertices, centres, midpoints and intersections with alignment guides.</li>
+          <li>Versioned snap preferences and status bar snap controls.</li>
+          <li>Headless desktop verification loop and automated documentation captures.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.10.0" date="2026-11-08">
+      <description>
+        <p>Text alignment, shape numeric fields, canvas rulers and smoother preview.</p>
+        <ul>
           <li>Rules and live measurements (W × H, ΔX/ΔY, angle, length) around the canvas.</li>
           <li>Text alignment and shape fields that operate on the real bounding box with an aspect lock.</li>
           <li>Faster preview with cached background, path and raster layers.</li>

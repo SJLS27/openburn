@@ -18,7 +18,7 @@
   <img alt="Platforms" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="GRBL" src="https://img.shields.io/badge/GRBL-ready-brightgreen.svg">
   <img alt="LightBurn files" src="https://img.shields.io/badge/LightBurn-.lbrn%20%7C%20.lbrn2-8a63d2.svg">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.10.0-orange.svg">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.11.0-orange.svg">
 </p>
 
 <p align="center">
@@ -64,21 +64,17 @@
 - **Free, MIT and offline.** No account, no telemetry, no ads. The installer is
   a plain desktop app; your designs never leave your computer.
 
-## What's new in 0.10
+## What's new in 0.11
 
 - **Full node editing** — drag Bézier handles, double-click a segment to add a
-  node, delete nodes, switch between corner / smooth / symmetric and between
-  line and curve.
+  node, delete selected nodes with `Del`, switch between corner / smooth /
+  symmetric and between straight line and curve segments.
 - **Object snapping** — vertices, centres, midpoints and intersections, with
-  alignment guides while dragging and a configurable capture radius.
-- **Rules and live measurements** around the canvas: `W × H`, `ΔX`/`ΔY`, angle
-  and length while you move, scale or rotate.
-- **Text alignment** (left / centre / right), also inside groups, honoured by
-  GCode and LightBurn exports.
-- **Shape fields operate on the real bounding box**, with an aspect-ratio lock
-  that also applies while dragging corners.
-- **A much smoother preview** thanks to cached background, path and raster
-  layers.
+  alignment guides while dragging and dedicated status bar options.
+- **Versioned snap preferences** — persistent snapping settings with clean
+  migration.
+- **Headless desktop verification** — faster development iterations and
+  automated documentation captures.
 
 Full details in [CHANGELOG.md](CHANGELOG.md).
 
