@@ -10,6 +10,7 @@ import {
   type MenuItemConstructorOptions,
 } from 'electron';
 import path from 'node:path';
+import { SerialPortBroker } from './serialPort';
 import fs from 'node:fs';
 import {
   checkForUpdates,
@@ -33,6 +34,7 @@ const userDataOverride = process.env.OPENBURN_USER_DATA_DIR;
 if (userDataOverride) app.setPath('userData', path.resolve(userDataOverride));
 
 let mainWindow: BrowserWindow | null = null;
+const serialPorts = new SerialPortBroker();
 let windowStateTimer: NodeJS.Timeout | null = null;
 
 function persistWindowState(win: BrowserWindow): void {
@@ -129,20 +131,26 @@ function createWindow() {
     }
   });
 
-  // Allow Web Serial access from the renderer (GRBL connection).
+  // Allow Web Serial access from the renderer (GRBL connection). Electron has
+  // no built-in port chooser, so the list goes to the renderer's dialog.
   const ses = mainWindow.webContents.session;
-  ses.on('select-serial-port', (event, portList, _webContents, callback) => {
+  ses.on('select-serial-port', (event, portList, webContents, callback) => {
     event.preventDefault();
-    // Prefer a USB/UART looking port; otherwise use the first one.
-    const port =
-      portList.find((p) => /usb|tty|acm|serial/i.test(p.portName ?? '')) ?? portList[0];
-    callback(port ? port.portId : '');
+    serialPorts.open(
+      portList,
+      (request) => webContents.send('serial:choose-port', request),
+      callback,
+    );
   });
   ses.setPermissionCheckHandler((_wc, permission) => permission === 'serial');
   ses.setDevicePermissionHandler((details) => details.deviceType === 'serial');
 }
 
 // ---- IPC handlers ---------------------------------------------------------
+
+ipcMain.on('serial:port-chosen', (_e, requestId: number, portId: string | null) => {
+  serialPorts.resolve(requestId, portId);
+});
 
 ipcMain.handle('dialog:openFile', async (_e, filters) => {
   const result = await dialog.showOpenDialog(mainWindow!, {

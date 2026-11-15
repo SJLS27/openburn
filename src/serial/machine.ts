@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { JobPlan } from '@/gcode/types';
 import { MockTransport, WebSerialTransport, type Transport } from './transport';
+import { portChooser } from './portChooser';
 
 export type MachineStatus =
   | 'disconnected'
@@ -133,6 +134,8 @@ class Machine {
   private listeners = new Set<() => void>();
   private transport: Transport | null = null;
   private serialPorts: SerialPort[] = [];
+  /** OS names (/dev/ttyUSB0, COM3) of ports picked in the desktop chooser. */
+  private portNames = new WeakMap<SerialPort, string>();
   private buffer = '';
   private job: ActiveJob | null = null;
   private pendingBytes: number[] = [];
@@ -208,9 +211,10 @@ class Machine {
         const info = port.getInfo?.() ?? {};
         const vid = info.usbVendorId?.toString(16).padStart(4, '0');
         const pid = info.usbProductId?.toString(16).padStart(4, '0');
+        const name = this.portNames.get(port);
         return {
           index,
-          label: vid && pid ? `USB ${vid}:${pid}` : `Serial port ${index + 1}`,
+          label: name ?? (vid && pid ? `USB ${vid}:${pid}` : `Serial port ${index + 1}`),
         };
       });
       this.setState({ ports });
@@ -227,18 +231,25 @@ class Machine {
     if (portIndex !== undefined && this.serialPorts[portIndex]) {
       port = this.serialPorts[portIndex];
     } else {
-      port = await navigator.serial.requestPort();
+      port = await this.askForPort();
     }
-    const transport = new WebSerialTransport(port, baudRate);
+    const transport = new WebSerialTransport(port, baudRate, this.portNames.get(port));
     await this.attach(transport);
     await this.refreshPorts();
   }
 
   async requestPort(): Promise<void> {
     if (!navigator.serial) throw new Error('Web Serial is not available');
-    const port = await navigator.serial.requestPort();
+    const port = await this.askForPort();
     this.serialPorts = [...this.serialPorts.filter((p) => p !== port), port];
     await this.refreshPorts();
+  }
+
+  private async askForPort(): Promise<SerialPort> {
+    const port = await navigator.serial!.requestPort();
+    const choice = portChooser.takeLastChoice();
+    if (choice) this.portNames.set(port, choice.name);
+    return port;
   }
 
   async connectMock(): Promise<void> {

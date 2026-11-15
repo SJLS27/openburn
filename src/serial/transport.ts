@@ -10,17 +10,21 @@ export interface Transport {
 
 export class WebSerialTransport implements Transport {
   readonly isMock = false;
-  readonly name = 'Serial';
+  readonly name: string;
   private port: SerialPort;
   private baudRate: number;
   private dataHandlers = new Set<(chunk: string) => void>();
   private closeHandlers = new Set<() => void>();
   private closed = false;
   private readTask: Promise<void> | null = null;
+  private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  private writeChain: Promise<void> = Promise.resolve();
 
-  constructor(port: SerialPort, baudRate: number) {
+  /** `portName` is the OS name shown to the user, e.g. /dev/ttyUSB0. */
+  constructor(port: SerialPort, baudRate: number, portName?: string) {
     this.port = port;
     this.baudRate = baudRate;
+    this.name = portName ?? 'Serial';
   }
 
   async connect(): Promise<void> {
@@ -33,6 +37,7 @@ export class WebSerialTransport implements Transport {
     const decoder = new TextDecoder();
     while (!this.closed && this.port.readable) {
       const reader = this.port.readable.getReader();
+      this.reader = reader;
       try {
         for (;;) {
           const { value, done } = await reader.read();
@@ -45,6 +50,7 @@ export class WebSerialTransport implements Transport {
       } catch {
         // Device unplugged or stream cancelled
       } finally {
+        this.reader = null;
         reader.releaseLock();
       }
       if (this.closed) break;
@@ -54,18 +60,31 @@ export class WebSerialTransport implements Transport {
     this.emitClose();
   }
 
-  async write(data: string): Promise<void> {
-    if (!this.port.writable) throw new Error('Serial port is not writable');
-    const writer = this.port.writable.getWriter();
-    try {
-      await writer.write(new TextEncoder().encode(data));
-    } finally {
-      writer.releaseLock();
-    }
+  write(data: string): Promise<void> {
+    // Serialize writes: a second getWriter() while one is held throws, which
+    // happens when a status poll overlaps a command.
+    const next = this.writeChain.then(async () => {
+      if (!this.port.writable) throw new Error('Serial port is not writable');
+      const writer = this.port.writable.getWriter();
+      try {
+        await writer.write(new TextEncoder().encode(data));
+      } finally {
+        writer.releaseLock();
+      }
+    });
+    this.writeChain = next.catch(() => undefined);
+    return next;
   }
 
   async disconnect(): Promise<void> {
     this.closed = true;
+    try {
+      // reader.read() blocks until data arrives; cancel it so the read loop
+      // exits and the port can actually close.
+      await this.reader?.cancel();
+    } catch {
+      /* ignore */
+    }
     try {
       await this.readTask;
     } catch {

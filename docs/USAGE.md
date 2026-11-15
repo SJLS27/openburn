@@ -96,9 +96,15 @@ Cada color de la paleta es una capa (C00, C01, …).
 ## 5. Conectar una máquina GRBL
 
 1. Panel **Laser** → **Port**:
-   - **Ask on connect…**: pide permiso Web Serial y abre el puerto.
+   - **Ask on connect…**: al conectar, la app de escritorio muestra los puertos
+     serie reales (`/dev/ttyUSB0`, `COM3`, `/dev/cu.usbserial-…`) con el puerto USB
+     preseleccionado y descrito por su chip (p. ej. `CH340 USB serial (QinHeng) ·
+     1a86:7523`). Los puertos integrados de la placa base (`/dev/ttyS0`–`ttyS31`)
+     se ocultan tras **Show N built-in ports**: casi nunca son un láser.
    - **Simulator (demo)**: no requiere hardware; simula estados, oks y tiempos.
-2. Pulsa **Connect**.
+   - Los puertos ya autorizados aparecen en la lista con su nombre.
+2. Pulsa **Connect**. El panel muestra el puerto conectado; **Disconnect** lo
+   libera para que otra aplicación pueda usarlo.
 3. Verás estado (`Idle`, `Run`, `Hold`, `Alarm`), `MPos`, feed y spindle.
 
 ### Trabajo

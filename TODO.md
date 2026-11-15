@@ -284,7 +284,6 @@ consumo de memoria.
 - Trace limitado a 700 px de lado mayor.
 - El raster de GCode se limita a 360 muestras por eje y muestrea la imagen por tiles (máx. 1600 px de lado).
 - Rotary, cámaras, Print & Cut y DSP están pendientes.
-- El puerto serie en Electron auto-selecciona el primer dispositivo (mejorable con un selector nativo).
 
 ---
 

@@ -16,6 +16,7 @@ import { StatusBar } from '@/ui/StatusBar';
 import { Modal, NumberField, UnitsContext, WorkspaceContext } from '@/ui/common';
 import { PreviewDialog } from '@/ui/PreviewDialog';
 import { UpdateBanner, UpdateDialog } from '@/ui/UpdateDialog';
+import { SerialPortDialog } from '@/ui/SerialPortDialog';
 import { DiscardChangesDialog } from '@/ui/DiscardChangesDialog';
 import { RecoveryDialog } from '@/ui/RecoveryDialog';
 import { WelcomeDialog } from '@/ui/WelcomeDialog';
@@ -221,6 +222,7 @@ export default function App() {
           <StatusBar />
         </div>
 
+        <SerialPortDialog />
         {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
         {deviceOpen && <DeviceSettingsDialog onClose={() => setDeviceOpen(false)} />}
         {updateOpen && <UpdateDialog onClose={() => setUpdateOpen(false)} />}
@@ -499,8 +501,8 @@ function DeviceSettingsDialog({ onClose }: { onClose: () => void }) {
         Show bed outline
       </label>
       <p className="hint" style={{ marginTop: 12 }}>
-        Serial communication uses the Web Serial API. In the desktop build, choose a port in the
-        Laser panel to grant access; the simulator lets you try job streaming without hardware.
+        Serial communication uses the Web Serial API. In the desktop build, Connect in the Laser
+        panel lists the available ports; the simulator lets you try job streaming without hardware.
       </p>
     </Modal>
   );
