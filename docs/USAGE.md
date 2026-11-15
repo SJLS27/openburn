@@ -101,6 +101,16 @@ Cada color de la paleta es una capa (C00, C01, …).
 2. Pulsa **Connect**.
 3. Verás estado (`Idle`, `Run`, `Hold`, `Alarm`), `MPos`, feed y spindle.
 
+#### Firmware
+**Settings → Machine (GRBL) → Firmware** elige el dialecto del controlador:
+
+- **Auto-detect** (por defecto): al conectar envía `$I`. Si responde `[XTool …]`
+  usa el juego de comandos xTool; si responde `[VER:…]`, no responde o la placa se
+  reinicia al abrir el puerto, se comporta como GRBL estándar.
+- **GRBL**: comportamiento GRBL de siempre, sin enviar `$I`.
+- **xTool (D1 and similar)**: fuerza el dialecto xTool. Para el xTool D1 usa
+  **Baud 230400**.
+
 ### Trabajo
 - **Frame**: mueve el cabezal alrededor de la selección (láser apagado, `S0`).
 - **Start**: genera el plan y lo transmite con control de flujo.
@@ -110,6 +120,8 @@ Cada color de la paleta es una capa (C00, C01, …).
 
 ### Move
 - Jog por pasos (`$J`), **Home** (`$H`), **Unlock** (`$X`), **Origin** (`G10 L20 P1 X0 Y0`).
+- En máquinas xTool el jog se envía como `G91` / `G1 … S0` / `G90` / `M2`, porque
+  ese firmware ignora `$J` y solo ejecuta el movimiento al recibir `M2`.
 - Ajusta **Step** y **Feed**.
 
 ### Consola y macros

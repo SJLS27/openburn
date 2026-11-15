@@ -341,6 +341,20 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
         </select>
       </div>
       <div className="field-row">
+        <span className="field-label">Firmware</span>
+        <select
+          className="input"
+          value={state.device.firmware}
+          onChange={(e) =>
+            store.updateDevice({ firmware: e.target.value as 'auto' | 'grbl' | 'xtool' })
+          }
+        >
+          <option value="auto">Auto-detect</option>
+          <option value="grbl">GRBL</option>
+          <option value="xtool">xTool (D1 and similar)</option>
+        </select>
+      </div>
+      <div className="field-row">
         <span className="field-label">Max S</span>
         <input
           className="input narrow"

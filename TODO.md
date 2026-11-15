@@ -154,6 +154,8 @@ Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
 - [ ] Galvo / EZCad (BSLFiber)
 - [ ] Repeat marking / array desde la UI del láser
 - [x] Estimación de tiempo con aceleraciones
+- [x] Firmware xTool (D1): detección con `$I`, jog con `M2` y sondeo `?\n`
+- [ ] xTool: verificar Pause/Stop, progreso y trabajos largos en hardware real
 
 ### Producto
 - [ ] Empaquetado firmado (AppImage/NSIS/DMG)
@@ -284,6 +286,7 @@ consumo de memoria.
 - Trace limitado a 700 px de lado mayor.
 - El raster de GCode se limita a 360 muestras por eje y muestrea la imagen por tiles (máx. 1600 px de lado).
 - Rotary, cámaras, Print & Cut y DSP están pendientes.
+- xTool D1: solo se validó conexión y jog en hardware (fw 40.30.002.01). El firmware ejecuta el movimiento al recibir `M2`, así que el progreso del trabajo puede adelantarse al láser, y no se verificó si respeta `!`, `~` y `Ctrl+X` (Pause/Stop).
 - El puerto serie en Electron auto-selecciona el primer dispositivo (mejorable con un selector nativo).
 
 ---

@@ -1,5 +1,15 @@
 import { useSyncExternalStore } from 'react';
 import type { JobPlan } from '@/gcode/types';
+import {
+  IDENTIFY_COMMAND,
+  IDENTIFY_TIMEOUT_MS,
+  dialectFromLine,
+  isChatter,
+  jogLines,
+  statusPoll,
+  type Dialect,
+  type FirmwareSetting,
+} from './dialect';
 import { MockTransport, WebSerialTransport, type Transport } from './transport';
 
 export type MachineStatus =
@@ -143,6 +153,11 @@ class Machine {
   private logBuffer: LogLine[] = [];
   private logTimer: number | null = null;
   private logCounter = 1;
+  /** See serial/dialect.ts. Polling waits until the dialect is known. */
+  private firmware: FirmwareSetting = 'auto';
+  private dialect: Dialect = 'grbl';
+  private dialectKnown = false;
+  private identifyTimer: number | null = null;
 
   getState = (): MachineState => this.state;
 
@@ -219,7 +234,11 @@ class Machine {
     }
   }
 
-  async connectSerial(baudRate: number, portIndex?: number): Promise<void> {
+  async connectSerial(
+    baudRate: number,
+    portIndex?: number,
+    firmware: FirmwareSetting = 'auto',
+  ): Promise<void> {
     if (!navigator.serial) {
       throw new Error('Web Serial is not available in this environment');
     }
@@ -230,6 +249,7 @@ class Machine {
       port = await navigator.serial.requestPort();
     }
     const transport = new WebSerialTransport(port, baudRate);
+    this.firmware = firmware;
     await this.attach(transport);
     await this.refreshPorts();
   }
@@ -242,6 +262,7 @@ class Machine {
   }
 
   async connectMock(): Promise<void> {
+    this.firmware = 'grbl';
     await this.attach(new MockTransport());
   }
 
@@ -259,12 +280,40 @@ class Machine {
       lastError: null,
     });
     this.pushLog('info', `Connected to ${transport.name}`);
+    this.identify();
     this.startPolling();
+  }
+
+  /** Settle the dialect: forced by the device setting, or asked with $I. */
+  private identify(): void {
+    this.dialect = 'grbl';
+    this.dialectKnown = false;
+    if (this.firmware !== 'auto') {
+      this.setDialect(this.firmware);
+      return;
+    }
+    // A board that resets on open (Arduino) misses the $I and stays GRBL.
+    this.identifyTimer = window.setTimeout(() => {
+      this.identifyTimer = null;
+      this.dialectKnown = true;
+    }, IDENTIFY_TIMEOUT_MS);
+    void this.writeRaw(IDENTIFY_COMMAND);
+  }
+
+  private setDialect(dialect: Dialect): void {
+    if (this.identifyTimer) window.clearTimeout(this.identifyTimer);
+    this.identifyTimer = null;
+    this.dialectKnown = true;
+    if (dialect === this.dialect) return;
+    this.dialect = dialect;
+    if (dialect === 'xtool') this.pushLog('info', 'Using xTool command set');
   }
 
   async disconnect(log = true): Promise<void> {
     this.stopJob(false);
     this.stopPolling();
+    if (this.identifyTimer) window.clearTimeout(this.identifyTimer);
+    this.identifyTimer = null;
     if (this.transport) {
       try {
         await this.transport.disconnect();
@@ -304,7 +353,9 @@ class Machine {
   private startPolling(): void {
     this.stopPolling();
     this.pollTimer = window.setInterval(() => {
-      if (this.transport) void this.writeRaw('?');
+      if (!this.transport || !this.dialectKnown) return;
+      const poll = statusPoll(this.dialect, this.job !== null);
+      if (poll) void this.writeRaw(poll);
     }, 250);
   }
 
@@ -330,6 +381,9 @@ class Machine {
   };
 
   private handleLine(line: string): void {
+    if (isChatter(line)) return;
+    const dialect = dialectFromLine(line);
+    if (dialect && this.firmware === 'auto' && !this.dialectKnown) this.setDialect(dialect);
     if (line.startsWith('<')) {
       this.parseStatus(line);
       return;
@@ -363,13 +417,15 @@ class Machine {
   private parseStatus(line: string): void {
     const body = line.replace(/^</, '').replace(/>.*$/, '');
     const parts = body.split('|');
-    const status = mapStatus(parts[0] ?? 'Idle');
+    // xTool reports '<MPos:…>' with no state word; keep the current status.
+    const hasState = !(parts[0] ?? '').includes(':');
+    const status = hasState ? mapStatus(parts[0] ?? 'Idle') : this.state.status;
     let mpos = this.state.mpos;
     let wpos = this.state.wpos;
     let feed = this.state.feed;
     let spindle = this.state.spindle;
 
-    for (const part of parts.slice(1)) {
+    for (const part of hasState ? parts.slice(1) : parts) {
       if (part.startsWith('MPos:')) {
         const [x, y, z] = part.slice(5).split(',').map(Number);
         mpos = { x: x || 0, y: y || 0, z: z || 0 };
@@ -431,11 +487,21 @@ class Machine {
   }
 
   jog(dx: number, dy: number, feed = 1000): void {
-    const parts = ['$J=G91'];
-    if (dx !== 0) parts.push(`X${dx}`);
-    if (dy !== 0) parts.push(`Y${dy}`);
-    parts.push(`F${feed}`);
-    this.sendCommand(parts.join(' '));
+    this.sendLines(jogLines(this.dialect, dx, dy, feed));
+  }
+
+  /** Like sendCommand for a short program, written in one go. */
+  private sendLines(lines: string[]): void {
+    if (!this.transport) {
+      this.pushLog('error', 'Not connected');
+      return;
+    }
+    if (this.job) {
+      this.pushLog('error', 'Wait for the current job to finish (use Pause/Stop)');
+      return;
+    }
+    lines.forEach((line) => this.pushLog('out', line));
+    void this.writeRaw(lines.map((line) => `${line}\n`).join(''));
   }
 
   home(): void {
