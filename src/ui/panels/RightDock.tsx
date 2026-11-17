@@ -416,9 +416,9 @@ function LaserPanel() {
       if (port === 'mock') {
         await machine.connectMock();
       } else if (port === 'auto') {
-        await machine.connectSerial(device.baudRate);
+        await machine.connectSerial(device.baudRate, undefined, device.firmware);
       } else {
-        await machine.connectSerial(device.baudRate, Number(port));
+        await machine.connectSerial(device.baudRate, Number(port), device.firmware);
       }
     } catch (e) {
       setError((e as Error).message);

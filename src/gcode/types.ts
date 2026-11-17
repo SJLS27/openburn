@@ -103,6 +103,8 @@ export interface DeviceConfig {
   type: 'grbl';
   name: string;
   baudRate: number;
+  /** Controller dialect: detected on connect, or forced (see serial/dialect.ts) */
+  firmware: 'auto' | 'grbl' | 'xtool';
   /** Maximum S word value (GRBL usually 1000) */
   maxS: number;
   /** Rapid / travel speed in mm per minute */
@@ -126,6 +128,7 @@ export const DEFAULT_DEVICE: DeviceConfig = {
   type: 'grbl',
   name: 'GRBL',
   baudRate: 115200,
+  firmware: 'auto',
   maxS: 1000,
   rapidRate: 3000,
   laserMode: 'M4',
