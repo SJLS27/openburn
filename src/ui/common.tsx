@@ -9,6 +9,8 @@ import {
 import type { WorkspaceApi } from '@/state/store';
 import type { Units } from '@/types/document';
 import { displayToMm, mmToDisplay } from '@/core/units';
+import { BED_ORIGIN_OPTIONS } from '@/gcode/origin';
+import type { BedOrigin } from '@/gcode/types';
 import { Icon, type IconName } from './icons';
 
 export const WorkspaceContext = createContext<WorkspaceApi | null>(null);
@@ -190,6 +192,37 @@ export function Field({ label, children }: { label: string; children: ReactNode 
       <span className="field-label">{label}</span>
       {children}
     </div>
+  );
+}
+
+interface OriginSelectProps {
+  value: BedOrigin;
+  onChange: (value: BedOrigin) => void;
+  /** Compact labels ("Bottom-left") instead of the verbose dialog ones. */
+  compact?: boolean;
+}
+
+const COMPACT_ORIGIN_LABELS: Record<BedOrigin, string> = {
+  'bottom-left': 'Bottom-left',
+  'top-left': 'Top-left',
+  'bottom-right': 'Bottom-right',
+  'top-right': 'Top-right',
+};
+
+/** Shared bed-origin picker (device settings dialog and laser panel). */
+export function OriginSelect({ value, onChange, compact = false }: OriginSelectProps) {
+  return (
+    <select
+      className="input"
+      value={value}
+      onChange={(e) => onChange(e.target.value as BedOrigin)}
+    >
+      {BED_ORIGIN_OPTIONS.map((o) => (
+        <option key={o.value} value={o.value}>
+          {compact ? COMPACT_ORIGIN_LABELS[o.value] : o.label}
+        </option>
+      ))}
+    </select>
   );
 }
 

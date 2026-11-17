@@ -5,7 +5,7 @@ import { machine, useMachine, type MachineStatus } from '@/serial/machine';
 import { formatDuration } from '@/gcode/types';
 import { OptimizationDialog } from './OptimizationDialog';
 import { Icon } from '../icons';
-import { Field, Modal, NumberField, Panel, ToolButton, useUnits, useWorkspace } from '../common';
+import { Field, Modal, NumberField, OriginSelect, Panel, ToolButton, useUnits, useWorkspace } from '../common';
 import { CutsLayersPanel } from './CutsLayersPanel';
 import {
   MATERIALS_UPDATED_EVENT,
@@ -584,14 +584,11 @@ function LaserPanel() {
         </button>
         <div className="field-row">
           <span className="field-label">Origin</span>
-          <select
-            className="input"
+          <OriginSelect
+            compact
             value={device.origin}
-            onChange={(e) => store.updateDevice({ origin: e.target.value as 'bottom-left' | 'top-left' })}
-          >
-            <option value="bottom-left">Bottom-left</option>
-            <option value="top-left">Top-left</option>
-          </select>
+            onChange={(origin) => store.updateDevice({ origin })}
+          />
         </div>
         <p className="hint" style={{ marginTop: 6 }}>
           {state.doc.bed.width} × {state.doc.bed.height} {state.doc.units} · {device.baudRate} baud ·

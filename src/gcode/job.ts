@@ -4,6 +4,7 @@ import { optimizePlan, refreshItem, type PlanItem } from './optimize';
 import { powerForMove } from './rasterPreview';
 import { offsetPolygonPoints, polygonArea } from '@/geometry/offset';
 import { textToScenePath } from '@/text/outline';
+import { mapBedPoint } from './origin';
 import {
   applyPowerRamp,
   contoursFromPathData,
@@ -638,10 +639,7 @@ function emitGcode(
     lines.splice(1, 0, '$H ; home');
   }
 
-  const mapPoint = (p: Pt): Pt => ({
-    x: p.x,
-    y: device.origin === 'bottom-left' ? bed.height - p.y : p.y,
-  });
+  const mapPoint = (p: Pt): Pt => mapBedPoint(p, bed, device.origin);
 
   let laserOn = false;
   let airOn = false;

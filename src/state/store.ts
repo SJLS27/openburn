@@ -9,6 +9,7 @@ import {
   type Units,
 } from '@/types/document';
 import { DEFAULT_DEVICE, DEFAULT_OPTIMIZATION, type DeviceConfig, type JobPlan, type OptimizationSettings } from '@/gcode/types';
+import { isBedOrigin } from '@/gcode/origin';
 import type { TraceOptions } from '@/image/trace';
 import type { LiveMeasure } from '@/workspace/measure';
 import type { SnapKind } from '@/workspace/snap';
@@ -89,12 +90,21 @@ const DEVICE_KEY = 'openburn.device';
 const OPTIMIZATION_KEY = 'openburn.optimization';
 const LAYER_DEFAULTS_KEY = 'openburn.layerDefaults';
 
+/** Older documents only knew two corners, and a corrupted value must not break the job. */
+function normaliseDeviceOrigin(value: unknown): DeviceConfig['origin'] {
+  return isBedOrigin(value) ? value : DEFAULT_DEVICE.origin;
+}
+
 function loadDevice(): DeviceConfig {
   try {
     const raw = localStorage.getItem(DEVICE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<DeviceConfig>;
-      return { ...DEFAULT_DEVICE, ...parsed };
+      return {
+        ...DEFAULT_DEVICE,
+        ...parsed,
+        origin: normaliseDeviceOrigin(parsed.origin),
+      };
     }
   } catch {
     /* ignore corrupted settings */

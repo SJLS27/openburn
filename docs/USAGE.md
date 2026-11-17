@@ -89,7 +89,7 @@ Cada color de la paleta es una capa (C00, C01, …).
 - *File → Export GCode…* (`Ctrl+E`) guarda un `.nc`.
 - **Optimization Settings** (botón en *Cuts / Layers* o en el panel *Laser*): activa/desactiva el planificador y ajusta **Order by** (Layer/Group/Priority), **Direction order**, corte de formas interiores primero, reducción de viajes, dirección y cambios de dirección, mejor punto de inicio, esquinas preferidas y eliminación de líneas solapadas.
 
-> El GCode usa `G21/G90`, `M3`/`M4`, `M5` entre desplazamientos y `M2` al final. El origen (bottom-left/top-left) se configura en *Settings → Machine*.
+> El GCode usa `G21/G90`, `M3`/`M4`, `M5` entre desplazamientos y `M2` al final. El origen (cualquiera de las cuatro esquinas de la cama: bottom-left, top-left, bottom-right, top-right) se elige en *Settings → Machine → Origin*.
 
 ---
 
@@ -245,7 +245,8 @@ Para grabar una imagen, la capa debe estar en modo **Image**, con intervalo/pote
 
 ### Abrir un proyecto
 - *File → Open LightBurn Project…* o *File → Open…* con un `.lbrn`/`.lbrn2`.
-- Se importan capas, geometría, texto con contornos de respaldo, bitmaps y ajustes de corte.
+- Se importan capas, geometría, texto editable, bitmaps y ajustes de corte.
+- El texto se importa como **objeto de texto editable**: doble clic sobre él y escribe. La fuente, el tamaño y la alineación salen del archivo; si la fuente no está instalada, la vista previa usa Inter y la barra de estado lo avisa.
 - La vista se ajusta al contenido; el nombre del archivo se usa como nombre del documento.
 
 ### Exportar
