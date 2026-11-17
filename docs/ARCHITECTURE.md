@@ -156,8 +156,11 @@ UI (Laser/Move/Console)
 ```
 
 - `machine` mantiene estado observable: conexión, `MPos`, feed, spindle, trabajo, progreso y logs.
-- Polling de estado cada 250 ms (`?`).
-- Pausa/resume con `!`/`~`; stop con feed hold + soft reset (`Ctrl+X`).
+- Polling de estado cada 250 ms (`?`); en xTool es `?\n` y se pausa durante
+  trabajos porque cada respuesta añade un `ok` que descontaría líneas.
+- Pausa/resume con `!`/`~`; stop con feed hold + soft reset (`Ctrl+X`). En xTool
+  el firmware solo mueve al recibir `M2`, así que ningún trabajo nuevo debe
+  asumir que el progreso coincide con el cabezal (ver `TODO.md`).
 - En Electron, el proceso principal concede permisos Web Serial y reenvía la lista de
   puertos (`select-serial-port`) al renderer por IPC (`serial:choose-port`); el
   diálogo `SerialPortDialog` responde con `serial:port-chosen`. La lógica de

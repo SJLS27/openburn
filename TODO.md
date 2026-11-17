@@ -300,3 +300,13 @@ consumo de memoria.
 - Raster progresivo/streaming para levantar el límite de 360 muestras por eje.
 - Sitio de documentación con buscador (hoy todo vive en `docs/`).
 - Plantillas de issue/PR, `CODE_OF_CONDUCT.md`, etiquetas `good first issue`.
+
+### Serie / firmware (tras los PRs #3 y #4)
+- [x] Selector de puerto serie real en escritorio (`SerialPortDialog` + `electron/serialPort.ts`).
+- [ ] E2E del diálogo de puerto: el proceso principal simula `select-serial-port` y se
+  comprueba que el diálogo elige el USB y no `ttyS0` (hoy solo hay tests unitarios y de
+  componente).
+- [ ] Verificar Pause/Stop (`!`, `~`, `Ctrl+X`) y el progreso del job en un xTool real;
+  hoy el firmware solo mueve al recibir `M2`.
+- [ ] Revisar que `openburn.device` antiguo sin `firmware` arranca en `auto` (el spread
+  de `loadDevice` lo cubre, pero falta un test explícito de migración).

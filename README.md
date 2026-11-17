@@ -145,8 +145,12 @@ Full details in [CHANGELOG.md](CHANGELOG.md).
 
 ### GRBL control
 - Connect over **Web Serial** or the **built-in simulator** (no hardware
-  needed).
+  needed). On the desktop app, Connect lists the real OS ports with their USB
+  chip and never preselects the motherboard UART (`/dev/ttyS0`).
 - Flow-controlled streaming, `Frame`, `Start`, `Pause/Resume` and `Stop`.
+- **xTool firmware** (D1 and similar) is detected on connect (`$I` → `[XTool …]`)
+  and can also be forced in **Settings → Machine**. On xTool the jog is sent as
+  `G91` / `G1 … S0` / `G90` / `M2`, because that firmware ignores `$J`.
 - Jog (`$J`), homing (`$H`), unlock (`$X`) and set origin (`G10 L20`).
 - Two-way console and persistent macros.
 - Live status: position, feed, spindle, progress and time remaining.

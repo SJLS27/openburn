@@ -6,6 +6,35 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 
 ## [Unreleased]
 
+### Añadido
+- **Firmware xTool (D1 y similares)**: al conectar se envía `$I` y, si el
+  controlador responde `[XTool …]`, la app usa su juego de comandos (sondeo
+  `?\n`, jog `G91`/`G1 … S0`/`G90`/`M2`, ruido `ok:` ignorado). Con 1,5 s sin
+  respuesta se mantiene GRBL. Nuevo ajuste *Device → Firmware* (Auto-detect /
+  GRBL / xTool) para forzarlo. Lógica en `src/serial/dialect.ts`.
+- **Selector de puerto serie real en escritorio**: *Connect* muestra los puertos
+  del sistema (`/dev/ttyUSB0`, `COM3`, `/dev/cu.usbserial-…`) con el chip USB
+  descrito, preselecciona el adaptador y oculta los UART de la placa base.
+
+### Arreglado
+- El proceso principal ya no elige el primer puerto `tty` (a menudo
+  `/dev/ttyS0`): antes decía "conectado" mientras el GCode no llegaba a ningún
+  sitio. El puerto elegido se muestra en el panel Laser.
+- **Disconnect** cancela la lectura pendiente, así que el puerto se libera de
+  verdad para otros programas.
+- Las escrituras serie se serializan: un sondeo de estado que coincidía con un
+  comando ya no falla por el writer bloqueado ni tumba la conexión.
+
+### Limitaciones conocidas
+- xTool solo se validó en conexión y jog (D1, fw 40.30.002.01); el progreso del
+  trabajo puede adelantarse al cabezal y Pause/Stop no está verificado.
+
+### Desarrollo
+- Tests nuevos: `electron/serialPort.test.ts` (catálogo USB, recomendación de
+  puerto y broker), `src/serial/transport.test.ts` (escrituras serializadas y
+  cierre), `src/ui/SerialPortDialog.test.tsx` y `src/serial/dialect.test.ts`.
+- Contribuciones de [@pkkid](https://github.com/pkkid) (PRs #3 y #4).
+
 ## [0.11.0] - 2026-11-13
 
 ### Añadido
