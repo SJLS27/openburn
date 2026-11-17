@@ -158,7 +158,10 @@ UI (Laser/Move/Console)
 - `machine` mantiene estado observable: conexión, `MPos`, feed, spindle, trabajo, progreso y logs.
 - Polling de estado cada 250 ms (`?`).
 - Pausa/resume con `!`/`~`; stop con feed hold + soft reset (`Ctrl+X`).
-- En Electron, el proceso principal concede permisos Web Serial y selecciona el puerto.
+- En Electron, el proceso principal concede permisos Web Serial y reenvía la lista de
+  puertos (`select-serial-port`) al renderer por IPC (`serial:choose-port`); el
+  diálogo `SerialPortDialog` responde con `serial:port-chosen`. La lógica de
+  recomendación (USB primero, nunca `ttyS*`) está en `electron/serialPort.ts`.
 
 ---
 

@@ -26,6 +26,12 @@ export interface UpdaterState {
   manual?: boolean;
 }
 
+export interface SerialPortRequest {
+  requestId: number;
+  ports: { portId: string; name: string; description: string; usb: boolean }[];
+  recommendedId: string | null;
+}
+
 export interface RecentFile {
   path: string;
   name: string;
@@ -100,6 +106,18 @@ const api = {
       ipcRenderer.on('updater:open-dialog', listener);
       return () => ipcRenderer.removeListener('updater:open-dialog', listener);
     },
+  },
+  serial: {
+    /** Fired when the renderer asks for a port (navigator.serial.requestPort). */
+    onChoosePort: (callback: (request: SerialPortRequest) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, request: SerialPortRequest) =>
+        callback(request);
+      ipcRenderer.on('serial:choose-port', listener);
+      return () => ipcRenderer.removeListener('serial:choose-port', listener);
+    },
+    /** Answer a request; null cancels it. */
+    choosePort: (requestId: number, portId: string | null): void =>
+      ipcRenderer.send('serial:port-chosen', requestId, portId),
   },
   platform: process.platform,
   isElectron: true,
