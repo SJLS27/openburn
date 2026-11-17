@@ -177,7 +177,7 @@ Formatos:
 - Los **grupos se aplanan** al exportar.
 - Los **overrides por objeto** se exportan como ajustes de capa (aviso en la barra de estado).
 - Las **imágenes rotadas** se exportan sin rotación (aviso).
-- El **texto importado** es un `Textbox` editable (`Str`, `H`, `Ah`, `Av`); las fuentes no instaladas se dibujan con Inter al previsualizar (aviso en la barra de estado). Los contornos de `BackupPath` se conservan en la propiedad `lightburnBackupPath` para no perder geometría al reimportar.
+- El **texto importado** es un `Textbox` editable (`Str`, `H`, `Ah`, `Av`). Si la familia no está instalada, el objeto se muestra con Inter y guarda el nombre original en `lightburnFontFamily` (reabre el archivo al instalar la fuente); la barra de estado avisa. Los contornos de `BackupPath` se conservan en la propiedad `lightburnBackupPath` para no perder geometría al reimportar.
 - Formas desconocidas se omiten con un aviso.
 - La compatibilidad se validó con ejemplos reales y round-trip; **no se probó abriendo un `.lbrn2` exportado en LightBurn 2.x** dentro de este entorno.
 

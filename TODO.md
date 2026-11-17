@@ -168,7 +168,7 @@ Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
 ### 🔐 Seguridad y hardening
 - [ ] Habilitar `sandbox: true` en `BrowserWindow` (hoy `false`)
 - [ ] Endurecer CSP: quitar `script-src 'unsafe-inline'`
-- [ ] 🟡 Restringir los handlers `fs:readFile`/`fs:writeFile`/`readBinary` a rutas elegidas por el usuario (hoy aceptan cualquier ruta)
+- [x] 🟡 Restringir los handlers `fs:readFile`/`fs:writeFile`/`readBinary` a rutas elegidas por el usuario (hoy aceptan cualquier ruta); los de fuentes ya usan allow-list (`fonts:read`)
 - [ ] `SECURITY.md` con política de reporte y respuesta
 - [ ] Auditoría de dependencias en CI
 
@@ -187,7 +187,8 @@ y solo falta completar la paridad.
 - [x] **Campos numéricos de forma**: posición, tamaño y ángulo del bounding box con candado de proporción (también en el arrastre de esquinas)
 - [x] **Alineación de texto** horizontal (izquierda / centro / derecha) en la barra de texto y en *Tools*, incluida la exportación a contornos
 - [x] **Alineación vertical de texto** (arriba / centro / abajo) al importar `.lbrn2` (`Av` → `originY`); falta exponerla en la barra de texto
-- [ ] **Selector de fuentes** del sistema + **texto sobre trazado** — hoy solo Inter (`src/text/outline.ts` mapea todo a Inter)
+- [x] **Selector de fuentes** del sistema (`fonts:list` + `fonts:read` con allow-list) y **texto con fuentes instaladas** en Preview/GCode/export; fallback a Inter con aviso — `electron/fonts.ts`, `src/text/outline.ts`
+- [ ] **Texto sobre trazado**
 - [ ] **Biblioteca de formas** (engranaje, espiral, caja, teselaciones, formas paramétricas)
 - [ ] Herramienta de **medida** ampliada: ángulo, radio, longitud de trazado
 - [ ] **Escalar a tamaño físico exacto** con un solo dato (p. ej. "make it 90 mm")
