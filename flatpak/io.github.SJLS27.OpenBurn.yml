@@ -32,6 +32,11 @@ finish-args:
   # Projects, artwork and exported GCode are opened and saved wherever the
   # user keeps them.
   - --filesystem=home
+  # `fc-list` must see the fonts installed on the host, not only the ones
+  # bundled in the runtime, so text cuts with the same typeface as the preview.
+  - --filesystem=/usr/share/fonts:ro
+  - --filesystem=/usr/local/share/fonts:ro
+  - --filesystem=/etc/fonts:ro
   - --env=ELECTRON_OZONE_PLATFORM_HINT=auto
 
 modules:

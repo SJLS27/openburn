@@ -18,6 +18,7 @@ import {
   scheduleUpdateCheck,
 } from './updater';
 import { readClipboardPayload } from './clipboard';
+import { registerFontHandlers } from './fonts';
 import { registerAutosaveHandlers } from './autosave';
 import { registerRecentHandlers } from './recentFiles';
 import {
@@ -202,6 +203,8 @@ ipcMain.handle('app:readAsset', async (_e, relativePath) => {
   const buf = await fs.promises.readFile(full);
   return buf.toString('base64');
 });
+
+registerFontHandlers(ipcMain);
 
 function installApplicationMenu(): void {
   const isMac = process.platform === 'darwin';

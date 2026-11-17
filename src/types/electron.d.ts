@@ -75,6 +75,19 @@ declare global {
     choosePort(requestId: number, portId: string | null): void;
   }
 
+  interface OpenBurnFontEntry {
+    family: string;
+    style: 'regular' | 'bold' | 'italic' | 'bold italic';
+    file: string;
+  }
+
+  interface OpenBurnFontsApi {
+    /** Every face the OS exposes; `error` explains an empty list. */
+    list(): Promise<{ fonts: OpenBurnFontEntry[]; error?: string }>;
+    /** Base64 of a font file, limited to paths returned by `list()`. */
+    read(file: string): Promise<string>;
+  }
+
   interface OpenBurnFileApi {
     openFile(filters?: { name: string; extensions: string[] }[]): Promise<string | null>;
     saveFile(options?: {
@@ -84,6 +97,7 @@ declare global {
     readFile(filePath: string, encoding?: string): Promise<string>;
     readBinary(filePath: string): Promise<{ data: string; mime?: string }>;
     readAppAsset(relativePath: string): Promise<string>;
+    fonts: OpenBurnFontsApi;
     readClipboard(): Promise<{
       text?: string;
       html?: string;
