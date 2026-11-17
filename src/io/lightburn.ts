@@ -11,7 +11,8 @@ import {
   type LayerDef,
 } from '@/types/document';
 import { objectContours } from '@/gcode/geometry';
-import { textToScenePath } from '@/text/outline';
+import { getPrimedFontLibrary, textToScenePath } from '@/text/outline';
+import { hasFamily } from '@/text/fontLibrary';
 
 export type LightBurnFormat = 'lbrn' | 'lbrn2';
 
@@ -505,6 +506,14 @@ async function parseShapeElement(el: Element, parentMatrix: Mat, ctx: ParseConte
   }
 
   if (type === 'Text') {
+    const box = createEditableText(el, matrix, layer.id, ctx);
+    if (box) {
+      ctx.objects.push(box);
+      return;
+    }
+
+    // No editable string (e.g. "convert to path" text left as outlines): keep
+    // the backup contours so the artwork is not lost.
     const backup = childElement(el, 'BackupPath');
     if (backup) {
       const backupMatrix = parseXForm(backup);
@@ -526,24 +535,6 @@ async function parseShapeElement(el: Element, parentMatrix: Mat, ctx: ParseConte
         return;
       }
     }
-
-    const text = attrStr(el, ['Str', 'Text']) ?? '';
-    if (!text.trim()) return;
-    const height = attrNum(el, 'H', 10);
-    const angle = (-Math.atan2(matrix[1], matrix[0]) * 180) / Math.PI;
-    const origin = applyMat(matrix, 0, 0);
-    const fontFamily = (attrStr(el, ['Font']) ?? 'Inter').split(',')[0] || 'Inter';
-    const box = new Textbox(text, {
-      left: origin.x,
-      top: -origin.y - height,
-      fontSize: height,
-      fontFamily,
-      angle,
-      fill: '#000000',
-      objectCaching: false,
-    });
-    box.set('layerId', layer.id);
-    ctx.objects.push(box);
     return;
   }
 
@@ -555,6 +546,128 @@ async function parseShapeElement(el: Element, parentMatrix: Mat, ctx: ParseConte
   }
 
   if (type) ctx.warnings.push(`Unsupported shape type: ${type}`);
+}
+
+/**
+ * LightBurn text alignment attributes (`Ah` / `Av`) are ordinal: 0 = start,
+ * 1 = centre, 2 = end. Newer files may also use the named values.
+ */
+function alignmentIndex(value: string | null | undefined): 0 | 1 | 2 {
+  if (value == null || value === '') return 0;
+  switch (value.trim().toLowerCase()) {
+    case 'center':
+    case 'centre':
+    case 'middle':
+      return 1;
+    case 'right':
+    case 'end':
+    case 'bottom':
+      return 2;
+    case 'left':
+    case 'start':
+    case 'top':
+      return 0;
+    default: {
+      const n = Number.parseInt(value, 10);
+      return n === 1 ? 1 : n === 2 ? 2 : 0;
+    }
+  }
+}
+
+/**
+ * Import a `<Shape Type="Text">` as an editable text object.
+ *
+ * LightBurn keeps a `<BackupPath>` with the text outlines, but the element also
+ * carries the string itself (`Str`), so importing the contours alone made the
+ * text uneditable (GitHub #1). The outlines are kept as a custom property so a
+ * future round-trip can still prefer them.
+ *
+ * Returns `null` when the element has no usable string, so the caller can fall
+ * back to importing the backup contours as plain paths.
+ */
+function createEditableText(
+  el: Element,
+  matrix: Mat,
+  layerId: string,
+  ctx: ParseContext,
+): Textbox | null {
+  const raw = attrStr(el, ['Str', 'Text']);
+  if (raw == null || raw.trim().length === 0) return null;
+
+  // LightBurn encodes line breaks as XML character references; DOMParser has
+  // already decoded them, but normalise CRLF just in case.
+  const text = raw.replace(/\r\n?/g, '\n');
+  const height = attrNum(el, 'H', 10);
+  const fontFamily = (attrStr(el, ['Font']) ?? 'Inter').split(',')[0]?.trim() || 'Inter';
+  const angle = (-Math.atan2(matrix[1], matrix[0]) * 180) / Math.PI;
+  const origin = applyMat(matrix, 0, 0);
+  const align = alignmentIndex(attrStr(el, ['Ah', 'HAlign']));
+  const valign = alignmentIndex(attrStr(el, ['Av', 'VAlign']));
+  const textAlign: 'left' | 'center' | 'right' = align === 2 ? 'right' : align === 1 ? 'center' : 'left';
+  const originY: 'top' | 'center' | 'bottom' =
+    valign === 2 ? 'bottom' : valign === 1 ? 'center' : 'top';
+
+  const box = new Textbox(text, {
+    left: origin.x,
+    top: -origin.y,
+    fontSize: height,
+    fontFamily,
+    angle,
+    textAlign,
+    originY,
+    // A very wide box first: `initDimensions` then splits only on the
+    // explicit newlines instead of wrapping at an arbitrary seed width.
+    width: Math.max(1, text.length * height * 2),
+    splitByGrapheme: false,
+    fill: '#000000',
+    stroke: null,
+    objectCaching: false,
+  });
+  box.initDimensions();
+
+  // Shrink the box to its widest line so LightBurn's line breaks are the only
+  // ones in play. An editable object can still be re-wrapped by the user.
+  const widths = box.textLines.map((_, i) => box.getLineWidth(i));
+  const natural = widths.length ? Math.max(...widths) : box.width;
+  if (natural > 0) {
+    box.set({ width: natural });
+    box.initDimensions();
+  }
+
+  const backup = childElement(el, 'BackupPath');
+  if (backup && boolAttr(el, 'HasBackupPath', true)) {
+    box.set(BACKUP_PATH_PROP, backup.outerHTML);
+  }
+  box.set('layerId', layerId);
+
+  // Keep the original family for reinstalls/round-trips, but render with the
+  // bundled font when the system cannot draw it.
+  box.set(REQUESTED_FAMILY_PROP, fontFamily);
+  if (!isFontInstalled(fontFamily)) {
+    box.set({ fontFamily: 'Inter' });
+    box.initDimensions();
+    ctx.warnings.push(
+      `Text "${text.split('\n')[0]}": "${fontFamily}" is not installed — showing Inter. Install the font and reopen to get the original.`,
+    );
+  }
+  return box;
+}
+
+/** Custom Fabric property holding the original LightBurn `<BackupPath>`. */
+export const BACKUP_PATH_PROP = 'lightburnBackupPath';
+
+/** Original family name, even when the object was switched to Inter. */
+export const REQUESTED_FAMILY_PROP = 'lightburnFontFamily';
+
+/**
+ * Import is synchronous parsing over a cached font index. The renderer primes
+ * it at startup (`primeFontLibrary`), so this is a plain lookup by the time a
+ * file is opened; until then we assume "installed" and let the preview report
+ * the substitution instead.
+ */
+function isFontInstalled(family: string): boolean {
+  const library = getPrimedFontLibrary();
+  return library ? hasFamily(library, family) : true;
 }
 
 function addPath(
@@ -838,6 +951,10 @@ export async function serializeLightBurn(
       if (!outlined) {
         warnings.push('A text object without outline data was skipped');
         continue;
+      }
+      if (outlined.font.substituted) {
+        const message = `"${outlined.font.requested}" is not installed — exported with Inter outlines`;
+        if (!warnings.includes(message)) warnings.push(message);
       }
       const temp = new FabricPath(outlined.pathData, { objectCaching: false });
       const contours = objectContours(temp);

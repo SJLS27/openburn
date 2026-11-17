@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FabricImage } from 'fabric';
+import { FabricImage, Rect } from 'fabric';
 import { DEFAULT_DEVICE, DEFAULT_OPTIMIZATION } from './types';
 import { DEFAULT_CUT_SETTINGS, createLayer, type LayerDef } from '@/types/document';
 import { buildJob } from './job';
@@ -174,5 +174,62 @@ describe('buildJob images', () => {
     });
 
     expect(plan.warnings).toHaveLength(0);
+  });
+});
+
+describe('buildJob device origin', () => {
+  // A 10x10 square on a 100x80 bed: its top-left corner is (20, 10) and the
+  // bottom-right corner is (30, 20) in document coordinates.
+  async function planFor(origin: (typeof DEFAULT_DEVICE)['origin']) {
+    const layer = layerWithMode('line');
+    const rect = new Rect({ left: 20, top: 10, width: 10, height: 10 });
+    rect.set('layerId', layer.id);
+    return buildJob({
+      objects: [rect],
+      layers: [layer],
+      bed: { width: 100, height: 80 },
+      device: { ...DEFAULT_DEVICE, origin },
+      optimization: { ...DEFAULT_OPTIMIZATION, enabled: false },
+    });
+  }
+
+  /** First G1 move of the job as [x, y]. */
+  function firstMove(plan: { gcode: string[] }): [number, number] {
+    const line = plan.gcode.find((l) => l.startsWith('G1 ') && l.includes('X'));
+    if (!line) throw new Error('job has no G1 move');
+    const x = Number(/X(-?[\d.]+)/.exec(line)?.[1]);
+    const y = Number(/Y(-?[\d.]+)/.exec(line)?.[1]);
+    return [x, y];
+  }
+
+  it('maps the design for a bottom-left machine zero', async () => {
+    const [x, y] = firstMove(await planFor('bottom-left'));
+    expect(x).toBeCloseTo(20, 3);
+    expect(y).toBeCloseTo(80 - 10, 3);
+  });
+
+  it('does not mirror for a top-left machine zero', async () => {
+    const [x, y] = firstMove(await planFor('top-left'));
+    expect(x).toBeCloseTo(20, 3);
+    expect(y).toBeCloseTo(10, 3);
+  });
+
+  it('mirrors both axes for a bottom-right machine zero', async () => {
+    const [x, y] = firstMove(await planFor('bottom-right'));
+    expect(x).toBeCloseTo(100 - 20, 3);
+    expect(y).toBeCloseTo(80 - 10, 3);
+  });
+
+  it('mirrors only X for a top-right machine zero', async () => {
+    const [x, y] = firstMove(await planFor('top-right'));
+    expect(x).toBeCloseTo(100 - 20, 3);
+    expect(y).toBeCloseTo(10, 3);
+  });
+
+  it('keeps absolute positioning for every corner', async () => {
+    for (const origin of ['bottom-left', 'top-left', 'bottom-right', 'top-right'] as const) {
+      const plan = await planFor(origin);
+      expect(plan.gcode.some((l) => l.startsWith('G90 '))).toBe(true);
+    }
   });
 });

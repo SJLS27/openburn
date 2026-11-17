@@ -111,8 +111,10 @@ Detalle completo en [CHANGELOG.md](CHANGELOG.md).
   simétrico).
 - **Snapping** a rejilla, vértices, centros, puntos medios e intersecciones, con
   guías de alineación.
-- **Texto a contornos** con opentype.js (Inter incluida) para cortar o grabar
-  sin depender de fuentes instaladas.
+- **Texto con fuentes instaladas**: el selector lista las familias de tu
+  sistema y la previsualización, el GCode y la exportación trazan con la
+  tipografía real. Si falta una fuente, se usa la Inter incluida, aparece un
+  aviso y se recuerda la familia original para cuando la instales.
 - **Add Tabs**: puentes para que las piezas no se suelten, y **pegado desde el
   portapapeles del sistema** (texto, SVG —incluido el comprimido de Inkscape— e
   imágenes).
@@ -274,7 +276,8 @@ respaldo del texto, imágenes y ajustes de corte.
 - Los grupos se aplanan al exportar.
 - Los overrides por objeto (material tests) se exportan como ajustes de capa.
 - Las imágenes rotadas se exportan sin rotación (con aviso).
-- El texto se exporta en contornos y el importado usa sus contornos de respaldo.
+- El texto se exporta en contornos con tu fuente instalada; el importado es
+  editable y conserva el nombre de su familia original.
 
 Más detalles en [docs/FILE-FORMATS.md](docs/FILE-FORMATS.md). Si un proyecto no
 abre, [abre un issue](https://github.com/SJLS27/openburn/issues) con el archivo

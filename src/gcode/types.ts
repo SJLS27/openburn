@@ -3,6 +3,9 @@ export interface Pt {
   y: number;
 }
 
+/** Corner of the bed that holds machine zero (0,0). */
+export type BedOrigin = 'bottom-left' | 'top-left' | 'bottom-right' | 'top-right';
+
 export type SegmentKind = 'rapid' | 'cut';
 
 export interface PlanSegment {
@@ -111,7 +114,7 @@ export interface DeviceConfig {
   rapidRate: number;
   laserMode: 'M3' | 'M4';
   /** Bed origin corner used by the controller */
-  origin: 'bottom-left' | 'top-left';
+  origin: BedOrigin;
   /** Home the machine before each job */
   homeBeforeJob: boolean;
   /** Reorder cut segments to minimise travel */

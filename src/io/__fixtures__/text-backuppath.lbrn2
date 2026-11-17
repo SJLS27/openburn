@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightBurnProject AppVersion="2.1.04" DeviceName="No Machine" FormatVersion="1" MaterialHeight="0" MirrorX="False" MirrorY="False" AskForSendName="True">
+<CutSetting type="Cut"><index Value="0"/><name Value="C00"/><speed Value="100"/><maxPower Value="50"/></CutSetting>
+    <Shape Type="Text" CutIndex="0" Font="Arial Black,-1,4096,5,400,0,0,0,0,0" Str="ZA VEDNO V&#10;NAŠIH SRCIH" H="25" LS="0" LnS="0" Ah="1" Av="1" Weld="1" HasBackupPath="1">
+        <BackupPath Type="Path" CutIndex="0">
+            <XForm>0.16207342 0 0 0.16207342 39.053772 89.085243</XForm>
+            <VertList>V0 0c0x10c0y0c1x1V10 0c0x1c1x1V10 10c0x1c1x1V0 10c0x1c1x1</VertList>
+            <PrimList>L0 1L1 2L2 3L3 0</PrimList>
+        </BackupPath>
+        <XForm>1 0 0 1 -1407 564.67932</XForm>
+    </Shape>
+</LightBurnProject>

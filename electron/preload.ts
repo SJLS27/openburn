@@ -44,6 +44,13 @@ export interface AutosaveRecord {
   savedAt: string;
 }
 
+/** A font face installed on the system, as returned by `fonts:list`. */
+export interface SystemFontEntry {
+  family: string;
+  style: 'regular' | 'bold' | 'italic' | 'bold italic';
+  file: string;
+}
+
 const api = {
   openFile: (filters?: OpenDialogFilters[]): Promise<string | null> =>
     ipcRenderer.invoke('dialog:openFile', filters),
@@ -59,6 +66,11 @@ const api = {
     ipcRenderer.invoke('fs:writeFile', filePath, content, encoding),
   readAppAsset: (relativePath: string): Promise<string> =>
     ipcRenderer.invoke('app:readAsset', relativePath),
+  fonts: {
+    list: (): Promise<{ fonts: SystemFontEntry[]; error?: string }> =>
+      ipcRenderer.invoke('fonts:list'),
+    read: (file: string): Promise<string> => ipcRenderer.invoke('fonts:read', file),
+  },
   /** Absolute path of a dropped `File` (Electron 32+ removed `File.path`). */
   getFilePath: (file: File): string => {
     try {

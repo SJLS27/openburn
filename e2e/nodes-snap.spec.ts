@@ -74,17 +74,36 @@ async function drawRectanglePath(): Promise<void> {
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   await page.keyboard.press('r');
+  // The shortcut is ignored while a dialog owns the keyboard, so wait for the
+  // tool button to become active before drawing instead of trusting the press.
+  await expect(page.locator('button[title="Rectangle (R)"]')).toHaveClass(/active/);
   await page.mouse.move(cx - 90, cy - 70);
   await page.mouse.down();
   await page.mouse.move(cx + 90, cy + 70, { steps: 8 });
   await page.mouse.up();
-  await expect.poll(() => page.evaluate(() => {
+  const rects = () => page.evaluate(() => {
     const c = (window as unknown as { __openburn: Controller }).__openburn;
     return c.canvas.getObjects().filter((o) => o.type === 'rect').length;
-  })).toBe(1);
+  });
+  try {
+    await expect.poll(rects).toBe(1);
+  } catch (error) {
+    // Report why the drag produced nothing instead of a bare count mismatch.
+    const state = await page.evaluate(() => ({
+      dialogs: document.querySelectorAll('.dialog-backdrop').length,
+      focused: document.activeElement?.tagName ?? null,
+      objects: (window as unknown as { __openburn: Controller }).__openburn.canvas
+        .getObjects()
+        .map((o) => o.type),
+    }));
+    throw new Error(`rectangle not created: ${JSON.stringify(state)}`);
+  }
   await page.keyboard.press('Escape');
   // Select the rectangle and turn it into an editable path.
   await page.mouse.click(cx, cy);
+  await expect.poll(() => page.evaluate(
+    () => (window as unknown as { __openburn: Controller }).__openburn.canvas.getActiveObjects().length,
+  )).toBe(1);
   await page.evaluate(() => {
     const c = (window as unknown as { __openburn: { convertToPath: () => Promise<void> } }).__openburn;
     return c.convertToPath();

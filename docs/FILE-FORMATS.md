@@ -97,7 +97,7 @@ Los proyectos de LightBurn son **XML plano** (no ZIP). `.lbrn` es la variante le
 | `Polygon` | `Rx`, `Ry`, `N`; centrado |
 | `Path` | `VertList` + `PrimList` (o `<V>`/`<P>` en `.lbrn`) |
 | `Group` | `<Children>` con más `Shape`; el `XForm` se compone |
-| `Text` | `Str`/`Text`, `Font`, `H`, `HasBackupPath`; `<BackupPath>` contiene los contornos |
+| `Text` | `Str`/`Text`, `Font`, `H`, `Ah`/`Av`, `HasBackupPath`; `<BackupPath>` contiene los contornos |
 | `Bitmap` | `W`, `H`, `Data` (PNG en base64), ajustes de imagen |
 | `Notes` | Texto informativo (se ignora al importar) |
 
@@ -145,7 +145,7 @@ Los proyectos de LightBurn son **XML plano** (no ZIP). `.lbrn` es la variante le
 | `Shape Rect/Ellipse/Polygon` | `Fabric.Path` (geometría transformada) |
 | `Shape Path` + `VertList` | `Fabric.Path` (líneas y Bézier) |
 | `Shape Group` | hijos aplanados con transformación compuesta |
-| `Shape Text` | `BackupPath` como trazado; si no existe, `Textbox` aproximado |
+| `Shape Text` | `Textbox` editable (`Str`, `H`, `Font`, `Ah`/`Av`); sin `Str`, los contornos de `BackupPath` como trazado |
 | `Shape Bitmap` | `FabricImage` con el PNG embebido |
 
 Al importar:
@@ -177,7 +177,7 @@ Formatos:
 - Los **grupos se aplanan** al exportar.
 - Los **overrides por objeto** se exportan como ajustes de capa (aviso en la barra de estado).
 - Las **imágenes rotadas** se exportan sin rotación (aviso).
-- El **texto sin `BackupPath`** al importar se aproxima con un `Textbox` (tamaño/fuente pueden variar).
+- El **texto importado** es un `Textbox` editable (`Str`, `H`, `Ah`, `Av`). Si la familia no está instalada, el objeto se muestra con Inter y guarda el nombre original en `lightburnFontFamily` (reabre el archivo al instalar la fuente); la barra de estado avisa. Los contornos de `BackupPath` se conservan en la propiedad `lightburnBackupPath` para no perder geometría al reimportar.
 - Formas desconocidas se omiten con un aviso.
 - La compatibilidad se validó con ejemplos reales y round-trip; **no se probó abriendo un `.lbrn2` exportado en LightBurn 2.x** dentro de este entorno.
 

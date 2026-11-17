@@ -13,7 +13,7 @@ import {
 import { Workspace } from '@/ui/Workspace';
 import { RightDock } from '@/ui/panels/RightDock';
 import { StatusBar } from '@/ui/StatusBar';
-import { Modal, NumberField, UnitsContext, WorkspaceContext } from '@/ui/common';
+import { Modal, NumberField, OriginSelect, UnitsContext, WorkspaceContext } from '@/ui/common';
 import { PreviewDialog } from '@/ui/PreviewDialog';
 import { UpdateBanner, UpdateDialog } from '@/ui/UpdateDialog';
 import { SerialPortDialog } from '@/ui/SerialPortDialog';
@@ -390,16 +390,10 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
       </div>
       <div className="field-row">
         <span className="field-label">Origin</span>
-        <select
-          className="input"
+        <OriginSelect
           value={state.device.origin}
-          onChange={(e) =>
-            store.updateDevice({ origin: e.target.value as 'bottom-left' | 'top-left' })
-          }
-        >
-          <option value="bottom-left">Bottom-left (typical GRBL)</option>
-          <option value="top-left">Top-left</option>
-        </select>
+          onChange={(origin) => store.updateDevice({ origin })}
+        />
       </div>
       <label className="checkbox" style={{ marginTop: 6 }}>
         <input

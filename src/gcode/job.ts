@@ -4,6 +4,7 @@ import { optimizePlan, refreshItem, type PlanItem } from './optimize';
 import { powerForMove } from './rasterPreview';
 import { offsetPolygonPoints, polygonArea } from '@/geometry/offset';
 import { textToScenePath } from '@/text/outline';
+import { mapBedPoint } from './origin';
 import {
   applyPowerRamp,
   contoursFromPathData,
@@ -388,6 +389,10 @@ export async function buildJob(input: BuildJobInput): Promise<JobPlan> {
       if (isTextObject(obj)) {
         const traced = await textToScenePath(obj as Textbox);
         textPathData = traced?.pathData ?? null;
+        if (traced?.font.substituted) {
+          const warning = `${layer.name}: "${traced.font.requested}" is not installed — cut with Inter. Install the font and regenerate for exact outlines.`;
+          if (!warnings.includes(warning)) warnings.push(warning);
+        }
       }
 
       const isFill = s.mode === 'fill';
@@ -638,10 +643,7 @@ function emitGcode(
     lines.splice(1, 0, '$H ; home');
   }
 
-  const mapPoint = (p: Pt): Pt => ({
-    x: p.x,
-    y: device.origin === 'bottom-left' ? bed.height - p.y : p.y,
-  });
+  const mapPoint = (p: Pt): Pt => mapBedPoint(p, bed, device.origin);
 
   let laserOn = false;
   let airOn = false;

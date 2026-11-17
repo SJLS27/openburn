@@ -103,7 +103,7 @@ src/
   workspace/     # controller y fondo
 e2e/             # specs de Playwright (Electron)
 docs/            # documentación
-public/fonts/    # Inter (OFL)
+public/fonts/    # Inter (OFL) — fallback cuando la fuente elegida no está instalada
 ```
 
 ## Convenciones

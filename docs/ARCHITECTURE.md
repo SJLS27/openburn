@@ -194,7 +194,7 @@ src/ui/UpdateDialog.tsx      banner de progreso + diálogo "Restart & install"
 
 ## 7. Texto e imágenes
 
-- **Texto a contornos**: opentype.js carga Inter (fetch en dev, IPC en producción), reconstruye líneas/alineación/rotación con la matriz de Fabric y devuelve un `pathData` en escena.
+- **Texto a contornos**: opentype.js resuelve la familia del objeto contra el índice de fuentes del sistema (`electron/fonts.ts` → `fonts:list`, `fs`/`fc-list`), la carga por IPC con allow-list (`fonts:read`) y reconstruye líneas/alineación/rotación con la matriz de Fabric. Si la familia no está instalada, usa la Inter incluida (`public/fonts/`) y marca `font.substituted` para que el llamador avise.
 - **Adjust Image**: `applyImageAdjust` se comparte entre el rasterizador y la previsualización para que el resultado sea idéntico.
 - **Trace Image**: se dibuja la imagen a ≤700 px, se cuantiza (mono/color) y se pasa a ImageTracer; el SVG resultante se importa con Fabric y se ajusta al rectángulo original.
 

@@ -118,7 +118,7 @@ Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
 - [x] Tests de P6: `windowState`, `storage`, `autosave`, `recentFiles`, `HistoryBuffer`, `dropRouting`, diálogos de bienvenida/recuperación/descarte y e2e de recuperación tras crash, drag & drop, recientes y tamaño de ventana
 - [x] Procedimiento estándar documentado en `AGENTS.md`
 - [x] `workspace/nodes`, `workspace/snap`, `state/snapSettings` y `ui/StatusBar` (snap)
-- [ ] Ampliar cobertura: round-trip `io/lightburn`, `core/serialize`, `geometry/offset`, `serial/grbl` y simulador
+- [x] Ampliar cobertura: round-trip `io/lightburn`, `core/serialize`, `geometry/offset`, `serial/grbl` y simulador (`src/io/lightburn.test.ts` con fixtures de texto; resto pendiente)
 - [x] E2E de edición de nodos y snapping (`e2e/nodes-snap.spec.ts`)
 - [x] Ciclo de desarrollo headless (`dev:build`, `test:e2e:fast`, `test:e2e:watch`); el Flatpak se verifica con `flatpak info` sin abrir la app
 - [ ] `WorkspaceController.test.ts` con un `Canvas` falso para cubrir nodos/snapping sin Electron
@@ -168,7 +168,7 @@ Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
 ### 🔐 Seguridad y hardening
 - [ ] Habilitar `sandbox: true` en `BrowserWindow` (hoy `false`)
 - [ ] Endurecer CSP: quitar `script-src 'unsafe-inline'`
-- [ ] 🟡 Restringir los handlers `fs:readFile`/`fs:writeFile`/`readBinary` a rutas elegidas por el usuario (hoy aceptan cualquier ruta)
+- [x] 🟡 Restringir los handlers `fs:readFile`/`fs:writeFile`/`readBinary` a rutas elegidas por el usuario (hoy aceptan cualquier ruta); los de fuentes ya usan allow-list (`fonts:read`)
 - [ ] `SECURITY.md` con política de reporte y respuesta
 - [ ] Auditoría de dependencias en CI
 
@@ -180,13 +180,15 @@ y solo falta completar la paridad.
 
 #### P1 — Editor (lo que se nota en los primeros 5 minutos)
 - [x] **Edición de nodos completa**: añadir (doble clic en el segmento) y eliminar nodos, convertir recta ↔ curva, asas de Bézier con nodos *corner / smooth / symmetric* y `Shift+Alt` para independizarlas — `src/workspace/nodes.ts`
+- [x] **Importar el texto de LightBurn como texto editable** (`Str`/`H`/`Font`/`Ah`/`Av` → `Textbox`; los contornos de `BackupPath` quedan como respaldo) — GitHub #1, fixture `sveca2-slovenski.lbrn2`
 - [x] **Snapping**: rejilla, vértices, centros, puntos medios e intersecciones, con radio en píxeles, guías al mover y opciones en la barra de estado — `src/workspace/snap.ts`
 - [ ] **Guías inteligentes** (líneas de alineación al mover) y **guías arrastrables** desde las reglas — ver bloque *Siguiente update*
 - [x] **Reglas reales** en los bordes del viewport, con marcador del puntero y medida de distancias durante el movimiento (`src/workspace/ruler.ts`, `src/workspace/measure.ts`)
 - [x] **Campos numéricos de forma**: posición, tamaño y ángulo del bounding box con candado de proporción (también en el arrastre de esquinas)
 - [x] **Alineación de texto** horizontal (izquierda / centro / derecha) en la barra de texto y en *Tools*, incluida la exportación a contornos
-- [ ] **Alineación vertical de texto** (arriba / centro / abajo) y conservarla al importar/exportar `.lbrn2`
-- [ ] **Selector de fuentes** del sistema + **texto sobre trazado** — hoy solo Inter (`src/text/outline.ts` mapea todo a Inter)
+- [x] **Alineación vertical de texto** (arriba / centro / abajo) al importar `.lbrn2` (`Av` → `originY`); falta exponerla en la barra de texto
+- [x] **Selector de fuentes** del sistema (`fonts:list` + `fonts:read` con allow-list) y **texto con fuentes instaladas** en Preview/GCode/export; fallback a Inter con aviso — `electron/fonts.ts`, `src/text/outline.ts`
+- [ ] **Texto sobre trazado**
 - [ ] **Biblioteca de formas** (engranaje, espiral, caja, teselaciones, formas paramétricas)
 - [ ] Herramienta de **medida** ampliada: ángulo, radio, longitud de trazado
 - [ ] **Escalar a tamaño físico exacto** con un solo dato (p. ej. "make it 90 mm")
@@ -211,7 +213,7 @@ falta migrar documentos ni preferencias guardadas.
 | **Previsualización del tipo de nodo** | `NodeType` cerrado a 3 valores | Si se necesita un cuarto tipo (p. ej. `cusp`) se añade a la unión, no a la estructura del nodo. |
 
 #### P2 — Cortes y capas (lo que convierte migrar desde LightBurn)
-- [ ] **Start From** (Absolute / Current Position / User Origin) — hoy solo hay `origin` de cama (bottom-left/top-left)
+- [x] **Start From** parcial: origen de cama en cualquiera de las cuatro esquinas (bottom-left / top-left / bottom-right / top-right) con espejo de X/Y en el GCode — GitHub #5. Falta *Current Position* y *User Origin*.
 - [ ] **Job origin** con anillo visual de origen de usuario en el lienzo
 - [ ] **Fire immediately** y velocidad de disparo por capa
 - [ ] **Velocidad/potencia por objeto** visible y editable en la tabla Cuts/Layers
@@ -281,7 +283,7 @@ consumo de memoria.
 - La compatibilidad LightBurn está validada por round-trip contra archivos reales; **aún no se probó abriendo un `.lbrn2` exportado en LightBurn 2.x** en una máquina con LightBurn instalado.
 - Los colores de capa exportados dependen del índice de paleta de LightBurn.
 - Los grupos se aplanan y los overrides por objeto se convierten en ajustes de capa.
-- Texto sin `BackupPath` al importar se aproxima con un `Textbox` (tamaño/fuente pueden diferir).
+- Texto importado de LightBurn ya es editable (GitHub #1); las fuentes no instaladas se dibujan con Inter al previsualizar.
 - Imágenes rotadas se exportan sin rotación.
 - Trace limitado a 700 px de lado mayor.
 - El raster de GCode se limita a 360 muestras por eje y muestrea la imagen por tiles (máx. 1600 px de lado).
@@ -308,5 +310,5 @@ consumo de memoria.
   componente).
 - [ ] Verificar Pause/Stop (`!`, `~`, `Ctrl+X`) y el progreso del job en un xTool real;
   hoy el firmware solo mueve al recibir `M2`.
-- [ ] Revisar que `openburn.device` antiguo sin `firmware` arranca en `auto` (el spread
-  de `loadDevice` lo cubre, pero falta un test explícito de migración).
+- [x] Revisar que `openburn.device` antiguo sin `firmware` arranca en `auto` (el spread
+  de `loadDevice` lo cubre, y `src/state/store.test.ts` tiene un test explícito de migración).

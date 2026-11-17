@@ -139,7 +139,7 @@ export const es: SiteContent = {
           icon: 'vector',
           title: 'Diseño vectorial a la altura',
           body:
-            'Líneas, figuras, texto, booleanos, offset, edición de nodos y agrupación, con snapping, guías y entrada numérica precisa.',
+            'Líneas, figuras, texto, booleanos, offset, edición de nodos y agrupación, con snapping, guías, entrada numérica precisa y un selector que lista las fuentes realmente instaladas.',
         },
         {
           icon: 'layers',
@@ -283,6 +283,11 @@ export const es: SiteContent = {
           lightburn: { text: 'Sí', state: 'yes' },
         },
         {
+          label: 'Texto cortado con tus fuentes instaladas',
+          openburn: { text: 'Sí', state: 'yes' },
+          lightburn: { text: 'Sí', state: 'yes' },
+        },
+        {
           label: 'Controladoras Ruida / DSP',
           openburn: { text: 'En el roadmap', state: 'partial' },
           lightburn: { text: 'Sí', state: 'yes' },
@@ -398,6 +403,11 @@ export const es: SiteContent = {
             'Los builds aún no están firmados. En Windows elige Más información → Ejecutar de todas formas. En macOS haz clic derecho sobre la app y elige Abrir. Los instaladores firmados están previstos.',
         },
         {
+          q: '¿Mi texto se corta con la fuente que veo en pantalla?',
+          a:
+            'Sí, siempre que la fuente esté instalada en tu equipo. OpenBurn traza el texto con la fuente del sistema para la previsualización, el GCode y la exportación. Si un proyecto usa una fuente que no tienes, se muestra con Inter, avisa y conserva el nombre original: al instalar la fuente y volver a abrir, se recupera.',
+        },
+        {
           q: '¿Puedo usarlo comercialmente?',
           a:
             'Sí. La licencia MIT permite usar OpenBurn para cualquier fin, incluido trabajo remunerado. Se agradece la atribución, pero no es obligatoria.',
@@ -467,9 +477,9 @@ export const es: SiteContent = {
         },
         {
           icon: 'text',
-          title: 'Texto a contornos',
+          title: 'Texto con tus propias fuentes',
           body:
-            'Convierte texto en contornos con opentype.js y la fuente Inter incluida, para que los archivos se corten igual en cualquier máquina sin depender de fuentes instaladas.',
+            'Elige entre las fuentes instaladas en tu equipo y el texto se traza con la tipografía real en la previsualización, el GCode y la exportación. Si un proyecto pide una fuente que no tienes, OpenBurn lo muestra con Inter, te avisa y recuerda el nombre original: instálala y vuelve a abrir para recuperarla.',
         },
         {
           icon: 'route',

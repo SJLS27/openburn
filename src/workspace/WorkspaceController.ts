@@ -3055,13 +3055,12 @@ export class WorkspaceController implements WorkspaceApi {
       const zoom = this.canvas.getZoom();
 
       if (this.isText(o)) {
-        const family = String((o as Textbox).fontFamily ?? 'Inter');
-        if (!/inter/i.test(family)) substitutedFrom = family;
         const result = await textToScenePath(o as Textbox);
         if (!result) {
           failures += 1;
           continue;
         }
+        if (result.font.substituted) substitutedFrom = result.font.requested;
         const path = new FabricPath(result.pathData, {
           fill: 'transparent',
           stroke: layer.color,
