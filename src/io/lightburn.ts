@@ -11,7 +11,8 @@ import {
   type LayerDef,
 } from '@/types/document';
 import { objectContours } from '@/gcode/geometry';
-import { textToScenePath } from '@/text/outline';
+import { getPrimedFontLibrary, textToScenePath } from '@/text/outline';
+import { hasFamily } from '@/text/fontLibrary';
 
 export type LightBurnFormat = 'lbrn' | 'lbrn2';
 
@@ -639,9 +640,14 @@ function createEditableText(
   }
   box.set('layerId', layerId);
 
-  if (fontFamily !== 'Inter') {
+  // Keep the original family for reinstalls/round-trips, but render with the
+  // bundled font when the system cannot draw it.
+  box.set(REQUESTED_FAMILY_PROP, fontFamily);
+  if (!isFontInstalled(fontFamily)) {
+    box.set({ fontFamily: 'Inter' });
+    box.initDimensions();
     ctx.warnings.push(
-      `Text "${text.split('\n')[0]}" uses "${fontFamily}", which is drawn with Inter when previewing`,
+      `Text "${text.split('\n')[0]}": "${fontFamily}" is not installed — showing Inter. Install the font and reopen to get the original.`,
     );
   }
   return box;
@@ -649,6 +655,20 @@ function createEditableText(
 
 /** Custom Fabric property holding the original LightBurn `<BackupPath>`. */
 export const BACKUP_PATH_PROP = 'lightburnBackupPath';
+
+/** Original family name, even when the object was switched to Inter. */
+export const REQUESTED_FAMILY_PROP = 'lightburnFontFamily';
+
+/**
+ * Import is synchronous parsing over a cached font index. The renderer primes
+ * it at startup (`primeFontLibrary`), so this is a plain lookup by the time a
+ * file is opened; until then we assume "installed" and let the preview report
+ * the substitution instead.
+ */
+function isFontInstalled(family: string): boolean {
+  const library = getPrimedFontLibrary();
+  return library ? hasFamily(library, family) : true;
+}
 
 function addPath(
   cmds: Cmd[],
@@ -931,6 +951,10 @@ export async function serializeLightBurn(
       if (!outlined) {
         warnings.push('A text object without outline data was skipped');
         continue;
+      }
+      if (outlined.font.substituted) {
+        const message = `"${outlined.font.requested}" is not installed — exported with Inter outlines`;
+        if (!warnings.includes(message)) warnings.push(message);
       }
       const temp = new FabricPath(outlined.pathData, { objectCaching: false });
       const contours = objectContours(temp);

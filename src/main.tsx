@@ -7,6 +7,12 @@ if (!container) throw new Error('Root element not found');
 
 createRoot(container).render(<App />);
 
+// Index the system fonts once at startup so the LightBurn importer can decide
+// synchronously whether a family is available.
+void import('./text/outline').then((m) => {
+  void m.primeFontLibrary();
+});
+
 // Development-only helpers for debugging document import/export.
 if (import.meta.env.DEV) {
   void import('./core/serialize').then((m) => {

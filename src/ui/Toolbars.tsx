@@ -3,6 +3,7 @@ import { store, useAppState, type TextAlign, type ToolId } from '@/state/store';
 import { requestDiscardConfirmation } from '@/state/discardGuard';
 import { Icon, type IconName } from './icons';
 import { NumberField, ToolButton, useUnits, useWorkspace } from './common';
+import { useSystemFonts } from './fontFamilies';
 
 export function MainToolbar() {
   const ws = useWorkspace();
@@ -157,17 +158,6 @@ export function NumericToolbar() {
   );
 }
 
-const FONTS = [
-  'Inter',
-  'Arial',
-  'Helvetica',
-  'Georgia',
-  'Times New Roman',
-  'Courier New',
-  'Verdana',
-  'Trebuchet MS',
-];
-
 const TEXT_ALIGNS: { mode: TextAlign; icon: IconName; title: string }[] = [
   { mode: 'left', icon: 'text-align-left', title: 'Align text left' },
   { mode: 'center', icon: 'text-align-center', title: 'Align text center' },
@@ -177,6 +167,7 @@ const TEXT_ALIGNS: { mode: TextAlign; icon: IconName; title: string }[] = [
 export function TextToolbar() {
   const ws = useWorkspace();
   const state = useAppState();
+  const { families } = useSystemFonts();
   const [family, setFamily] = useState('Inter');
   const [size, setSize] = useState(10);
   const [spacing, setSpacing] = useState(0);
@@ -193,14 +184,16 @@ export function TextToolbar() {
       <select
         className="input"
         style={{ width: 88, height: 22 }}
-        title="Outline conversion (Convert to Path) currently uses Inter"
+        title="Font family — outlines use the installed font, or Inter if it is missing"
         value={family}
         onChange={(e) => {
           setFamily(e.target.value);
           ws?.applyTextStyle({ fontFamily: e.target.value });
         }}
       >
-        {FONTS.map((f) => (
+        {/* Keep the current family selectable even when it is not installed. */}
+        {!families.includes(family) && <option value={family}>{family}</option>}
+        {families.map((f) => (
           <option key={f} value={f}>
             {f}
           </option>

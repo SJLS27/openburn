@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { primeFontLibrary, resetFontLibrary } from '@/text/outline';
 import { parseLightBurn, type LightBurnImportResult } from './lightburn';
 
 function fixture(name: string): string {
@@ -14,6 +15,11 @@ function onlyText(result: LightBurnImportResult): import('fabric').Textbox {
 }
 
 describe('parseLightBurn text import', () => {
+  afterEach(() => {
+    delete (window as unknown as { openburn?: unknown }).openburn;
+    resetFontLibrary();
+  });
+
   it('imports a text with BackupPath as an editable textbox (GitHub #1)', async () => {
     const result = await parseLightBurn(fixture('text-backuppath.lbrn2'));
 
@@ -65,11 +71,55 @@ describe('parseLightBurn text import', () => {
     expect(paths).toHaveLength(1);
   });
 
-  it('warns when the imported font is approximated with Inter', async () => {
-    const result = await parseLightBurn(fixture('text-backuppath.lbrn2'));
-    expect(result.warnings.join(' ')).toMatch(/Arial Black/);
+  it('falls back to Inter and keeps the original family when it is not installed', async () => {
+    const box = onlyText(await parseLightBurn(fixture('text-backuppath.lbrn2')));
+    // No Electron bridge in this environment → no font index → no swap.
+    expect(box.fontFamily).toBe('Arial Black');
+    expect(box.get('lightburnFontFamily')).toBe('Arial Black');
+  });
 
+  it('does not warn for text that already uses Inter', async () => {
     const inter = await parseLightBurn(fixture('text-plain.lbrn2'));
     expect(inter.warnings).toHaveLength(0);
+  });
+
+  it('swaps to Inter with a warning when the family is missing from the index', async () => {
+    // Simulate the desktop app: an index that knows Inter but not Arial Black.
+    window.openburn = {
+      isElectron: true,
+      platform: 'linux',
+      fonts: {
+        list: async () => ({ fonts: [{ family: 'Inter', style: 'regular', file: '/f/inter.ttf' }] }),
+        read: async () => '',
+      },
+    } as unknown as typeof window.openburn;
+    resetFontLibrary();
+    await primeFontLibrary();
+
+    const result = await parseLightBurn(fixture('text-backuppath.lbrn2'));
+    const box = onlyText(result);
+    expect(box.fontFamily).toBe('Inter');
+    expect(box.get('lightburnFontFamily')).toBe('Arial Black');
+    expect(result.warnings.join(' ')).toMatch(/Arial Black.*not installed/);
+  });
+
+  it('keeps the family in place when the index knows it', async () => {
+    window.openburn = {
+      isElectron: true,
+      platform: 'linux',
+      fonts: {
+        list: async () => ({
+          fonts: [{ family: 'Arial Black', style: 'regular', file: '/f/arial-black.ttf' }],
+        }),
+        read: async () => '',
+      },
+    } as unknown as typeof window.openburn;
+    resetFontLibrary();
+    await primeFontLibrary();
+
+    const result = await parseLightBurn(fixture('text-backuppath.lbrn2'));
+    const box = onlyText(result);
+    expect(box.fontFamily).toBe('Arial Black');
+    expect(result.warnings.join(' ')).not.toMatch(/not installed/);
   });
 });

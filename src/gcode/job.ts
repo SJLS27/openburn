@@ -389,6 +389,10 @@ export async function buildJob(input: BuildJobInput): Promise<JobPlan> {
       if (isTextObject(obj)) {
         const traced = await textToScenePath(obj as Textbox);
         textPathData = traced?.pathData ?? null;
+        if (traced?.font.substituted) {
+          const warning = `${layer.name}: "${traced.font.requested}" is not installed — cut with Inter. Install the font and regenerate for exact outlines.`;
+          if (!warnings.includes(warning)) warnings.push(warning);
+        }
       }
 
       const isFill = s.mode === 'fill';
