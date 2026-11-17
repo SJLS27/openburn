@@ -7,6 +7,10 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 ## [Unreleased]
 
 ### Añadido
+- **Origen de cama en las cuatro esquinas**: *Settings → Machine → Origin* y el
+  panel Laser ofrecen *bottom-left*, *top-left*, *bottom-right* y *top-right*
+  (GitHub #5). `src/gcode/origin.ts` espeja X y/o Y al emitir el GCode, y los
+  valores antiguos o corruptos migran a `bottom-left`.
 - **Firmware xTool (D1 y similares)**: al conectar se envía `$I` y, si el
   controlador responde `[XTool …]`, la app usa su juego de comandos (sondeo
   `?\n`, jog `G91`/`G1 … S0`/`G90`/`M2`, ruido `ok:` ignorado). Con 1,5 s sin
@@ -17,6 +21,13 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
   descrito, preselecciona el adaptador y oculta los UART de la placa base.
 
 ### Arreglado
+- **El texto importado de LightBurn ahora es editable** (GitHub #1): antes se
+  importaba solo el contorno de `<BackupPath>` y no se podía editar. Ahora se
+  crea un `Textbox` con la cadena (`Str`, ``&#10;`` como salto de línea), el
+  tamaño (`H`), la fuente (`Font`) y la alineación (`Ah`/`Av`); los contornos se
+  conservan en `lightburnBackupPath`. Verificado con `sveca2-slovenski.lbrn2`.
+- **El icono de ajustes es un engranaje**: el dibujo anterior (círculo con ocho
+  rayos) parecía el selector de tema claro/oscuro (GitHub #2).
 - El proceso principal ya no elige el primer puerto `tty` (a menudo
   `/dev/ttyS0`): antes decía "conectado" mientras el GCode no llegaba a ningún
   sitio. El puerto elegido se muestra en el panel Laser.
@@ -33,6 +44,10 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 - Tests nuevos: `electron/serialPort.test.ts` (catálogo USB, recomendación de
   puerto y broker), `src/serial/transport.test.ts` (escrituras serializadas y
   cierre), `src/ui/SerialPortDialog.test.tsx` y `src/serial/dialect.test.ts`.
+- Tests nuevos de este ciclo: `src/ui/icons.test.tsx`, `src/gcode/origin.test.ts`,
+  `src/state/store.test.ts` (migración de `openburn.device`),
+  `src/ui/common.origin.test.tsx` y `src/io/lightburn.test.ts` con fixtures en
+  `src/io/__fixtures__/`.
 - Contribuciones de [@pkkid](https://github.com/pkkid) (PRs #3 y #4).
 
 ## [0.11.0] - 2026-11-13
