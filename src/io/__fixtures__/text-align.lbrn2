@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightBurnProject AppVersion="2.1.04" DeviceName="No Machine" FormatVersion="1" MaterialHeight="0" MirrorX="False" MirrorY="False" AskForSendName="True">
+<CutSetting type="Cut"><index Value="0"/><name Value="C00"/><speed Value="100"/><maxPower Value="50"/></CutSetting>
+    <Shape Type="Text" CutIndex="0" Font="Inter,-1,4096,5,400,0,0,0,0,0" Str="Right" H="10" Ah="2" Av="2">
+        <XForm>1 0 0 1 20 30</XForm>
+    </Shape>
+</LightBurnProject>
