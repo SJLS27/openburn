@@ -154,6 +154,8 @@ Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
 - [ ] Galvo / EZCad (BSLFiber)
 - [ ] Repeat marking / array desde la UI del láser
 - [x] Estimación de tiempo con aceleraciones
+- [x] Firmware xTool (D1): detección con `$I`, jog con `M2` y sondeo `?\n`
+- [ ] xTool: verificar Pause/Stop, progreso y trabajos largos en hardware real
 
 ### Producto
 - [ ] Empaquetado firmado (AppImage/NSIS/DMG)
@@ -284,7 +286,7 @@ consumo de memoria.
 - Trace limitado a 700 px de lado mayor.
 - El raster de GCode se limita a 360 muestras por eje y muestrea la imagen por tiles (máx. 1600 px de lado).
 - Rotary, cámaras, Print & Cut y DSP están pendientes.
-- El puerto serie en Electron auto-selecciona el primer dispositivo (mejorable con un selector nativo).
+- xTool D1: solo se validó conexión y jog en hardware (fw 40.30.002.01). El firmware ejecuta el movimiento al recibir `M2`, así que el progreso del trabajo puede adelantarse al láser, y no se verificó si respeta `!`, `~` y `Ctrl+X` (Pause/Stop).
 
 ---
 
@@ -298,3 +300,13 @@ consumo de memoria.
 - Raster progresivo/streaming para levantar el límite de 360 muestras por eje.
 - Sitio de documentación con buscador (hoy todo vive en `docs/`).
 - Plantillas de issue/PR, `CODE_OF_CONDUCT.md`, etiquetas `good first issue`.
+
+### Serie / firmware (tras los PRs #3 y #4)
+- [x] Selector de puerto serie real en escritorio (`SerialPortDialog` + `electron/serialPort.ts`).
+- [ ] E2E del diálogo de puerto: el proceso principal simula `select-serial-port` y se
+  comprueba que el diálogo elige el USB y no `ttyS0` (hoy solo hay tests unitarios y de
+  componente).
+- [ ] Verificar Pause/Stop (`!`, `~`, `Ctrl+X`) y el progreso del job en un xTool real;
+  hoy el firmware solo mueve al recibir `M2`.
+- [ ] Revisar que `openburn.device` antiguo sin `firmware` arranca en `auto` (el spread
+  de `loadDevice` lo cubre, pero falta un test explícito de migración).

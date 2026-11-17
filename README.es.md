@@ -147,7 +147,12 @@ Detalle completo en [CHANGELOG.md](CHANGELOG.md).
 
 ### Control GRBL
 - Conexión por **Web Serial** o con el **simulador integrado** (sin hardware).
+  En la app de escritorio, *Connect* lista los puertos reales del sistema con su
+  chip USB y nunca preselecciona el UART de la placa base (`/dev/ttyS0`).
 - Streaming con control de flujo, `Frame`, `Start`, `Pause/Resume` y `Stop`.
+- **Firmware xTool** (D1 y similares): se detecta al conectar (`$I` → `[XTool …]`)
+  y también se puede forzar en **Settings → Machine**. En xTool el jog se envía
+  como `G91` / `G1 … S0` / `G90` / `M2`, porque ese firmware ignora `$J`.
 - Jog (`$J`), homing (`$H`), unlock (`$X`) y fijar origen (`G10 L20`).
 - Consola bidireccional y macros persistentes.
 - Estado en vivo: posición, feed, spindle, progreso y tiempo restante.

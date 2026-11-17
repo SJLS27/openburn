@@ -56,6 +56,25 @@ declare global {
     clear(): Promise<OpenBurnRecentFile[]>;
   }
 
+  interface OpenBurnSerialPortChoice {
+    portId: string;
+    /** OS name: /dev/ttyUSB0, COM3, /dev/cu.usbserial-1410… */
+    name: string;
+    description: string;
+    usb: boolean;
+  }
+
+  interface OpenBurnSerialPortRequest {
+    requestId: number;
+    ports: OpenBurnSerialPortChoice[];
+    recommendedId: string | null;
+  }
+
+  interface OpenBurnSerialApi {
+    onChoosePort(callback: (request: OpenBurnSerialPortRequest) => void): () => void;
+    choosePort(requestId: number, portId: string | null): void;
+  }
+
   interface OpenBurnFileApi {
     openFile(filters?: { name: string; extensions: string[] }[]): Promise<string | null>;
     saveFile(options?: {
@@ -77,6 +96,7 @@ declare global {
     autosave: OpenBurnAutosaveApi;
     recent: OpenBurnRecentApi;
     updater?: OpenBurnUpdaterApi;
+    serial?: OpenBurnSerialApi;
     platform: string;
     isElectron: boolean;
   }
