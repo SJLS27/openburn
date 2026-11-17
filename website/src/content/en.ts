@@ -139,7 +139,7 @@ export const en: SiteContent = {
           icon: 'vector',
           title: 'Vector design that keeps up',
           body:
-            'Lines, shapes, text, booleans, offset, node editing and grouping — with snapping, guides and precise numeric entry.',
+            'Lines, shapes, text, booleans, offset, node editing and grouping — with snapping, guides, precise numeric entry and a font picker that lists what is actually installed.',
         },
         {
           icon: 'layers',
@@ -283,6 +283,11 @@ export const en: SiteContent = {
           lightburn: { text: 'Yes', state: 'yes' },
         },
         {
+          label: 'Text cut with your installed fonts',
+          openburn: { text: 'Yes', state: 'yes' },
+          lightburn: { text: 'Yes', state: 'yes' },
+        },
+        {
           label: 'Ruida / DSP controllers',
           openburn: { text: 'On the roadmap', state: 'partial' },
           lightburn: { text: 'Yes', state: 'yes' },
@@ -398,6 +403,11 @@ export const en: SiteContent = {
             'Builds are not code-signed yet. On Windows choose More info → Run anyway. On macOS right-click the app and choose Open. Signed builds are planned.',
         },
         {
+          q: 'Will my text cut with the font I see on screen?',
+          a:
+            'Yes, as long as the font is installed on your computer. OpenBurn outlines text with the system font for preview, GCode and export. If a project uses a font you do not have, it falls back to Inter, shows a warning and keeps the original family name so installing the font and reopening restores it.',
+        },
+        {
           q: 'Can I use it commercially?',
           a:
             'Yes. The MIT license lets you use OpenBurn for any purpose, including paid work. Attribution is appreciated but not required.',
@@ -467,9 +477,9 @@ export const en: SiteContent = {
         },
         {
           icon: 'text',
-          title: 'Text to paths',
+          title: 'Text with your own fonts',
           body:
-            'Convert text to outlines with opentype.js and the bundled Inter font, so files cut identically on any machine without missing fonts.',
+            'Pick from the fonts installed on your computer and text outlines with the real typeface in preview, GCode and export. If a project names a font you do not have, OpenBurn shows it in Inter, warns you and remembers the original name — install it and reopen to get it back.',
         },
         {
           icon: 'route',

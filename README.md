@@ -110,8 +110,10 @@ Full details in [CHANGELOG.md](CHANGELOG.md).
   Bézier handles, line ↔ curve, corner / smooth / symmetric).
 - **Snapping** to the grid, vertices, centres, midpoints and intersections,
   with alignment guides.
-- **Text to outlines** with opentype.js (Inter bundled) so you can cut or
-  engrave without fonts installed.
+- **Text built from installed fonts**: the picker lists the families on your
+  system and preview, GCode and export outline with the real typeface. If a
+  font is missing, text falls back to the bundled Inter, you get a warning, and
+  the original family is remembered for when you install it.
 - **Add Tabs** to keep pieces attached, and **paste from the system
   clipboard** (text, SVG including Inkscape's compressed SVG, images).
 
@@ -271,7 +273,8 @@ images and cut settings are imported.
 - Groups are flattened on export.
 - Per-object overrides (material tests) export as layer settings.
 - Rotated images export without rotation (with a warning).
-- Text is exported as outlines, and imported text uses its backup paths.
+- Text is exported as outlines using your installed font; imported text is
+  editable and keeps its original family name.
 
 Details in [docs/FILE-FORMATS.md](docs/FILE-FORMATS.md). If a project does not
 open, please [open an issue](https://github.com/SJLS27/openburn/issues) with the

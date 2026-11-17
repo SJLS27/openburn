@@ -95,6 +95,35 @@ test('sitemap, robots and social card exist', async () => {
   await exists('fonts/inter-latin.woff2');
 });
 
+test('font copy reflects installed system fonts, not a bundled-only claim', async () => {
+  const pages = [
+    'features/index.html',
+    'index.html',
+    'es/funciones/index.html',
+    'es/index.html',
+  ];
+
+  for (const page of pages) {
+    const html = await read(page);
+    // The outdated claim was that outlines always used the bundled Inter.
+    assert.doesNotMatch(
+      html,
+      /bundled Inter font|fuente Inter incluida/i,
+      `${page} still claims outlines always use the bundled Inter font`,
+    );
+  }
+
+  const features = await read('features/index.html');
+  assert.match(features, /fonts installed on your computer/i);
+  assert.match(features, /inter/i);
+
+  const featuresEs = await read('es/funciones/index.html');
+  assert.match(featuresEs, /fuentes instaladas en tu equipo/i);
+
+  const faq = await read('index.html');
+  assert.match(faq, /Will my text cut with the font I see on screen/);
+});
+
 test('every referenced screenshot and local asset exists', async () => {
   for (const page of pages) {
     const html = await read(page);
