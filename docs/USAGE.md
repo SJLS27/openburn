@@ -84,6 +84,7 @@ Cada color de la paleta es una capa (C00, C01, …).
 ## 4. Preview y GCode
 
 - **Preview** (`Alt+P`) abre la simulación: trayectorias por capa, recorridos, cabeza láser, tiempo estimado y longitud de corte.
+- Las **imágenes en modo Image** se muestran como una **textura raster** que representa exactamente lo que quema el láser (potencia por punto, incluido el dithering), revelada fila a fila a medida que avanza la animación; antes de grabarse se insinúa atenuada para ubicar la imagen en la cama. El zoom mantiene los trazos vectoriales nítidos y las imágenes se pixelan de forma natural, como LightBurn.
 - Controles: play/pausa, scrub, velocidad (1×–60×), mostrar *travel*. Con **Travel** activo se dibuja el recorrido completo de la máquina entre cortes y la cabeza lo recorre durante la animación, igual que en LightBurn.
 - **Send to laser** envía el plan si hay una máquina conectada.
 - *File → Export GCode…* (`Ctrl+E`) guarda un `.nc`.

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatDuration, type JobPlan, type PlanSegment, type Pt } from '@/gcode/types';
 import { Icon } from './icons';
 import { Modal } from './common';
-import { rasterRuns } from '@/gcode/rasterPreview';
-import { polylinePath, rasterPowerCss, type LayerPaths } from './previewPaths';
+import { buildRasterGrid } from '@/gcode/rasterTexture';
+import { gridToTexture, polylinePath, rasterPowerCss, type LayerPaths } from './previewPaths';
 
 interface Props {
   plan: JobPlan;
@@ -32,6 +32,33 @@ function clamp(value: number, min: number, max: number): number {
 /** SVG `d` for one polyline (same rounding as the path builder). */
 function subPath(points: Pt[]): string {
   return polylinePath(points);
+}
+
+/**
+ * Build the raster image texture for a plan up to `upTo` segments and encode it
+ * as a PNG data URL, ready for an SVG `<image>`.
+ */
+function textureFor(
+  plan: JobPlan,
+  upTo: number,
+): { url: string; bbox: { minX: number; minY: number; maxX: number; maxY: number } } | null {
+  const grid = buildRasterGrid(plan, upTo);
+  if (!grid) return null;
+  const tex = gridToTexture(grid);
+  // jsdom has no real 2D canvas; skip the texture there rather than throw.
+  if (typeof ImageData === 'undefined' || typeof document === 'undefined') return null;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = tex.width;
+    canvas.height = tex.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const data = new ImageData(tex.pixels as unknown as Uint8ClampedArray<ArrayBuffer>, tex.width, tex.height);
+    ctx.putImageData(data, 0, 0);
+    return { url: canvas.toDataURL('image/png'), bbox: tex.bbox };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -140,22 +167,9 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
       else byLayer.set(layerId, [d]);
     }
 
-    // Raster engraving is drawn from the lit runs of each scanline, toned by
-    // laser power: a raster layer's black would otherwise look like a solid
-    // block instead of a gradient.
-    const raster = new Map<string, string[]>();
-    for (let i = 0; i < active; i += 1) {
-      const seg = plan.segments[i];
-      if (!seg || seg.kind !== 'cut' || !seg.powers) continue;
-      for (const run of rasterRuns(seg)) {
-        const d = subPath(run.points);
-        if (!d) continue;
-        const key = rasterPowerCss(run.power);
-        const bucket = raster.get(key);
-        if (bucket) bucket.push(d);
-        else raster.set(key, [d]);
-      }
-    }
+    // Raster engraving is shown as a burnt-image texture (see `rasterTexture`),
+    // not as vector hairlines, so each scan line is a pixel of the picture
+    // instead of a 1 px stroke that averages the power away.
 
     // Remaining (not yet cut) toolpaths, drawn faintly, per layer.
     const pending = new Map<string, string[]>();
@@ -180,11 +194,20 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
 
     return {
       done: toLayerPaths(byLayer),
-      raster: toLayerPaths(raster),
       pending: toLayerPaths(pending),
       travel: travel.join(''),
     };
   }, [plan.segments, active, showTravel, colorByLayer]);
+
+  /**
+   * Rasterised image texture, revealed progressively. Rebuilt only when the
+   * playhead crosses a segment, mirroring `backdrop`. The grid + PNG encode is
+   * cheap enough (≤ `MAX_GRID_SIDE`² cells) to do synchronously per tick.
+   */
+  const rasterTexture = useMemo(() => textureFor(plan, active), [plan, active]);
+
+  /** The full image, shown dimly before the playhead reaches it. */
+  const pendingRasterTexture = useMemo(() => textureFor(plan, plan.segments.length), [plan]);
 
   /** The segment currently under the head, cut up to the playhead fraction. */  const activeGeometry = useMemo(() => {
     const seg: PlanSegment | undefined = plan.segments[active];
@@ -503,6 +526,30 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
               ))}
             </g>
 
+            {/* Rasterised image: dim as pending, then the burn itself is revealed
+                as the playhead runs. */}
+            {pendingRasterTexture && !rasterTexture && (
+              <image
+                href={pendingRasterTexture.url}
+                x={pendingRasterTexture.bbox.minX}
+                y={pendingRasterTexture.bbox.minY}
+                width={pendingRasterTexture.bbox.maxX - pendingRasterTexture.bbox.minX}
+                height={pendingRasterTexture.bbox.maxY - pendingRasterTexture.bbox.minY}
+                opacity={0.32}
+                preserveAspectRatio="none"
+              />
+            )}
+            {rasterTexture && (
+              <image
+                href={rasterTexture.url}
+                x={rasterTexture.bbox.minX}
+                y={rasterTexture.bbox.minY}
+                width={rasterTexture.bbox.maxX - rasterTexture.bbox.minX}
+                height={rasterTexture.bbox.maxY - rasterTexture.bbox.minY}
+                preserveAspectRatio="none"
+              />
+            )}
+
             {/* Travel moves */}
             {showTravel && (
               <path
@@ -530,21 +577,6 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
                 )),
               )}
             </g>
-
-            {/* Already engraved (raster): toned by laser power */}
-            {backdrop.raster.map((layer) =>
-              layer.chunks.map((d, i) => (
-                <path
-                  key={`r-${layer.layerId}-${i}`}
-                  d={d}
-                  fill="none"
-                  stroke={layer.color}
-                  strokeWidth={px}
-                  strokeLinecap="round"
-                  vectorEffect="non-scaling-stroke"
-                />
-              )),
-            )}
 
             {/* Already cut */}
             {backdrop.done.map((layer) =>

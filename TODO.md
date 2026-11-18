@@ -24,6 +24,7 @@ Estado actual: **v0.11.1**. Esta lista se actualiza con cada bloque de trabajo.
 - [x] Raster con potencia variable/dithering
 - [x] Ventana Preview animada con estadísticas
 - [x] Preview **vectorial** (SVG con `viewBox` en mm, zoom sin pérdida): cama, rejilla, travel, toolpaths y grabado de imágenes desde sus scanlines, tonado por potencia — `src/ui/previewPaths.ts`
+- [x] Grabado de imágenes como **textura raster** reconstruida desde `powers[]` (`src/gcode/rasterTexture.ts`), revelada fila a fila y fiel al dithering/modos continuos
 - [x] Export GCode `.nc`
 - [x] Control GRBL por Web Serial + simulador
 - [x] Streaming con control de flujo; Frame/Start/Pause/Stop
@@ -189,6 +190,7 @@ Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
 - [x] Ciclo de desarrollo headless (`dev:build`, `test:e2e:fast`, `test:e2e:watch`); el Flatpak se verifica con `flatpak info` sin abrir la app
 - [ ] `WorkspaceController.test.ts` con un `Canvas` falso para cubrir nodos/snapping sin Electron
 - [ ] E2E de flujos completos: dibujar/transformar, import/export `.obrn`/`.lbrn2`, preview y job en el simulador
+- [ ] Captura e2e de la Preview con una **imagen raster real** (dither + grayscale): la demo actual (`e2e/demo.ts`) usa solo vectores; el motor de textura (`rasterTexture`) está cubierto por tests unitarios, pero falta el smoke visual del `<image>` en Playwright
 - [ ] Umbral de cobertura mínimo en CI (p. ej. 60 % en `src/core` y `src/gcode`)
 - [ ] Linter + formateo (ESLint + Prettier) y pre-commit hook
 - [ ] Dependabot/renovate + `npm audit` en CI

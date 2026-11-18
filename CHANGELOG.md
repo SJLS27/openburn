@@ -12,9 +12,12 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
   caja en lugar de estirar píxeles, así que **no hay límite de nitidez**: líneas,
   reglas y detalles de 1 µm se ven igual de nítidos a 400×. El recorrido se anima
   por segmentos con `vectorEffect="non-scaling-stroke"`.
-- **Raster sin bloque negro**: el grabado de imágenes se dibuja desde las
-  *scanlines* reales del trabajo, con color según la potencia láser
-  (`rasterPowerColor`), en vez de aplanar la imagen a un bitmap de fondo.
+- **Raster como textura**: el grabado de imágenes ya no se dibuja como líneas de
+  1 px que promediaban la potencia. La Preview reconstruye la **imagen real**
+  (`src/gcode/rasterTexture.ts`) rebobinando los `powers[]` de cada scanline con
+  la misma regla que el G-code (`powerForMove`), la colorea con la rampa de
+  potencia y la revela fila a fila. Respeta el dithering y los modos
+  continuos, y se ve pixelada al acercar, como LightBurn.
 
 ### Cambiado
 - El Preview deja de usar `previewRaster.ts` (canvas + `ImageData`): toda la

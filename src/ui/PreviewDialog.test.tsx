@@ -155,4 +155,37 @@ describe('PreviewDialog (vector)', () => {
     const afterW = Number(after?.split(' ')[2]);
     expect(afterW).toBeLessThan(beforeW);
   });
+
+  it('renders the raster image as an <image> texture, not vector hairlines', () => {
+    // Stub the canvas path so `textureFor` can encode a PNG URL in jsdom.
+    vi.stubGlobal('ImageData', class {
+      constructor(
+        public data: Uint8ClampedArray,
+        public width: number,
+        public height: number,
+      ) {}
+    });
+    const ctx = {
+      putImageData: vi.fn(),
+      toDataURL: vi.fn(() => 'data:image/png;base64,AAAA'),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as never);
+
+    const { container } = render(<PreviewDialog plan={planWithImage()} {...baseProps} />);
+    const svg = previewSvg(container);
+    const image = svg.querySelector('image') as SVGImageElement | null;
+
+    // One full-image (pending, dimmed) texture is present because there are
+    // raster segments in the plan.
+    expect(image).not.toBeNull();
+    // Animated by the fake clock it has not advanced, so the pending dim texture
+    // is shown and the reveal texture is not yet present.
+    expect(image?.getAttribute('opacity')).toBe('0.32');
+
+    // The texture is anchored to the raster image's world bbox.
+    const x = Number(image?.getAttribute('x'));
+    const width = Number(image?.getAttribute('width'));
+    expect(width).toBeGreaterThan(0);
+    expect(x).toBeGreaterThanOrEqual(0);
+  });
 });

@@ -131,11 +131,14 @@ GCode + estadísticas (tiempo, distancia, bounds)
 ```
 
 - **Preview** consume el mismo `JobPlan`, por lo que trayectorias y tiempos coinciden con el envío.
-  Se dibuja con Canvas 2D en capas: fondo cacheado en coordenadas de mundo (se
-  recompone al hacer pan/zoom), trazos vectoriales ya grabados y filas raster
-  ya reveladas en canvas persistentes, y el índice de filas raster
-  (`src/ui/previewRaster.ts`) resuelve por búsqueda binaria qué fila está
-  activa. Cada frame solo añade lo nuevo.
+  Se dibuja con un único `<svg viewBox>` en milímetros: el zoom/pan cambian el
+  `viewBox` (los trazos se reescalan geómetras, nunca se pixelan) y el grabado
+  de imágenes se reconstruye como una **textura raster** (`src/gcode/rasterTexture.ts`)
+  que muestra la imagen tal como la quema el láser, no como líneas de 1 px.
+  El motor rebobina los `powers[]` de cada scanline con la misma regla que el
+  G-code (`powerForMove`) y lo ancla a la cama vía `<image>`; el playhead revela
+  la textura fila a fila. Los trazos vectoriales se pintan como `<path>` por
+  encima.
 - Los segmentos raster llevan `powers[]` y emiten `G1 X Y S…` para variar potencia punto a punto.
 - El kerf se aplica al contorno antes de cerrarlo; los offsets que colapsan se descartan.
 - Con `zAxisEnabled`, cada cambio de `zOffset` emite un `G1 Z…` con el feed configurado y el job vuelve a `Z0` al terminar.

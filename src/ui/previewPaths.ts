@@ -1,5 +1,6 @@
 import type { JobPlan, PlanSegment, Pt } from '@/gcode/types';
 import { rasterRuns } from '@/gcode/rasterPreview';
+import type { RasterGrid } from '@/gcode/rasterTexture';
 
 /**
  * Geometry builder for the vector Preview.
@@ -62,6 +63,41 @@ export function rasterPowerColor(power: number): { r: number; g: number; b: numb
 export function rasterPowerCss(power: number): string {
   const { r, g, b, a } = rasterPowerColor(power);
   return `rgba(${r},${g},${b},${a.toFixed(3)})`;
+}
+
+/**
+ * Rasterised image texture for the preview, grounded in the same per-point
+ * power the machine burns. `bbox` is the world (mm) rectangle the texture maps
+ * onto inside the SVG `viewBox`; `pixels` is straight (non-premultiplied) RGBA
+ * ready for `ImageData`. Cells with no power are transparent.
+ */
+export interface RasterTexture {
+  width: number;
+  height: number;
+  bbox: { minX: number; minY: number; maxX: number; maxY: number };
+  pixels: Uint8ClampedArray;
+}
+
+/**
+ * Convert a `RasterGrid` into an RGBA buffer, toned by the same warm power ramp
+ * as the vector raster dashes. Higher power burns hotter and more opaque;
+ * unburned cells stay fully transparent so the bed and toolpaths underneath
+ * remain visible.
+ */
+export function gridToTexture(grid: RasterGrid): RasterTexture {
+  const { width, height, power, bbox } = grid;
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  let p = 0;
+  for (let i = 0; i < power.length; i += 1, p += 4) {
+    const v = power[i];
+    if (!(v > 0)) continue; // NaN and 0 stay transparent
+    const { r, g, b, a } = rasterPowerColor(v);
+    pixels[p] = r;
+    pixels[p + 1] = g;
+    pixels[p + 2] = b;
+    pixels[p + 3] = Math.round(a * 255);
+  }
+  return { width, height, bbox, pixels };
 }
 
 function distToSegment(p: Pt, a: Pt, b: Pt): number {
