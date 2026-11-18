@@ -59,3 +59,27 @@ test('refuses to read a font that was not listed', async () => {
   });
   expect(error).toMatch(/outside the system font list/);
 });
+
+test('lists the faces of a font collection and reads them one by one', async () => {
+  const collections = await page.evaluate(async () => {
+    const list = await window.openburn?.fonts.list();
+    const faces = (list?.fonts ?? []).filter((font) => font.file.includes('#'));
+    if (faces.length === 0) return null;
+    // Reading a face must hand back a standalone font, not the collection.
+    const base64 = (await window.openburn?.fonts.read(faces[0].file)) ?? '';
+    const head = atob(base64.slice(0, 8));
+    return {
+      faces: faces.length,
+      sample: faces[0],
+      signature: head.slice(0, 4),
+    };
+  });
+
+  // Machines without collections (most CI images) have nothing to check.
+  test.skip(collections === null, 'no .ttc collections installed');
+
+  expect(collections!.faces).toBeGreaterThan(0);
+  expect(collections!.sample.file).toMatch(/\.(ttc|otc)#\d+$/);
+  // `ttcf` would mean the collection header leaked through.
+  expect(collections!.signature).not.toBe('ttcf');
+});

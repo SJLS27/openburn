@@ -85,11 +85,11 @@ máquina/taller**, hardware (rotary/cámaras/DSP) cuando haya máquinas para pro
 y P6b (varios documentos) cuando el store pase a multi-documento. Detalle en
 [TODO.md](TODO.md#-paridad-con-lightburn-feature-parity).
 
-> ⚠️ **Antes de la próxima release, como máxima urgencia:** [🔤 Soporte
-> `.ttc`](#-soporte-de-colecciones-de-fuentes-ttc), **la deuda de `fs:*`**
-> ([🔐 Seguridad](#-seguridad-y-hardening)) y el
-> [🔁 Circuito de release](#-circuito-de-release) que dejó el release de 0.11.1.
-> El [arranque sin fuentes](#️-arranque-sin-fuentes-del-sistema-) queda resuelto.
+> ⚠️ **Antes de la próxima release:** la deuda viva está en
+> [🔐 Seguridad](#-seguridad-y-hardening) (`sandbox`, CSP) y en el
+> [🔁 Circuito de release](#-circuito-de-release). Lo que bloqueaba 0.11.1
+> (arranque sin fuentes, `fs:*`, `.ttc`, script del Flatpak y gate del tag) ya
+> está resuelto.
 
 ### 🖥️ Arranque sin fuentes del sistema ✅
 
@@ -111,18 +111,27 @@ apuntando a él. Si el reinicio tampoco encuentra fuentes, sale un diálogo
 - [ ] Verificar el diálogo *No fonts found* de forma automatizada (hoy depende de
   un entorno sin fuentes ni Inter empaquetada)
 
-### 🔤 Soporte de colecciones de fuentes (`.ttc`)
+### 🔤 Soporte de colecciones de fuentes (`.ttc`) ✅
 
-Hoy `electron/fonts.ts` **ignora** `.ttc`/`.otc` (`SKIPPED_EXTENSIONS`) porque
-opentype.js no las parsea como una sola cara. Consecuencia: en **Windows** y
-**macOS** muchas familias del sistema no aparecen en el selector ni se usan para
-cortar (Arial, Times New Roman y otras van en colecciones).
+**Resuelto.** `opentype.js` rechaza la firma `ttcf`, así que las colecciones
+(`.ttc`/`.otc`, donde van Arial y Times New Roman en Windows/macOS) no aparecían
+en el selector. `electron/fontCollection.ts` las abre: reubica los directorios de
+cada cara y copia sus tablas con offsets absolutos, y `expandCollections` lista
+una entrada por cara como `ruta#índice`, que `fonts:read` extrae bajo demanda
+con la misma allow-list.
 
-- [ ] Parsear la colección y elegir la cara correcta por familia/estilo, o
-  extraer las caras y listarlas individualmente.
-- [ ] Fuentes variables (`Inter[wght].ttf`): seleccionar la instancia por peso
-  en vez de quedarse con la primera que reporta `fc-list`.
-- [ ] Test con un `.ttc` real de fixture y con una fuente variable.
+- [x] Parsear la colección y listar cada cara con su familia y estilo reales
+  (`readNames` lee la tabla `name` sin parsear contornos, así que también
+  funciona con CFF2, que `opentype.js` no soporta)
+- [x] Leer una cara concreta desde el renderer (`path#index`)
+- [x] Fuentes variables: se detecta el eje `wght` (`fvar`) y la cara se lista como
+  regular y bold cuando su rango llega a 600
+- [ ] Instanciar el peso pedido de una fuente variable: `opentype.js` 1.3 no
+  implementa `getVariation`, así que una variable se contornea con su instancia
+  por defecto (el peso correcto exige actualizar la dependencia)
+- [x] Tests con fuentes reales generadas por `opentype.js` y empaquetadas en un
+  `.ttc` (`electron/fontCollection.test.ts`) y e2e del IPC en
+  `e2e/system-fonts.spec.ts`
 
 ### 🔁 Circuito de release
 

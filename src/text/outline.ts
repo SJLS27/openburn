@@ -93,12 +93,22 @@ export async function primeFontLibrary(): Promise<void> {
   await getLibrary();
 }
 
-/** Load a system face through the allow-listed IPC, cached by file path. */
-async function loadSystemFont(file: string): Promise<opentype.Font> {
+/**
+ * Load a system face through the allow-listed IPC.
+ *
+ * A collection face (`path#index`) already arrives as a single face from the
+ * main process, so this only has to parse it. The style is part of the key so
+ * regular and bold of the same file do not share a cache entry: the main side
+ * lists a variable face once per style it covers.
+ *
+ * `opentype.js` 1.3 predates `getVariation`, so a variable face is drawn at its
+ * default instance; the listed bold entry at least reaches the same family.
+ */
+async function loadSystemFont(file: string, style: FontStyle = 'regular'): Promise<opentype.Font> {
   const api = window.openburn?.fonts;
   if (!api) throw new Error('system fonts are only available in the desktop app');
   const base64 = await api.read(file);
-  return parseFont(`system:${file}`, base64ToBuffer(base64));
+  return parseFont(`system:${file}@${style}`, base64ToBuffer(base64));
 }
 
 async function loadInter(style: FontStyle): Promise<opentype.Font> {
@@ -157,7 +167,7 @@ export async function textToScenePath(text: Textbox): Promise<TextOutline | null
 
   if (face) {
     try {
-      font = await loadSystemFont(face.file);
+      font = await loadSystemFont(face.file, style);
       info = { requested, used: face.family, file: face.file, substituted: false };
     } catch {
       // Face indexed but unreadable: treat it as missing.

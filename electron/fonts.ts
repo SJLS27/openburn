@@ -4,14 +4,28 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import {
+  extractAllFaces,
+  extractFace,
+  readNames,
+  styleForWeight,
+  variationAxes,
+  weightAxis,
+} from './fontCollection';
 
 const execFileAsync = promisify(execFile);
 
 /** Font file extensions opentype.js can parse directly. */
 const FONT_EXTENSIONS = new Set(['.ttf', '.otf']);
 
-/** Collections are parseable by opentype.js only one face at a time; skip them. */
-const SKIPPED_EXTENSIONS = new Set(['.ttc', '.otc', '.woff', '.woff2', '.dfont']);
+/**
+ * Formats opentype.js cannot parse at all. Collections (`ttc`/`otc`) are listed
+ * too but handled separately: `explodeCollections` splits them into faces.
+ */
+const SKIPPED_EXTENSIONS = new Set(['.woff', '.woff2', '.dfont']);
+
+/** Collections are split into single faces before they reach the renderer. */
+const COLLECTION_EXTENSIONS = new Set(['.ttc', '.otc']);
 
 export interface SystemFont {
   /** Family name as the OS reports it ("Arial Black", "Noto Sans", …). */
@@ -50,7 +64,9 @@ export function parseFcListLine(line: string): SystemFont[] {
   const [file, families, styles] = line.split('\t');
   if (!file || !families) return [];
   const ext = path.extname(file).toLowerCase();
-  if (!FONT_EXTENSIONS.has(ext) || SKIPPED_EXTENSIONS.has(ext)) return [];
+  if ((!FONT_EXTENSIONS.has(ext) && !COLLECTION_EXTENSIONS.has(ext)) || SKIPPED_EXTENSIONS.has(ext)) {
+    return [];
+  }
   const family = families.split(',')[0]?.trim();
   if (!family) return [];
   const style = normaliseStyle(styles?.split(',')[0]);
@@ -83,10 +99,86 @@ export function dedupeFonts(fonts: SystemFont[]): SystemFont[] {
  * process for an arbitrary path (see TODO.md §Seguridad).
  */
 export function isKnownFontPath(file: string, known: Iterable<string>): boolean {
+  // A face is addressed as `path#index`, but any listed face of the same file
+  // proves the file itself is allowed: the collection is what gets read.
+  const container = collectionFacePath(file)?.file ?? file;
   for (const candidate of known) {
-    if (candidate === file) return true;
+    if ((collectionFacePath(candidate)?.file ?? candidate) === container) return true;
   }
   return false;
+}
+
+/**
+ * A face inside a collection is addressed as `path#index`. Nothing else in the
+ * system uses `#` in a font path, so this stays unambiguous.
+ */
+export function collectionFacePath(file: string): { file: string; index: number } | null {
+  const hash = file.lastIndexOf('#');
+  if (hash <= 0) return null;
+  const index = Number.parseInt(file.slice(hash + 1), 10);
+  if (!Number.isInteger(index) || index < 0 || String(index) !== file.slice(hash + 1)) return null;
+  return { file: file.slice(0, hash), index };
+}
+
+export interface FontNameReader {
+  /** English family name of a single face, or `null` when it cannot be read. */
+  family(data: Uint8Array): string | null;
+  /** English subfamily ("Regular", "Bold Italic"…), or `null`. */
+  subfamily(data: Uint8Array): string | null;
+}
+
+/**
+ * Split every collection in `fonts` into one entry per face, named
+ * `path#index` so `fonts:read` can hand out a single face.
+ *
+ * Collections pool faces that `fc-list` reports under one family, and recent
+ * ones (Noto CJK, most Windows core fonts) are also *variable*: one face with a
+ * `wght` range. In that case the face is listed once per style the range
+ * covers, otherwise the picker would lose Bold entirely.
+ */
+export async function expandCollections(
+  fonts: SystemFont[],
+  readFile: (file: string) => Promise<Uint8Array> = (file) => fs.promises.readFile(file),
+  names: FontNameReader | null = opentypeNameReader,
+): Promise<SystemFont[]> {
+  const out: SystemFont[] = [];
+  // `fc-list` prints one line per face, so a collection appears once per face;
+  // parse each file once.
+  const expandedCollections = new Set<string>();
+
+  for (const font of fonts) {
+    const ext = path.extname(font.file).toLowerCase();
+    if (!COLLECTION_EXTENSIONS.has(ext)) {
+      out.push(font);
+      continue;
+    }
+    if (expandedCollections.has(font.file)) continue;
+    expandedCollections.add(font.file);
+    // Deduplicate within this collection: several faces can report the same
+    // family and style, and the picker only needs one of each.
+    const seen = new Set<string>();
+    for (const face of await collectionFaces(font.file, readFile)) {
+      // `font.family` here is the collection's line for *this* face; the real
+      // name below may be another face's, which is why dedupe happens per file.
+      const family = names?.family(face.data) ?? font.family;
+      const subfamily = names?.subfamily(face.data);
+      const axes = variationAxes(face.data);
+      const weight = weightAxis(axes);
+      // A variable face paints at any weight in its range, so it shows up as
+      // Bold too when the axis reaches it; the renderer picks the instance.
+      const styles: SystemFont['style'][] = weight
+        ? [...new Set([styleForWeight(weight.default), ...(weight.max >= 600 ? (['bold'] as const) : [])])]
+        : [subfamily ? normaliseStyle(subfamily) : font.style];
+
+      for (const style of styles) {
+        const key = `${family}\u0000${style}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ family, style, file: `${font.file}#${face.index}` });
+      }
+    }
+  }
+  return out;
 }
 
 /** Runs `fc-list`; injectable so the Linux scan can be tested without fonts. */
@@ -97,7 +189,9 @@ const defaultFcList: FcListRunner = () =>
 
 async function listLinux(run: FcListRunner = defaultFcList): Promise<SystemFont[]> {
   const { stdout } = await run();
-  return dedupeFonts(parseFcListOutput(stdout));
+  // Not deduplicated yet: one collection yields many faces and `fc-list`
+  // reports one line per face, so collapsing first would lose them.
+  return parseFcListOutput(stdout);
 }
 
 /** macOS: users drop fonts in ~/Library/Fonts, the system keeps the rest here. */
@@ -137,7 +231,7 @@ export function fontsFromDirectoryScan(dirs: string[]): SystemFont[] {
     }
     for (const entry of entries) {
       const ext = path.extname(entry).toLowerCase();
-      if (!FONT_EXTENSIONS.has(ext)) continue;
+      if (!FONT_EXTENSIONS.has(ext) && !COLLECTION_EXTENSIONS.has(ext)) continue;
       const base = path.basename(entry, ext);
       const { family, style } = familyFromFileName(base);
       if (!family) continue;
@@ -208,6 +302,30 @@ function prettifyFamily(raw: string): string {
     .trim();
 }
 
+/**
+ * Read family/subfamily of a single face with opentype.js.
+ *
+ * `fc-list` reports a collection under one family, so the real names have to
+ * come from the face itself; a face that fails to parse keeps the collection's
+ * family so it is not lost.
+ */
+export const opentypeNameReader: FontNameReader = {
+  family: (data) => readNames(data).family,
+  subfamily: (data) => readNames(data).subfamily,
+};
+
+/** Faces of one collection, or `[]` when it cannot be read or parsed. */
+async function collectionFaces(
+  file: string,
+  readFile: (file: string) => Promise<Uint8Array>,
+): Promise<ReturnType<typeof extractAllFaces>> {
+  try {
+    return extractAllFaces(await readFile(file));
+  } catch {
+    return [];
+  }
+}
+
 /** List every font the platform exposes, for the renderer's font picker. */
 export async function listSystemFonts(
   platform: NodeJS.Platform = process.platform,
@@ -215,14 +333,22 @@ export async function listSystemFonts(
 ): Promise<FontsListResult> {
   try {
     if (platform === 'linux') {
-      const fonts = await listLinux(runFcList);
-      return { fonts };
+      const expanded = await expandCollections(await listLinux(runFcList), undefined, opentypeNameReader);
+      return { fonts: dedupeFonts(expanded) };
     }
     if (platform === 'darwin') {
-      return { fonts: fontsFromDirectoryScan(macOSFontDirs()) };
+      return {
+        fonts: dedupeFonts(
+          await expandCollections(fontsFromDirectoryScan(macOSFontDirs()), undefined, opentypeNameReader),
+        ),
+      };
     }
     if (platform === 'win32') {
-      return { fonts: fontsFromDirectoryScan(windowsFontDirs()) };
+      return {
+        fonts: dedupeFonts(
+          await expandCollections(fontsFromDirectoryScan(windowsFontDirs()), undefined, opentypeNameReader),
+        ),
+      };
     }
     return { fonts: [], error: `Unsupported platform: ${platform}` };
   } catch (err) {
@@ -234,6 +360,13 @@ export async function listSystemFonts(
 export async function readSystemFont(file: string, known: Iterable<string>): Promise<Buffer> {
   if (!isKnownFontPath(file, known)) {
     throw new Error(`Refusing to read a font outside the system font list: ${file}`);
+  }
+  const face = collectionFacePath(file);
+  if (face) {
+    const bytes = await fs.promises.readFile(face.file);
+    const extracted = extractFace(bytes, face.index);
+    if (!extracted) throw new Error(`Collection face ${file} could not be extracted`);
+    return Buffer.from(extracted);
   }
   return fs.promises.readFile(file);
 }

@@ -63,10 +63,16 @@ describe('electron/fonts', () => {
       expect(font.family).toBe('Inter');
     });
 
-    it('skips collections and unsupported containers', () => {
-      expect(parseFcListLine('/f/NotoSansCJK.ttc\tNoto Sans CJK\tRegular')).toEqual([]);
+    it('keeps collections so they can be split into faces', () => {
+      expect(parseFcListLine('/f/NotoSansCJK.ttc\tNoto Sans CJK\tRegular')).toEqual([
+        { family: 'Noto Sans CJK', style: 'regular', file: '/f/NotoSansCJK.ttc' },
+      ]);
+    });
+
+    it('skips containers opentype.js cannot read at all', () => {
       expect(parseFcListLine('/f/Font.woff2\tWeb Font\tRegular')).toEqual([]);
       expect(parseFcListLine('/f/Font.pfb\tType1\tRegular')).toEqual([]);
+      expect(parseFcListLine('/f/Font.dfont\tOld Mac\tRegular')).toEqual([]);
     });
 
     it('ignores blank lines and malformed rows', () => {
@@ -76,17 +82,19 @@ describe('electron/fonts', () => {
   });
 
   describe('parseFcListOutput', () => {
-    it('parses every usable row and drops .ttc faces', () => {
+    it('parses every usable row, collections included', () => {
       const fonts = parseFcListOutput(FC_LIST_SAMPLE);
-      expect(fonts).toHaveLength(5);
+      expect(fonts).toHaveLength(6);
       expect(fonts.map((f) => f.style)).toEqual([
         'regular',
         'bold',
         'bold italic',
         'italic',
         'regular',
+        'regular',
       ]);
-      expect(fonts.some((f) => f.file.endsWith('.ttc'))).toBe(false);
+      // The collection stays in the list; `expandCollections` splits its faces.
+      expect(fonts.some((f) => f.file.endsWith('.ttc'))).toBe(true);
     });
   });
 
@@ -119,8 +127,10 @@ describe('electron/fonts', () => {
       }) as never);
 
       const fonts = fontsFromDirectoryScan(['/fonts', '/missing']);
+      // Collections are kept and split later by `expandCollections`.
       expect(fonts).toEqual([
         { family: 'Arial Black', style: 'regular', file: '/fonts/Arial Black.ttf' },
+        { family: 'Collection', style: 'regular', file: '/fonts/Collection.ttc' },
       ]);
       expect(readdir).toHaveBeenCalledTimes(2);
     });

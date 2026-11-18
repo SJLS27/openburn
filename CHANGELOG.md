@@ -6,6 +6,14 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 
 ## [Unreleased]
 
+### Añadido
+- **Colecciones de fuentes (`.ttc` / `.otc`)**: Arial, Times New Roman y muchas
+  familias de Windows/macOS viven en colecciones que `opentype.js` no sabe abrir,
+  así que no aparecían en el selector. Ahora se listan **una entrada por cara** y
+  se leen bajo demanda (`electron/fontCollection.ts`, `fonts:read` con
+  `ruta#índice`). También se detectan las **fuentes variables**: una cara con eje
+  `wght` aparece como regular y bold.
+
 ### Seguridad
 - **Los ficheros solo se abren si el usuario los eligió**: `fs:readFile`,
   `fs:writeFile` y `fs:readBinary` ya no aceptan cualquier ruta. El proceso
