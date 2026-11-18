@@ -23,6 +23,7 @@ Estado actual: **v0.11.1**. Esta lista se actualiza con cada bloque de trabajo.
 - [x] Fill por scanlines con overscan
 - [x] Raster con potencia variable/dithering
 - [x] Ventana Preview animada con estadísticas
+- [x] Preview **vectorial** (SVG con `viewBox` en mm, zoom sin pérdida): cama, rejilla, travel, toolpaths y grabado de imágenes desde sus scanlines, tonado por potencia — `src/ui/previewPaths.ts`
 - [x] Export GCode `.nc`
 - [x] Control GRBL por Web Serial + simulador
 - [x] Streaming con control de flujo; Frame/Start/Pause/Stop
@@ -359,6 +360,10 @@ consumo de memoria.
 - Exportación directa a `.lbrn2` con subcapas y colores exactos.
 - REST API / CLI para automatización.
 - Web Worker para la generación de GCode (el raster grande bloquea la UI).
+  Medido: 200 rellenos → ~1,2 s, **de los cuales el 90 % es Paper.js**
+  (`objectContours` 604 ms + `hatchContours` 1196 ms), no el planificador (~70 ms).
+  Antes de portar nada a otro lenguaje: evitar Paper en formas simples, cachear
+  contornos y medir de nuevo.
 - Raster progresivo/streaming para levantar el límite de 360 muestras por eje.
 - Sitio de documentación con buscador (hoy todo vive en `docs/`).
 - Plantillas de issue/PR, `CODE_OF_CONDUCT.md`, etiquetas `good first issue`.

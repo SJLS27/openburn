@@ -6,6 +6,20 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 
 ## [Unreleased]
 
+### Añadido
+- **Preview vectorial**: el Preview ya no dibuja un canvas de 780×500 fijo, sino
+  un **SVG** cuyo `viewBox` cubre la cama en milímetros. Hacer zoom mueve esa
+  caja en lugar de estirar píxeles, así que **no hay límite de nitidez**: líneas,
+  reglas y detalles de 1 µm se ven igual de nítidos a 400×. El recorrido se anima
+  por segmentos con `vectorEffect="non-scaling-stroke"`.
+- **Raster sin bloque negro**: el grabado de imágenes se dibuja desde las
+  *scanlines* reales del trabajo, con color según la potencia láser
+  (`rasterPowerColor`), en vez de aplanar la imagen a un bitmap de fondo.
+
+### Cambiado
+- El Preview deja de usar `previewRaster.ts` (canvas + `ImageData`): toda la
+  geometría vive en `src/ui/previewPaths.ts`, con tests puros.
+
 ## [0.11.1] - 2026-11-17
 
 Publicado después de 0.11.0, que salió sin estos cambios: reúne los arreglos
