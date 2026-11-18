@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { execFile } from 'node:child_process';import fs from 'node:fs';
+import { execFile } from 'node:child_process';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -88,10 +89,14 @@ export function isKnownFontPath(file: string, known: Iterable<string>): boolean 
   return false;
 }
 
-async function listLinux(): Promise<SystemFont[]> {
-  const { stdout } = await execFileAsync('fc-list', [
-    '--format=%{file}\t%{family}\t%{style}\n',
-  ]);
+/** Runs `fc-list`; injectable so the Linux scan can be tested without fonts. */
+export type FcListRunner = () => Promise<{ stdout: string }>;
+
+const defaultFcList: FcListRunner = () =>
+  execFileAsync('fc-list', ['--format=%{file}\t%{family}\t%{style}\n']);
+
+async function listLinux(run: FcListRunner = defaultFcList): Promise<SystemFont[]> {
+  const { stdout } = await run();
   return dedupeFonts(parseFcListOutput(stdout));
 }
 
@@ -206,10 +211,11 @@ function prettifyFamily(raw: string): string {
 /** List every font the platform exposes, for the renderer's font picker. */
 export async function listSystemFonts(
   platform: NodeJS.Platform = process.platform,
+  runFcList: FcListRunner = defaultFcList,
 ): Promise<FontsListResult> {
   try {
     if (platform === 'linux') {
-      const fonts = await listLinux();
+      const fonts = await listLinux(runFcList);
       return { fonts };
     }
     if (platform === 'darwin') {

@@ -127,14 +127,24 @@ describe('electron/fonts', () => {
   });
 
   describe('listSystemFonts', () => {
-    it('uses fc-list on Linux', async () => {
-      const fonts = await listSystemFonts('linux');
-      // The CI containers may have no fontconfig; either way the shape holds.
-      if (fonts.error) {
-        expect(fonts.fonts).toEqual([]);
-      } else {
-        expect(Array.isArray(fonts.fonts)).toBe(true);
-      }
+    it('parses fc-list output on Linux', async () => {
+      // The runner is injected so the result never depends on the fonts that
+      // happen to be installed on the CI machine.
+      const run = vi.fn(async () => ({ stdout: FC_LIST_SAMPLE }));
+      const result = await listSystemFonts('linux', run);
+      expect(result.error).toBeUndefined();
+      expect(result.fonts.map((f) => f.family)).toContain('Liberation Sans');
+      expect(result.fonts.some((f) => f.style === 'bold')).toBe(true);
+      expect(run).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports the error when fc-list is not installed', async () => {
+      const run = vi.fn(async () => {
+        throw new Error('spawn fc-list ENOENT');
+      });
+      const result = await listSystemFonts('linux', run);
+      expect(result.fonts).toEqual([]);
+      expect(result.error).toMatch(/ENOENT/);
     });
 
     it('reads the font directories on macOS', async () => {

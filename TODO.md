@@ -129,9 +129,12 @@ cortar (Arial, Times New Roman y otras van en colecciones).
 Lecciones del release de 0.11.1 (el primer intento falló y hubo que mover la
 etiqueta):
 
-- [ ] Un fallo de test dependía de las fuentes instaladas en el runner de CI;
-  ya corregido (`registerFontHandlers` acepta la fuente de datos), pero **hay que
-  revisar que ningún otro test dependa de recursos del sistema**.
+- [x] Un fallo de test dependía de las fuentes instaladas en el runner de CI.
+  `registerFontHandlers` acepta la fuente de datos y `listSystemFonts` acepta el
+  ejecutor de `fc-list`, así que el escaneo de Linux se prueba con una salida
+  fija. Barrido del resto: el updater mockea `electron-updater`/`codesign` y
+  fuerza `process.platform`; `pathAllowList` y `fontFallback` usan directorios
+  temporales; ningún test hace red ni depende del reloj.
 - [x] El gate de release valida CI sobre el commit del tag (`workflow_call` con
   `commit: github.sha` y checkout de esa referencia).
 - [x] `docs/DEVELOPMENT.md` documenta cómo re-taggear un release fallido.
