@@ -23,6 +23,7 @@ const DOM_TESTS = [
   'src/serial/machine.test.ts',
   'src/io/lightburn.test.ts',
   'src/gcode/job.test.ts',
+  'src/gcode/job.bench.test.ts',
 ];
 
 // `test.setupFiles` is not inherited inside `projects`, so the DOM project gets

@@ -14,6 +14,15 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
   `ruta#índice`). También se detectan las **fuentes variables**: una cara con eje
   `wght` aparece como regular y bold.
 
+### Rendimiento
+- **Suite de tests en la mitad de tiempo**: los tests corren ahora en dos entornos
+  (`node` para lógica pura, `jsdom` solo para componentes), de ~28 s a ~12 s, con
+  un test que impide que un fichero `node` use APIs del DOM.
+- **Benchmark del planificador** (`src/gcode/job.bench.test.ts`, `BENCH=1`): mide
+  dónde se va el tiempo al armar un trabajo. Con 200 rellenos son ~1,3 s, de los
+  que ~1,1 s son Paper.js y ~0,18 s el planificador; por eso el Web Worker para
+  GCode queda descartado de momento (ver `TODO.md`).
+
 ### Seguridad
 - **Los ficheros solo se abren si el usuario los eligió**: `fs:readFile`,
   `fs:writeFile` y `fs:readBinary` ya no aceptan cualquier ruta. El proceso

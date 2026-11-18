@@ -370,11 +370,19 @@ consumo de memoria.
 - Comparador de trabajos y versionado del diseño (undo persistente entre sesiones).
 - Exportación directa a `.lbrn2` con subcapas y colores exactos.
 - REST API / CLI para automatización.
-- Web Worker para la generación de GCode (el raster grande bloquea la UI).
-  Medido: 200 rellenos → ~1,2 s, **de los cuales el 90 % es Paper.js**
-  (`objectContours` 604 ms + `hatchContours` 1196 ms), no el planificador (~70 ms).
-  Antes de portar nada a otro lenguaje: evitar Paper en formas simples, cachear
-  contornos y medir de nuevo.
+- ❌ **Web Worker para la generación de GCode** — medido y descartado por ahora.
+  `BENCH=1 npx vitest run --project jsdom src/gcode/job.bench.test.ts` en un
+  Ryzen 12 hilos: **200 rellenos → 1275 ms**, de los cuales el planificador son
+  **175 ms** y Paper.js **1100 ms** (`getIntersections` 722 ms + importar el SVG
+  de cada objeto 350 ms). Un trabajador resuelve como mucho los 175 ms y además
+  obliga a portar Fabric y Paper, que necesitan canvas: el coste supera la
+  ganancia. Las dos vías que sí atacan el 86 % restante quedan abiertas:
+  - [ ] **Sacar las formas simples de Paper**: el relleno de un `Rect`/`Ellipse`
+    es analítico (scanlines contra la caja o el círculo), sin `importSVG` ni
+    `getIntersections`.
+  - [ ] **Cachear contornos** por objeto hasta que cambie su geometría, para que
+    reabrir la Preview no repita el trabajo.
+  Vuelve a medir el benchmark después de cualquiera de las dos.
 - Raster progresivo/streaming para levantar el límite de 360 muestras por eje.
 - Sitio de documentación con buscador (hoy todo vive en `docs/`).
 - Plantillas de issue/PR, `CODE_OF_CONDUCT.md`, etiquetas `good first issue`.
