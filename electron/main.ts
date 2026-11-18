@@ -18,7 +18,16 @@ import {
   scheduleUpdateCheck,
 } from './updater';
 import { readClipboardPayload } from './clipboard';
-import { registerFontHandlers } from './fonts';
+import { getSystemFonts, registerFontHandlers } from './fonts';
+import {
+  FONT_FALLBACK_ENV,
+  bundledFallbackFont,
+  countFcListFonts,
+  dirsContainFonts,
+  installFallbackFont,
+  shouldRelaunchWithFallback,
+  systemFontConfigDirs,
+} from './fontFallback';
 import { registerAutosaveHandlers } from './autosave';
 import { registerRecentHandlers } from './recentFiles';
 import {
@@ -251,17 +260,72 @@ function installApplicationMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-app.whenReady().then(() => {
-  installApplicationMenu();
-  initUpdater();
-  registerAutosaveHandlers();
-  registerRecentHandlers();
-  createWindow();
-  scheduleUpdateCheck();
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+/**
+ * Give Chromium a font to boot with.
+ *
+ * Chromium reads fontconfig before any app code runs, so the bundled fallback
+ * cannot be injected into the current process: on Linux, when there is no font
+ * at all, the window is never created and Skia aborts the process. Instead we
+ * write a fontconfig that adds the bundled Inter and relaunch once with it
+ * (`fontFallback.ts`). Returns `false` when the relaunch was requested, so the
+ * caller stops starting the UI.
+ *
+ * Machines that have fonts skip all of this and keep their environment as-is.
+ */
+async function prepareStartupFonts(): Promise<boolean> {
+  const { fonts } = await getSystemFonts();
+  const listCount = fonts.length > 0 ? fonts.length : countFcListFonts() ?? 0;
+  const dirsWithFonts = dirsContainFonts(systemFontConfigDirs());
+  const markers = { retried: process.env[FONT_FALLBACK_ENV] === '1' };
+
+  if (!shouldRelaunchWithFallback(process.platform, listCount, dirsWithFonts, markers)) {
+    if (markers.retried) {
+      // The fallback boot did not help; say so instead of crashing silently.
+      dialog.showErrorBox(
+        'No fonts found',
+        'OpenBurn could not find any font on this system and cannot start.\n\n' +
+          'Install at least one font (for example the "fontconfig" package with a ' +
+          'base font set) and start OpenBurn again.',
+      );
+      return false;
+    }
+    return true;
+  }
+
+  const source = bundledFallbackFont(app.getAppPath());
+  if (!source) return true; // nothing to offer, let Chromium try anyway
+
+  const layout = installFallbackFont(source, app.getPath('temp'));
+  console.warn(
+    `[fonts] No system fonts found; relaunching with the bundled fallback (${layout.fontDir}).`,
+  );
+  // `relaunch` inherits `process.env`, so the variables go there.
+  process.env.FONTCONFIG_FILE = layout.configFile;
+  process.env[FONT_FALLBACK_ENV] = '1';
+  app.relaunch({ args: process.argv.slice(1) });
+  app.exit(0);
+  return false;
+}
+
+prepareStartupFonts()
+  .catch((err) => {
+    console.error('[fonts] Startup font check failed:', err);
+    return true; // never block startup on the check itself
+  })
+  .then((canStart) => {
+    if (!canStart) return;
+    app.whenReady().then(() => {
+      installApplicationMenu();
+      initUpdater();
+      registerAutosaveHandlers();
+      registerRecentHandlers();
+      createWindow();
+      scheduleUpdateCheck();
+      app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow();
+      });
+    });
   });
-});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
