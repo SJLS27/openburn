@@ -1,6 +1,6 @@
 # OpenBurn — TODO & Roadmap
 
-Estado actual: **v0.11.0**. Esta lista se actualiza con cada bloque de trabajo.
+Estado actual: **v0.11.1**. Esta lista se actualiza con cada bloque de trabajo.
 
 > 🟡 = funcionalidad presente pero **parcial**; el checkbox marca el estado real
 > (`[ ]` = solo existe la base, falta la paridad con LightBurn).
@@ -93,7 +93,7 @@ y P6b (varios documentos) cuando el store pase a multi-documento. Detalle en
 - [x] Auto-update de macOS: sin firma, `electron/updater.ts` reporta `disabled` con explicación (detección con `codesign`) en vez de error
 - [x] Gate de release sobre CI verde (`release.yml` reutiliza el workflow de CI)
 - [ ] Canales beta/stable y rollback de versiones
-- [x] Repin del Flatpak a la última release (manifest apuntando a `v0.11.0`); seguimiento de Flathub pendiente
+- [x] Repin del Flatpak a la última release (manifest apuntando a `v0.11.1`); seguimiento de Flathub pendiente
 - [x] Regenerar `flatpak/node-sources.json` para v0.8.1 (nuevas deps: `electron-updater`, `vitest`, `playwright`, `jsdom`…) con `flatpak-node-generator`; CI valida la cobertura con `npm run check:flatpak-sources`
 
 ### 🌐 Web pública

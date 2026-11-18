@@ -18,7 +18,7 @@
   <img alt="Platforms" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="GRBL" src="https://img.shields.io/badge/GRBL-ready-brightgreen.svg">
   <img alt="LightBurn files" src="https://img.shields.io/badge/LightBurn-.lbrn%20%7C%20.lbrn2-8a63d2.svg">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.11.0-orange.svg">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.11.1-orange.svg">
 </p>
 
 <p align="center">

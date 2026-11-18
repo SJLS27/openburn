@@ -6,6 +6,11 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-11-17
+
+Publicado después de 0.11.0, que salió sin estos cambios: reúne los arreglos
+para GitHub #1, #2 y #5.
+
 ### Añadido
 - **Fuentes del sistema para cortar**: Preview, GCode, *Convert to Path* y la
   exportación `.lbrn2` usan la tipografía del texto si está instalada
@@ -60,6 +65,9 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
   heurística de nombres y allow-list) y `src/text/fontLibrary.test.ts` /
   `src/ui/fontFamilies.test.ts` (resolución por peso/estilo y filtrado).
 - Contribuciones de [@pkkid](https://github.com/pkkid) (PRs #3 y #4).
+- El e2e de edición de nodos espera a que la herramienta rectángulo esté activa
+  antes de dibujar, en lugar de dar por hecho que la tecla `R` surtió efecto
+  (`e2e/nodes-snap.spec.ts`).
 
 ## [0.11.0] - 2026-11-13
 
