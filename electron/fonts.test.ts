@@ -12,6 +12,7 @@ import {
   parseFcListLine,
   parseFcListOutput,
   readSystemFont,
+  getSystemFonts,
   registerFontHandlers,
   resetFontsCache,
 } from './fonts';
@@ -185,22 +186,27 @@ describe('registerFontHandlers', () => {
     };
   }
 
+  /**
+   * `fonts:list` goes through `listSystemFonts`, which uses `fc-list` on Linux
+   * and a directory scan elsewhere. Mock the face source so the test does not
+   * depend on the fonts installed on the CI runner.
+   */
+  const FACE = { family: 'Arial Black', style: 'regular' as const, file: '/fixture/arial-black.ttf' };
+
   it('exposes the list through fonts:list', async () => {
-    vi.spyOn(fs, 'readdirSync').mockReturnValue(['Arial Black.ttf'] as never);
     const { handlers, ipc } = fakeIpc();
-    registerFontHandlers(ipc);
+    registerFontHandlers(ipc, async () => ({ fonts: [FACE] }));
 
     const result = (await handlers.get('fonts:list')?.()) as {
       fonts: Array<{ family: string }>;
     };
-    expect(result.fonts.map((f) => f.family)).toContain('Arial Black');
+    expect(result.fonts.map((f) => f.family)).toEqual(['Arial Black']);
   });
 
   it('reads only listed files through fonts:read', async () => {
-    vi.spyOn(fs, 'readdirSync').mockReturnValue(['Arial Black.ttf'] as never);
     const read = vi.spyOn(fs.promises, 'readFile').mockResolvedValue(Buffer.from('ABC'));
     const { handlers, ipc } = fakeIpc();
-    registerFontHandlers(ipc);
+    registerFontHandlers(ipc, async () => ({ fonts: [FACE] }));
 
     const listed = (await handlers.get('fonts:list')?.()) as {
       fonts: Array<{ file: string }>;
@@ -214,15 +220,32 @@ describe('registerFontHandlers', () => {
     expect(read).toHaveBeenCalledTimes(1);
   });
 
-  it('caches the list between calls', async () => {
-    const readdir = vi.spyOn(fs, 'readdirSync').mockReturnValue(['Arial Black.ttf'] as never);
+  it('caches the platform scan between getSystemFonts calls', async () => {
+    const source = vi.fn(async () => ({ fonts: [FACE] }));
+    await getSystemFonts(source);
+    await getSystemFonts(source);
+    expect(source).toHaveBeenCalledTimes(1);
+
+    resetFontsCache();
+    await getSystemFonts(source);
+    expect(source).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not cache a failed scan', async () => {
+    const source = vi.fn(async () => ({ fonts: [], error: 'no fc-list' }));
+    await getSystemFonts(source);
+    await getSystemFonts(source);
+    expect(source).toHaveBeenCalledTimes(2);
+  });
+
+  it('fires the injected list once per call', async () => {
+    const list = vi.fn(async () => ({ fonts: [FACE] }));
     const { handlers, ipc } = fakeIpc();
-    registerFontHandlers(ipc);
+    registerFontHandlers(ipc, list);
 
     await handlers.get('fonts:list')?.();
-    const calls = readdir.mock.calls.length;
     await handlers.get('fonts:list')?.();
 
-    expect(readdir.mock.calls.length).toBe(calls);
+    expect(list).toHaveBeenCalledTimes(2);
   });
 });

@@ -243,23 +243,28 @@ export function resetFontsCache(): void {
   fontsCache = null;
 }
 
-export async function getSystemFonts(): Promise<FontsListResult> {
+export async function getSystemFonts(
+  list: () => Promise<FontsListResult> = () => listSystemFonts(),
+): Promise<FontsListResult> {
   if (fontsCache) return { fonts: fontsCache };
-  const result = await listSystemFonts();
+  const result = await list();
   if (!result.error) fontsCache = result.fonts;
   return result;
 }
 
 /**
  * Register `fonts:list` and `fonts:read`. Kept out of `main.ts` so the logic
- * can be tested without booting Electron.
+ * can be tested without booting Electron. `list` is injectable for tests.
  */
-export function registerFontHandlers(ipc: {
-  handle: (channel: string, listener: (...args: unknown[]) => unknown) => void;
-}): void {
-  ipc.handle('fonts:list', () => getSystemFonts());
+export function registerFontHandlers(
+  ipc: {
+    handle: (channel: string, listener: (...args: unknown[]) => unknown) => void;
+  },
+  list: () => Promise<FontsListResult> = getSystemFonts,
+): void {
+  ipc.handle('fonts:list', () => list());
   ipc.handle('fonts:read', async (_e, file: unknown) => {
-    const { fonts } = await getSystemFonts();
+    const { fonts } = await list();
     const buf = await readSystemFont(String(file ?? ''), fonts.map((f) => f.file));
     return buf.toString('base64');
   });

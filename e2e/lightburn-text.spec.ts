@@ -27,6 +27,8 @@ interface TextSnapshot {
   fontFamily: string;
   fontSize: number;
   textLines: string[];
+  /** `lightburnFontFamily`: the family named in the file. */
+  backupFamily?: string;
 }
 
 test.beforeAll(async () => {
@@ -65,6 +67,7 @@ test('opens LightBurn text as an editable textbox (GitHub #1)', async () => {
                 fontFamily?: string;
                 fontSize?: number;
                 textLines?: string[];
+                lightburnFontFamily?: string;
               }[];
             };
           };
@@ -77,6 +80,7 @@ test('opens LightBurn text as an editable textbox (GitHub #1)', async () => {
           fontFamily: o.fontFamily ?? '',
           fontSize: o.fontSize ?? 0,
           textLines: o.textLines ?? [],
+          backupFamily: o.lightburnFontFamily,
         }));
     });
 
@@ -85,6 +89,16 @@ test('opens LightBurn text as an editable textbox (GitHub #1)', async () => {
   const [text] = await texts();
   expect(text.text).toBe('ZA VEDNO V\nNAŠIH SRCIH');
   expect(text.textLines).toEqual(['ZA VEDNO V', 'NAŠIH SRCIH']);
-  expect(text.fontFamily).toBe('Arial Black');
   expect(text.fontSize).toBe(25);
+
+  // Where Arial Black is installed the object keeps it; elsewhere the importer
+  // falls back to Inter. Both are valid — the original name is kept either way.
+  const fonts = await page.evaluate(() =>
+    (window.openburn?.fonts?.list ? window.openburn.fonts.list() : Promise.resolve({ fonts: [] })),
+  );
+  const installed = (fonts.fonts ?? []).some(
+    (f) => f.family.toLowerCase() === 'arial black',
+  );
+  expect(text.fontFamily).toBe(installed ? 'Arial Black' : 'Inter');
+  expect(text.backupFamily).toBe('Arial Black');
 });
