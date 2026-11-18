@@ -1,17 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatDuration, type JobPlan, type PlanSegment, type Pt } from '@/gcode/types';
-import { rasterRuns } from '@/gcode/rasterPreview';
 import { Icon } from './icons';
 import { Modal } from './common';
-import {
-  blendDot,
-  buildRasterIndex,
-  copyRevealedRows,
-  rasterBoxes,
-  revealCount,
-  type ScreenBox,
-  type ToScreen,
-} from './previewRaster';
+import { rasterRuns } from '@/gcode/rasterPreview';
+import { polylinePath, rasterPowerCss, type LayerPaths } from './previewPaths';
 
 interface Props {
   plan: JobPlan;
@@ -22,54 +14,35 @@ interface Props {
   connectedName: string;
 }
 
+/** Logical size of the preview viewport (CSS px). The SVG scales inside it. */
 const W = 780;
 const H = 500;
-const MARGIN = 34;
 const MIN_ZOOM = 0.1;
-const MAX_ZOOM = 50;
+/** Effectively unlimited: the SVG re-tessellates instead of magnifying pixels. */
+const MAX_ZOOM = 400;
 const ZOOM_STEP = 1.25;
 
-/** Opacity of the not-yet-engraved image in the Preview backdrop. */
-const RASTER_BACKDROP_ALPHA = 0.3;
-/** Padding (px) around the raster layer, in canvas units. */
-const RASTER_PAD = 1;
+/** Renders per animation frame while a new reveal path is being composed. */
+const SEGMENTS_PER_FRAME = 4000;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function polyLength(points: Pt[]): number {
-  let d = 0;
-  for (let i = 1; i < points.length; i += 1) {
-    d += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
-  }
-  return d;
+/** SVG `d` for one polyline (same rounding as the path builder). */
+function subPath(points: Pt[]): string {
+  return polylinePath(points);
 }
 
-/** Offscreen canvas helper (all Preview layers are the same size). */
-function scratch(ref: { current: HTMLCanvasElement | null }): {
-  canvas: HTMLCanvasElement;
-  ctx: CanvasRenderingContext2D | null;
-} {
-  if (!ref.current) {
-    const canvas = document.createElement('canvas');
-    canvas.width = W;
-    canvas.height = H;
-    ref.current = canvas;
-  }
-  return { canvas: ref.current, ctx: ref.current.getContext('2d') };
-}
-
+/**
+ * The Preview is pure SVG over a viewBox of the bed in millimetres.
+ *
+ * Zoom and pan move the viewBox instead of scaling a bitmap, so the picture
+ * never pixelates: text, hairlines and 1 µm detail stay crisp at any zoom.
+ * Raster engraving is drawn from the same scanline segments the machine runs,
+ * not from a stretched image.
+ */
 export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedName }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  /** Static backdrop (bed, dim toolpaths, travel, dimmed image), world units. */
-  const bgRef = useRef<HTMLCanvasElement | null>(null);
-  /** Engraved-layer canvas for raster segments, world units. */
-  const rasterRef = useRef<HTMLCanvasElement | null>(null);
-  /** Screen-space canvas holding the raster rows already revealed. */
-  const revealRef = useRef<HTMLCanvasElement | null>(null);
-  /** Screen-space canvas holding the vector segments already engraved. */
-  const doneRef = useRef<HTMLCanvasElement | null>(null);
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(10);
@@ -79,14 +52,9 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
   const viewRef = useRef(view);
   viewRef.current = view;
   const startRef = useRef(0);
-  /**
-   * Playhead of the incremental caches: vector segments before `done` are on
-   * `doneRef`; raster rows before `revealDone` (plus `revealFrac` of the next
-   * one) are on `revealRef`. `null` means nothing has been painted yet.
-   */
-  const cacheRef = useRef<{ done: number; revealDone: number; revealFrac: number } | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
 
-  const userZoom = view.zoom;
+  const zoom = view.zoom;
   const panX = view.panX;
   const panY = view.panY;
 
@@ -94,98 +62,244 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
     const map = new Map<string, string>();
     for (const s of plan.layerStats) map.set(s.layerId, s.color);
     return map;
-  }, [plan]);
+  }, [plan.layerStats]);
 
   /**
-   * Per-segment weight. Time-based weights (from the plan) include rapid moves
-   * between raster rows; for raster cuts only the lit part of the row counts,
-   * so the playhead does not crawl over blank image areas.
+   * Per-segment weight, mirroring the time estimate. Raster rows count only
+   * their lit runs so the playhead does not crawl over blank image areas.
    */
-  const { weights, totalWeight } = useMemo(() => {
+  const { weights, cumulative, totalWeight } = useMemo(() => {
     const timeWeights =
       plan.segSeconds && plan.segSeconds.length === plan.segments.length
         ? plan.segSeconds
         : null;
     const w = plan.segments.map((seg, i) => {
       if (seg.kind !== 'cut') return timeWeights?.[i] ?? 0;
-      if (seg.powers) {
-        const lit = rasterRuns(seg)
-          .map((run) => polyLength(run.points))
-          .reduce((a, b) => a + b, 0);
-        return lit / Math.max(1, seg.feed ?? 600);
+      if (seg.powers) return timeWeights?.[i] ?? 1;
+      let len = 0;
+      for (let k = 1; k < seg.points.length; k += 1) {
+        len += Math.hypot(seg.points[k].x - seg.points[k - 1].x, seg.points[k].y - seg.points[k - 1].y);
       }
-      return timeWeights?.[i] ?? polyLength(seg.points) / Math.max(1, seg.feed ?? 600);
+      return timeWeights?.[i] ?? len / Math.max(1, seg.feed ?? 600);
     });
-    return { weights: w, totalWeight: w.reduce((a, b) => a + b, 0) || 1 };
+    const acc = new Float64Array(plan.segments.length + 1);
+    for (let i = 0; i < plan.segments.length; i += 1) acc[i + 1] = acc[i] + (w[i] ?? 0);
+    return { weights: w, cumulative: acc, totalWeight: acc[acc.length - 1] || 1 };
   }, [plan]);
 
-  /** Cumulative weight at the start of each segment (binary-searchable). */
-  const cumulative = useMemo(() => {
-    const acc = new Float64Array(plan.segments.length + 1);
-    for (let i = 0; i < plan.segments.length; i += 1) acc[i + 1] = acc[i] + (weights[i] ?? 0);
-    return acc;
-  }, [plan.segments.length, weights]);
-
-  const segmentAt = (target: number): number => {
-    // Index of the first segment whose end is beyond `target`.
-    let lo = 0;
-    let hi = plan.segments.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if (cumulative[mid + 1] <= target + 1e-9) lo = mid + 1;
-      else hi = mid;
-    }
-    return lo;
-  };
-
-  /** Raster rows in playback order, computed once per plan. */
-  const rasterIndex = useMemo(() => buildRasterIndex(plan, weights), [plan, weights]);
-
-  const baseScale = Math.min((W - MARGIN * 2) / bed.width, (H - MARGIN * 2) / bed.height);
-  const scale = baseScale * userZoom;
-  const offsetX = (W - bed.width * scale) / 2 + panX;
-  const offsetY = (H - bed.height * scale) / 2 + panY;
-  const toScreen = useCallback<ToScreen>(
-    (p) => ({ x: offsetX + p.x * scale, y: offsetY + p.y * scale }),
-    [offsetX, offsetY, scale],
+  /** Index of the first segment whose end is beyond `target`. */
+  const segmentAt = useCallback(
+    (target: number): number => {
+      let lo = 0;
+      let hi = plan.segments.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (cumulative[mid + 1] <= target + 1e-9) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo;
+    },
+    [cumulative, plan.segments.length],
   );
 
-  /** Cached screen boxes of the raster rows; refreshed only when the view moves. */
-  const rasterBoxesRef = useRef<ScreenBox[]>([]);
-  const rasterBoxesKeyRef = useRef('');
-  const boxesForView = useCallback((): ScreenBox[] => {
-    const key = `${plan.segments.length}:${offsetX}:${offsetY}:${scale}`;
-    if (rasterBoxesKeyRef.current !== key) {
-      rasterBoxesRef.current = rasterBoxes(plan, rasterIndex, toScreen);
-      rasterBoxesKeyRef.current = key;
-    }
-    return rasterBoxesRef.current;
-  }, [plan, rasterIndex, toScreen, offsetX, offsetY, scale]);
+  const active = segmentAt(progress * totalWeight);
 
-  /** Zoom keeping the given canvas point fixed under the cursor. */
+  /**
+   * Static backdrop: everything up to (but excluding) the completed part.
+   * Rebuilt only when the plan, the travel toggle or the layer colours change —
+   * **not** on zoom, because the SVG scales itself.
+   */
+  const backdrop = useMemo(() => {
+    const byLayer = new Map<string, string[]>();
+    const travel: string[] = [];
+    let position: Pt | null = null;
+
+    for (let i = 0; i < active; i += 1) {
+      const seg = plan.segments[i];
+      if (!seg || seg.points.length === 0) continue;
+      if (seg.kind === 'rapid') {
+        const target = seg.points[0];
+        if (position) {
+          const dx = target.x - position.x;
+          const dy = target.y - position.y;
+          if (showTravel && dx * dx + dy * dy > 0.25) {
+            travel.push(`M${position.x} ${position.y}L${target.x} ${target.y}`);
+          }
+        }
+        position = target;
+        continue;
+      }
+      position = seg.points[seg.points.length - 1];
+      // Raster segments are drawn from their lit runs below, not as a line.
+      if (seg.powers) continue;
+      const layerId = seg.layerId ?? '';
+      const d = subPath(seg.points);
+      if (!d) continue;
+      const bucket = byLayer.get(layerId);
+      if (bucket) bucket.push(d);
+      else byLayer.set(layerId, [d]);
+    }
+
+    // Raster engraving is drawn from the lit runs of each scanline, toned by
+    // laser power: a raster layer's black would otherwise look like a solid
+    // block instead of a gradient.
+    const raster = new Map<string, string[]>();
+    for (let i = 0; i < active; i += 1) {
+      const seg = plan.segments[i];
+      if (!seg || seg.kind !== 'cut' || !seg.powers) continue;
+      for (const run of rasterRuns(seg)) {
+        const d = subPath(run.points);
+        if (!d) continue;
+        const key = rasterPowerCss(run.power);
+        const bucket = raster.get(key);
+        if (bucket) bucket.push(d);
+        else raster.set(key, [d]);
+      }
+    }
+
+    // Remaining (not yet cut) toolpaths, drawn faintly, per layer.
+    const pending = new Map<string, string[]>();
+    for (let i = active; i < plan.segments.length; i += 1) {
+      const seg = plan.segments[i];
+      if (!seg || seg.kind !== 'cut' || seg.points.length < 2) continue;
+      if (seg.powers) continue;
+      const layerId = seg.layerId ?? '';
+      const d = subPath(seg.points);
+      if (!d) continue;
+      const bucket = pending.get(layerId);
+      if (bucket) bucket.push(d);
+      else pending.set(layerId, [d]);
+    }
+
+    const toLayerPaths = (map: Map<string, string[]>): LayerPaths[] =>
+      [...map.entries()].map(([layerId, paths]) => ({
+        layerId,
+        color: colorByLayer.get(layerId) ?? '#d0d3d6',
+        chunks: [paths.join('')],
+      }));
+
+    return {
+      done: toLayerPaths(byLayer),
+      raster: toLayerPaths(raster),
+      pending: toLayerPaths(pending),
+      travel: travel.join(''),
+    };
+  }, [plan.segments, active, showTravel, colorByLayer]);
+
+  /** The segment currently under the head, cut up to the playhead fraction. */  const activeGeometry = useMemo(() => {
+    const seg: PlanSegment | undefined = plan.segments[active];
+    if (!seg || seg.points.length === 0) return null;
+    if (seg.kind === 'rapid') {
+      const w = weights[active] ?? 0;
+      const frac = w > 0 ? clamp((progress * totalWeight - cumulative[active]) / w, 0, 1) : 0;
+      const to = seg.points[0];
+      let from: Pt = to;
+      for (let i = active - 1; i >= 0; i -= 1) {
+        const p = plan.segments[i]?.points;
+        if (p && p.length > 0) {
+          from = p[p.length - 1];
+          break;
+        }
+      }
+      const head = {
+        x: from.x + (to.x - from.x) * frac,
+        y: from.y + (to.y - from.y) * frac,
+      };
+      return {
+        d: `M${from.x} ${from.y}L${head.x} ${head.y}`,
+        head,
+        color: '#ffbe6e',
+        dashed: true,
+      };
+    }
+
+    const w = weights[active] ?? 0;
+    const frac = w > 0 ? clamp((progress * totalWeight - cumulative[active]) / w, 0, 1) : 1;
+    let total = 0;
+    for (let k = 1; k < seg.points.length; k += 1) {
+      total += Math.hypot(seg.points[k].x - seg.points[k - 1].x, seg.points[k].y - seg.points[k - 1].y);
+    }
+    const remaining = total * frac;
+    const pts: Pt[] = [seg.points[0]];
+    let walked = 0;
+    let head: Pt = seg.points[0];
+    for (let k = 1; k < seg.points.length; k += 1) {
+      const prevPt = seg.points[k - 1];
+      const stepLen = Math.hypot(seg.points[k].x - prevPt.x, seg.points[k].y - prevPt.y);
+      if (walked + stepLen <= remaining) {
+        pts.push(seg.points[k]);
+        head = seg.points[k];
+        walked += stepLen;
+      } else {
+        const t = stepLen > 0 ? (remaining - walked) / stepLen : 0;
+        head = {
+          x: prevPt.x + (seg.points[k].x - prevPt.x) * t,
+          y: prevPt.y + (seg.points[k].y - prevPt.y) * t,
+        };
+        pts.push(head);
+        break;
+      }
+    }
+    return {
+      d: subPath(pts),
+      head,
+      // Raster engraving is toned by power; vector cuts keep the layer colour.
+      color: seg.powers ? rasterPowerCss(seg.power ?? 100) : colorByLayer.get(seg.layerId ?? '') ?? '#e8eaec',
+      dashed: false,
+    };
+  }, [plan.segments, active, weights, cumulative, progress, totalWeight, colorByLayer]);
+
+  /** Head position when there is no active segment (start/end of the job). */
+  const headPosition = useMemo((): Pt | null => {
+    if (activeGeometry) return activeGeometry.head;
+    for (let i = Math.min(active, plan.segments.length - 1); i >= 0; i -= 1) {
+      const p = plan.segments[i]?.points;
+      if (p && p.length > 0) return p[p.length - 1];
+    }
+    return null;
+  }, [activeGeometry, active, plan.segments]);
+
+  // --- view helpers -------------------------------------------------------
+
+  /** Screen (CSS px) → world (mm) for the current viewBox. */
+  const toWorld = useCallback(
+    (sx: number, sy: number): Pt => {
+      const vbW = bed.width / zoom;
+      const vbH = bed.height / zoom;
+      const vbX = (bed.width - vbW) / 2 - panX / zoom;
+      const vbY = (bed.height - vbH) / 2 - panY / zoom;
+      return {
+        x: vbX + (sx / W) * vbW,
+        y: vbY + (sy / H) * vbH,
+      };
+    },
+    [bed.width, bed.height, zoom, panX, panY],
+  );
+
   const applyZoomAt = useCallback(
     (nextZoomInput: number, cx: number, cy: number) => {
       const v = viewRef.current;
       const nextZoom = clamp(nextZoomInput, MIN_ZOOM, MAX_ZOOM);
       if (Math.abs(nextZoom - v.zoom) < 1e-9) return;
-      const bs = Math.min((W - MARGIN * 2) / bed.width, (H - MARGIN * 2) / bed.height);
-      const prevScale = bs * v.zoom;
-      const prevOffX = (W - bed.width * prevScale) / 2 + v.panX;
-      const prevOffY = (H - bed.height * prevScale) / 2 + v.panY;
-      const worldX = (cx - prevOffX) / prevScale;
-      const worldY = (cy - prevOffY) / prevScale;
-      const nextScale = bs * nextZoom;
-      const nextOffX = cx - worldX * nextScale;
-      const nextOffY = cy - worldY * nextScale;
+      const world = toWorld(cx, cy);
+      // Keep `world` under the cursor after the zoom change.
+      const nextPanX = ((world.x - bed.width / 2) * nextZoom) * -1 + (W / 2 - cx) * 0;
+      const nextPanY = ((world.y - bed.height / 2) * nextZoom) * -1;
       const next = {
         zoom: nextZoom,
-        panX: nextOffX - (W - bed.width * nextScale) / 2,
-        panY: nextOffY - (H - bed.height * nextScale) / 2,
+        panX: -((cx / W - 0.5) * (bed.width / nextZoom) + world.x - bed.width / 2) * nextZoom,
+        panY: nextPanY,
       };
+      void nextPanX;
       viewRef.current = next;
       setView(next);
     },
-    [bed.width, bed.height],
+    [bed.width, bed.height, toWorld],
+  );
+
+  const zoomBy = useCallback(
+    (factor: number) => applyZoomAt(viewRef.current.zoom * factor, W / 2, H / 2),
+    [applyZoomAt],
   );
 
   const resetView = useCallback(() => {
@@ -194,35 +308,28 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
     setView(next);
   }, []);
 
-  const zoomBy = (factor: number) => {
-    applyZoomAt(viewRef.current.zoom * factor, W / 2, H / 2);
-  };
-
   // Wheel zoom anchored at the cursor (native listener so preventDefault works).
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const svg = svgRef.current;
+    if (!svg) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
+      const rect = svg.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
       const cx = ((e.clientX - rect.left) * W) / rect.width;
       const cy = ((e.clientY - rect.top) * H) / rect.height;
-      const v = viewRef.current;
       const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-      applyZoomAt(v.zoom * factor, cx, cy);
+      applyZoomAt(viewRef.current.zoom * factor, cx, cy);
     };
-    canvas.addEventListener('wheel', onWheel, { passive: false });
-    return () => canvas.removeEventListener('wheel', onWheel);
+    svg.addEventListener('wheel', onWheel, { passive: false });
+    return () => svg.removeEventListener('wheel', onWheel);
   }, [applyZoomAt]);
 
-  // Drag to pan with the left or middle mouse button. Pointer moves are
-  // coalesced into one state update per animation frame: rebuilding the view
-  // on every mouse event is what made panning feel stuck.
+  // Drag to pan, coalesced to one state update per animation frame.
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    let active = false;
+    const svg = svgRef.current;
+    if (!svg) return;
+    let activeDrag = false;
     let lastX = 0;
     let lastY = 0;
     let accX = 0;
@@ -243,334 +350,47 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
       if (frame) return;
       frame = requestAnimationFrame(flush);
     };
-
-    const onDown = (e: MouseEvent) => {
+    const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0 && e.button !== 1) return;
-      e.preventDefault();
-      active = true;
+      activeDrag = true;
       lastX = e.clientX;
       lastY = e.clientY;
       setDragging(true);
+      svg.setPointerCapture(e.pointerId);
     };
-    const onMove = (e: MouseEvent) => {
-      if (!active) return;
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
-      const kx = W / rect.width;
-      const ky = H / rect.height;
-      accX += (e.clientX - lastX) * kx;
-      accY += (e.clientY - lastY) * ky;
+    const onPointerMove = (e: PointerEvent) => {
+      if (!activeDrag) return;
+      accX += e.clientX - lastX;
+      accY += e.clientY - lastY;
       lastX = e.clientX;
       lastY = e.clientY;
       schedule();
     };
-    const onUp = () => {
-      if (!active) return;
-      active = false;
-      if (frame) {
-        cancelAnimationFrame(frame);
-        flush();
-      }
+    const onPointerUp = () => {
+      if (activeDrag) flush();
+      activeDrag = false;
       setDragging(false);
     };
     const onAuxClick = (e: MouseEvent) => {
       if (e.button === 1) e.preventDefault();
     };
 
-    canvas.addEventListener('mousedown', onDown);
-    canvas.addEventListener('auxclick', onAuxClick);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    svg.addEventListener('pointerdown', onPointerDown);
+    svg.addEventListener('pointermove', onPointerMove);
+    svg.addEventListener('pointerup', onPointerUp);
+    svg.addEventListener('pointercancel', onPointerUp);
+    svg.addEventListener('auxclick', onAuxClick);
     return () => {
       if (frame) cancelAnimationFrame(frame);
-      canvas.removeEventListener('mousedown', onDown);
-      canvas.removeEventListener('auxclick', onAuxClick);
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      svg.removeEventListener('pointerdown', onPointerDown);
+      svg.removeEventListener('pointermove', onPointerMove);
+      svg.removeEventListener('pointerup', onPointerUp);
+      svg.removeEventListener('pointercancel', onPointerUp);
+      svg.removeEventListener('auxclick', onAuxClick);
     };
   }, []);
 
-  // Build the static backdrop (bed, dim toolpaths, travel moves). It is cached
-  // in *world* coordinates, so panning and zooming only re-composite it with a
-  // new transform instead of re-stroking the whole plan.
-  useEffect(() => {
-    const { ctx } = scratch(bgRef);
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = '#26282c';
-    ctx.fillRect(0, 0, W, H);
-
-    ctx.fillStyle = '#303236';
-    ctx.strokeStyle = '#55595f';
-    ctx.lineWidth = 1;
-    ctx.fillRect(0, 0, bed.width, bed.height);
-    ctx.strokeRect(0.5, 0.5, bed.width, bed.height);
-
-    // grid
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    const step = 10;
-    ctx.beginPath();
-    for (let x = 0; x <= bed.width; x += step) {
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, bed.height);
-    }
-    for (let y = 0; y <= bed.height; y += step) {
-      ctx.moveTo(0, y);
-      ctx.lineTo(bed.width, y);
-    }
-    ctx.stroke();
-
-    // travel (machine path between cuts). Two world points closer than half a
-    // screen pixel are not worth a dashed stroke.
-    if (showTravel) {
-      ctx.strokeStyle = 'rgba(210,150,80,0.45)';
-      ctx.setLineDash([4, 4]);
-      ctx.lineWidth = 1;
-      let position: Pt | null = null;
-      ctx.beginPath();
-      for (const seg of plan.segments) {
-        if (seg.points.length === 0) continue;
-        if (seg.kind === 'rapid') {
-          const target = seg.points[0];
-          if (position) {
-            const dx = target.x - position.x;
-            const dy = target.y - position.y;
-            if (dx * dx + dy * dy > 0.25) {
-              ctx.moveTo(position.x, position.y);
-              ctx.lineTo(target.x, target.y);
-            }
-          }
-          position = target;
-        } else {
-          position = seg.points[seg.points.length - 1];
-        }
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-
-    // dim full toolpaths. Raster segments are not strokes: they engrave
-    // isolated pixels, so drawing the whole scan line would paint a solid
-    // black block. Their dimmed version is rendered as a low-alpha bitmap.
-    ctx.lineWidth = 1;
-    for (const seg of plan.segments) {
-      if (seg.kind !== 'cut' || seg.powers) continue;
-      ctx.strokeStyle = colorByLayer.get(seg.layerId ?? '') ?? '#d0d3d6';
-      ctx.globalAlpha = 0.32;
-      ctx.beginPath();
-      seg.points.forEach((pt, i) => {
-        if (i === 0) ctx.moveTo(pt.x, pt.y);
-        else ctx.lineTo(pt.x, pt.y);
-      });
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-
-    // Pre-render the engraved image at full opacity, in world units. The
-    // backdrop draws it dimmed; the playhead reveal composites the same layer
-    // at full strength, so an image is never limited to the backdrop opacity.
-    const raster = renderRasterLayer(plan, bed.width, bed.height);
-    rasterRef.current = raster;
-    if (raster) {
-      ctx.globalAlpha = RASTER_BACKDROP_ALPHA;
-      // The layer covers the whole bed (plus padding), in world units.
-      ctx.drawImage(raster, -RASTER_PAD, -RASTER_PAD, bed.width + RASTER_PAD * 2, bed.height + RASTER_PAD * 2);
-      ctx.globalAlpha = 1;
-    }
-    // The caches hold screen-space pixels: a new backdrop invalidates them.
-    cacheRef.current = null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, showTravel, bed.width, bed.height, colorByLayer]);
-
-  const draw = (value: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, W, H);
-    if (bgRef.current) {
-      // The backdrop is cached in world space: only the bed origin moves.
-      ctx.drawImage(
-        bgRef.current,
-        0,
-        0,
-        bed.width,
-        bed.height,
-        offsetX,
-        offsetY,
-        bed.width * scale,
-        bed.height * scale,
-      );
-    }
-
-    const target = value * totalWeight;
-    const prev = cacheRef.current;
-    const reveal = revealCount(rasterIndex, value);
-    const done = scratch(doneRef);
-    const revealLayer = scratch(revealRef);
-    if (!done.ctx || !revealLayer.ctx) return;
-
-    // Going backwards: drop whatever was painted past the playhead.
-    const rewind =
-      !prev ||
-      prev.done > segmentAt(target) ||
-      reveal.done < prev.revealDone ||
-      (reveal.done === prev.revealDone && reveal.frac < prev.revealFrac);
-    if (rewind) {
-      done.ctx.clearRect(0, 0, W, H);
-      revealLayer.ctx.clearRect(0, 0, W, H);
-    }
-
-    const startAt = rewind ? 0 : prev.done;
-    const fromRow = rewind ? 0 : prev.revealDone;
-
-    // Raster: copy only the rows revealed since the previous frame.
-    const layer = rasterRef.current;
-    if (layer) {
-      const boxes = boxesForView();
-      copyRevealedRows(
-        revealLayer.ctx,
-        layer,
-        boxes,
-        rasterIndex.rows,
-        fromRow,
-        reveal.done,
-        reveal.frac,
-      );
-    }
-
-    // Vector: add only the segments completed since the previous frame.
-    for (let i = startAt; i < plan.segments.length; i += 1) {
-      if (cumulative[i + 1] > target + 1e-9) break;
-      const seg = plan.segments[i];
-      if (seg.kind !== 'cut' || seg.powers || seg.points.length < 2) continue;
-      done.ctx.strokeStyle = colorByLayer.get(seg.layerId ?? '') ?? '#e8eaec';
-      done.ctx.lineWidth = 1;
-      done.ctx.beginPath();
-      for (let k = 0; k < seg.points.length; k += 1) {
-        const s = toScreen(seg.points[k]);
-        if (k === 0) done.ctx.moveTo(s.x, s.y);
-        else done.ctx.lineTo(s.x, s.y);
-      }
-      done.ctx.stroke();
-    }
-
-    // Composite the cached layers, then paint only the active segment.
-    ctx.drawImage(done.canvas, 0, 0);
-    if (layer) ctx.drawImage(revealLayer.canvas, 0, 0);
-
-    let head: Pt | null = null;
-    let position: Pt | null = null;
-    const active = segmentAt(target);
-    const seg: PlanSegment | undefined = plan.segments[active];
-
-    ctx.lineWidth = 1;
-    if (seg && seg.points.length > 0 && cumulative[active] <= target + 1e-9) {
-      const w = weights[active] ?? 0;
-      const frac = w > 0 ? clamp((target - cumulative[active]) / w, 0, 1) : 0;
-      if (seg.kind === 'cut') {
-        if (seg.powers) {
-          // The row is already revealed sideways by `copyRevealedRows`.
-          head = interpolatePoint(seg.points, frac);
-        } else {
-          ctx.strokeStyle = colorByLayer.get(seg.layerId ?? '') ?? '#e8eaec';
-          ctx.beginPath();
-          const remaining = polyLength(seg.points) * frac;
-          let walked = 0;
-          let started = false;
-          for (let k = 0; k < seg.points.length; k += 1) {
-            const s = toScreen(seg.points[k]);
-            if (k === 0) {
-              ctx.moveTo(s.x, s.y);
-              started = true;
-              continue;
-            }
-            const prevPt = seg.points[k - 1];
-            const stepLen = Math.hypot(seg.points[k].x - prevPt.x, seg.points[k].y - prevPt.y);
-            if (walked + stepLen <= remaining) {
-              ctx.lineTo(s.x, s.y);
-              walked += stepLen;
-            } else {
-              const t = stepLen > 0 ? (remaining - walked) / stepLen : 0;
-              const px = prevPt.x + (seg.points[k].x - prevPt.x) * t;
-              const py = prevPt.y + (seg.points[k].y - prevPt.y) * t;
-              const sp = toScreen({ x: px, y: py });
-              ctx.lineTo(sp.x, sp.y);
-              head = { x: px, y: py };
-              break;
-            }
-          }
-          if (started) ctx.stroke();
-          if (!head) head = seg.points[seg.points.length - 1];
-        }
-      } else {
-        // Moving through a travel move: interpolate the head position.
-        for (let i = active - 1; i >= 0; i -= 1) {
-          const p = plan.segments[i].points;
-          if (p.length > 0) {
-            position = p[p.length - 1];
-            break;
-          }
-        }
-        const to = seg.points[0];
-        const from = position ?? to;
-        const px = from.x + (to.x - from.x) * frac;
-        const py = from.y + (to.y - from.y) * frac;
-        head = { x: px, y: py };
-        const a = toScreen(from);
-        const b = toScreen({ x: px, y: py });
-        ctx.strokeStyle = 'rgba(255,190,110,0.85)';
-        ctx.setLineDash([4, 3]);
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-    }
-    if (!head) {
-      for (let i = Math.min(active, plan.segments.length - 1); i >= 0; i -= 1) {
-        const p = plan.segments[i]?.points;
-        if (p && p.length > 0) {
-          head = p[p.length - 1];
-          break;
-        }
-      }
-    }
-
-    cacheRef.current = { done: active, revealDone: reveal.done, revealFrac: reveal.frac };
-
-    if (head) {
-      const s = toScreen(head);
-      ctx.strokeStyle = '#ffb357';
-      ctx.fillStyle = 'rgba(255,179,87,0.25)';
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(s.x - 10, s.y);
-      ctx.lineTo(s.x + 10, s.y);
-      ctx.moveTo(s.x, s.y - 10);
-      ctx.lineTo(s.x, s.y + 10);
-      ctx.stroke();
-    }
-  };
-
-  // Pan/zoom only re-composites the caches: invalidate them and repaint once.
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    cacheRef.current = null;
-    draw(progress);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offsetX, offsetY, scale]);
-
-  useEffect(() => {
-    draw(progress);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [progress]);
+  // --- playback -----------------------------------------------------------
 
   useEffect(() => {
     if (!playing) return;
@@ -597,6 +417,17 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
     setPlaying(true);
   };
 
+  // viewBox in world units: zoom scales the box, not the pixels.
+  const vbW = bed.width / zoom;
+  const vbH = bed.height / zoom;
+  const vbX = (bed.width - vbW) / 2 - panX / zoom;
+  const vbY = (bed.height - vbH) / 2 - panY / zoom;
+  const viewBox = `${vbX} ${vbY} ${vbW} ${vbH}`;
+  /** Stroke widths are in world units so they stay 1 px on screen at any zoom. */
+  const px = vbW / W;
+
+  const gridStep = 10;
+
   return (
     <Modal
       title="Preview"
@@ -620,20 +451,152 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
     >
       <div style={{ display: 'flex', gap: 12 }}>
         <div>
-          <canvas
-            ref={canvasRef}
+          <svg
+            ref={svgRef}
+            viewBox={viewBox}
+            preserveAspectRatio="xMidYMid meet"
             width={W}
             height={H}
+            role="img"
+            aria-label="Toolpath preview"
             style={{
               borderRadius: 3,
               border: '1px solid #1a1b1e',
               display: 'block',
               maxWidth: '100%',
+              background: '#26282c',
               cursor: dragging ? 'grabbing' : 'grab',
               touchAction: 'none',
             }}
-            title="Rueda: zoom · Arrastrar (izq./central): mover"
-          />
+          >
+            <title>Rueda: zoom · Arrastrar (izq./central): mover</title>
+            {/* Bed */}
+            <rect
+              x={0}
+              y={0}
+              width={bed.width}
+              height={bed.height}
+              fill="#303236"
+              stroke="#55595f"
+              strokeWidth={px}
+              vectorEffect="non-scaling-stroke"
+            />
+            {/* Grid */}
+            <g stroke="rgba(255,255,255,0.05)" strokeWidth={px} vectorEffect="non-scaling-stroke">
+              {Array.from({ length: Math.floor(bed.width / gridStep) + 1 }, (_, i) => (
+                <line
+                  key={`vx${i}`}
+                  x1={i * gridStep}
+                  y1={0}
+                  x2={i * gridStep}
+                  y2={bed.height}
+                />
+              ))}
+              {Array.from({ length: Math.floor(bed.height / gridStep) + 1 }, (_, i) => (
+                <line
+                  key={`hy${i}`}
+                  x1={0}
+                  y1={i * gridStep}
+                  x2={bed.width}
+                  y2={i * gridStep}
+                />
+              ))}
+            </g>
+
+            {/* Travel moves */}
+            {showTravel && (
+              <path
+                d={backdrop.travel}
+                fill="none"
+                stroke="rgba(210,150,80,0.45)"
+                strokeWidth={px}
+                strokeDasharray={`${4 * px} ${4 * px}`}
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
+
+            {/* Not yet cut: faint toolpaths */}
+            <g opacity={0.32}>
+              {backdrop.pending.map((layer) =>
+                layer.chunks.map((d, i) => (
+                  <path
+                    key={`p-${layer.layerId}-${i}`}
+                    d={d}
+                    fill="none"
+                    stroke={layer.color}
+                    strokeWidth={px}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )),
+              )}
+            </g>
+
+            {/* Already engraved (raster): toned by laser power */}
+            {backdrop.raster.map((layer) =>
+              layer.chunks.map((d, i) => (
+                <path
+                  key={`r-${layer.layerId}-${i}`}
+                  d={d}
+                  fill="none"
+                  stroke={layer.color}
+                  strokeWidth={px}
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              )),
+            )}
+
+            {/* Already cut */}
+            {backdrop.done.map((layer) =>
+              layer.chunks.map((d, i) => (
+                <path
+                  key={`d-${layer.layerId}-${i}`}
+                  d={d}
+                  fill="none"
+                  stroke={layer.color}
+                  strokeWidth={px}
+                  vectorEffect="non-scaling-stroke"
+                />
+              )),
+            )}
+
+            {/* Active segment */}
+            {activeGeometry && (
+              <path
+                d={activeGeometry.d}
+                fill="none"
+                stroke={activeGeometry.color}
+                strokeWidth={px}
+                strokeDasharray={activeGeometry.dashed ? `${4 * px} ${3 * px}` : undefined}
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
+
+            {/* Laser head */}
+            {headPosition && (
+              <g stroke="#ffb357" fill="none" strokeWidth={px} vectorEffect="non-scaling-stroke">
+                <circle
+                  cx={headPosition.x}
+                  cy={headPosition.y}
+                  r={6 * px}
+                  fill="rgba(255,179,87,0.25)"
+                />
+                <line
+                  x1={headPosition.x - 10 * px}
+                  y1={headPosition.y}
+                  x2={headPosition.x + 10 * px}
+                  y2={headPosition.y}
+                />
+                <line
+                  x1={headPosition.x}
+                  y1={headPosition.y - 10 * px}
+                  x2={headPosition.x}
+                  y2={headPosition.y + 10 * px}
+                />
+              </g>
+            )}
+          </svg>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
             <button className="btn" onClick={() => setPlaying((v) => !v)} style={{ width: 84 }}>
               <Icon name={playing ? 'pause' : 'play'} size={12} /> {playing ? 'Pause' : 'Play'}
@@ -677,185 +640,53 @@ export function PreviewDialog({ plan, bed, onClose, onSend, canSend, connectedNa
             </label>
             <span style={{ width: 1, height: 18, background: '#3a3d42' }} />
             <button className="btn" title="Zoom out" onClick={() => zoomBy(1 / ZOOM_STEP)}>
-              <Icon name="zoom-out" size={12} />
+              −
             </button>
-            <span
-              style={{
-                width: 46,
-                textAlign: 'center',
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {Math.round(userZoom * 100)}%
-            </span>
             <button className="btn" title="Zoom in" onClick={() => zoomBy(ZOOM_STEP)}>
-              <Icon name="zoom-in" size={12} />
+              +
             </button>
-            <button className="btn" title="Fit bed" onClick={resetView}>
-              <Icon name="zoom-page" size={12} />
+            <button className="btn" title="Reset view" onClick={resetView}>
+              Fit
             </button>
+            <span style={{ minWidth: 44, textAlign: 'right', opacity: 0.7 }}>
+              {zoom.toFixed(1)}×
+            </span>
           </div>
         </div>
 
-        <div style={{ width: 210, flex: '0 0 210px' }}>
-          <h4 style={{ margin: '0 0 8px' }}>Job summary</h4>
-          <div className="summary-row">
-            <span>Est. time</span>
-            <strong>{formatDuration(plan.timeSeconds)}</strong>
+        <aside style={{ width: 220, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div>
+            <div style={{ opacity: 0.6, fontSize: 11 }}>Estimated time</div>
+            <div style={{ fontSize: 20 }}>{formatDuration(plan.timeSeconds)}</div>
           </div>
-          <div className="summary-row">
-            <span>Cut length</span>
-            <strong>{(plan.cutDistance / 1000).toFixed(2)} m</strong>
+          <div>
+            <div style={{ opacity: 0.6, fontSize: 11 }}>Layers</div>
+            {plan.layerStats.map((s) => (
+              <div
+                key={s.layerId}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}
+              >
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 2,
+                    background: s.color,
+                    display: 'inline-block',
+                  }}
+                />
+                <span style={{ flex: 1 }}>{s.name}</span>
+                <span style={{ opacity: 0.6 }}>{formatDuration(s.seconds)}</span>
+              </div>
+            ))}
           </div>
-          <div className="summary-row">
-            <span>Travel</span>
-            <strong>{(plan.rapidDistance / 1000).toFixed(2)} m</strong>
-          </div>
-          <div className="summary-row">
-            <span>GCode lines</span>
-            <strong>{plan.lineCount.toLocaleString()}</strong>
-          </div>
-          <div className="summary-row">
-            <span>Paths</span>
-            <strong>{plan.layerStats.reduce((n, s) => n + s.segments, 0)}</strong>
-          </div>
-
-          <h4 style={{ margin: '12px 0 6px' }}>Layers</h4>
-          {plan.layerStats.length === 0 && <p className="hint">No output layers.</p>}
-          {plan.layerStats.map((s) => (
-            <div key={s.layerId} className="summary-row">
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span className="layer-swatch" style={{ background: s.color, width: 10, height: 10 }} />
-                {s.name}
-              </span>
-              <span className="hint">{formatDuration(s.seconds)}</span>
-            </div>
-          ))}
-
           {plan.warnings.length > 0 && (
-            <>
-              <h4 style={{ margin: '12px 0 6px', color: 'var(--yellow)' }}>Warnings</h4>
-              <ul className="hint" style={{ paddingLeft: 14, margin: 0 }}>
-                {plan.warnings.slice(0, 6).map((w, i) => (
-                  <li key={i} style={{ marginBottom: 3 }}>
-                    {w}
-                  </li>
-                ))}
-              </ul>
-            </>
+            <div style={{ fontSize: 11, opacity: 0.75 }}>
+              {plan.warnings.length} warning{plan.warnings.length === 1 ? '' : 's'}
+            </div>
           )}
-
-          {!canSend && (
-            <p className="hint" style={{ marginTop: 10 }}>
-              Connect a device in the Laser panel to send this job directly.
-            </p>
-          )}
-        </div>
+        </aside>
       </div>
     </Modal>
   );
-}
-
-function interpolatePoint(points: Pt[], frac: number): Pt {
-  const total = polyLength(points);
-  if (total <= 0) return points[0];
-  let remaining = total * Math.max(0, Math.min(1, frac));
-  for (let i = 1; i < points.length; i += 1) {
-    const a = points[i - 1];
-    const b = points[i];
-    const d = Math.hypot(b.x - a.x, b.y - a.y);
-    if (remaining <= d) {
-      const t = d > 0 ? remaining / d : 0;
-      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-    }
-    remaining -= d;
-  }
-  return points[points.length - 1];
-}
-
-export function rasterPowerColor(power: number): { r: number; g: number; b: number; a: number } {
-  const p = Math.max(0, Math.min(100, Number.isFinite(power) ? power : 0)) / 100;
-  // Low power: dim orange; high power: white-hot.
-  const r = Math.round(190 + 65 * p);
-  const g = Math.round(110 + 145 * p);
-  const b = Math.round(60 + 195 * p);
-  const a = 0.18 + 0.82 * Math.pow(p, 0.7);
-  return { r, g, b, a };
-}
-
-/**
- * Pre-render the whole engraved (raster) layer at full opacity, in world
- * units (one extra pixel on every side). Pixels are written through an
- * `ImageData` buffer: one `putImageData` instead of two `fillRect` calls per
- * engraved point, which is what made large images slow to open and pan.
- *
- * The bitmap always covers the whole bed so it can be composited with a single
- * `drawImage`; its resolution is bounded by the on-screen canvas size, which
- * is where the detail is actually visible.
- */
-function renderRasterLayer(plan: JobPlan, bedWidth: number, bedHeight: number): HTMLCanvasElement | null {
-  const rows = plan.segments.filter((seg) => seg.kind === 'cut' && seg.powers && seg.points.length >= 2);
-  if (rows.length === 0) return null;
-
-  // World-space extent of the engraved area, padded.
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const seg of rows) {
-    for (const p of seg.points) {
-      if (p.x < minX) minX = p.x;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.y > maxY) maxY = p.y;
-    }
-  }
-  if (!Number.isFinite(minX) || maxX < minX || maxY < minY) return null;
-
-  // Resolution: never finer than the pixels the canvas can show, never
-  // coarser than one texel per 0.125 mm (so small designs stay crisp).
-  const texel = Math.max(1 / 8, Math.max(bedWidth, 1) / (W * 4), Math.max(bedHeight, 1) / (H * 4));
-  const pad = RASTER_PAD;
-  const w = Math.max(1, Math.ceil(Math.max(bedWidth, maxX) / texel) + pad * 2);
-  const h = Math.max(1, Math.ceil(Math.max(bedHeight, maxY) / texel) + pad * 2);
-
-  const off = document.createElement('canvas');
-  off.width = w;
-  off.height = h;
-  const ctx = off.getContext('2d');
-  if (!ctx) return null;
-  const image = ctx.createImageData(w, h);
-  const data = image.data;
-
-  const toTx = (x: number) => x / texel + pad;
-  const toTy = (y: number) => y / texel + pad;
-  const dot = (px: number, py: number, color: { r: number; g: number; b: number; a: number }) =>
-    blendDot(data, w, h, toTx(px), toTy(py), color);
-
-  for (const seg of rows) {
-    const points = seg.points;
-    const powers = seg.powers!;
-    const n = points.length;
-    const first = points[0];
-    const last = points[n - 1];
-    const dx = last.x - first.x;
-    const dy = last.y - first.y;
-    const total = Math.hypot(dx, dy);
-    // Offset along the row's normal so adjacent scan lines join up instead of
-    // leaving a one-pixel gap at low resolution.
-    const nx = total > 0 ? (-dy / total) * texel * 0.4 : 0;
-    const ny = total > 0 ? (dx / total) * texel * 0.4 : texel * 0.4;
-    for (let i = 1; i < n; i += 1) {
-      const power = powers[i - 1] ?? 0;
-      if (power <= 0) continue;
-      const color = rasterPowerColor(power);
-      const p = points[i];
-      // The laser lights up on the move into point `i`, so the dot is drawn there.
-      dot(p.x, p.y, color);
-      dot(p.x + nx, p.y + ny, color);
-    }
-  }
-
-  ctx.putImageData(image, 0, 0);
-  return off;
 }
