@@ -143,6 +143,12 @@ etiqueta):
 - [ ] Documentar en `docs/DEVELOPMENT.md` cómo re-taggear un release fallido
   (borrar etiqueta remota y local, recrear sobre el commit corregido).
 
+### 📦 Empaquetado local (Flatpak)
+
+- [ ] `scripts/flatpak-local.sh` debería derivar el tag de `package.json` en vez
+  de llevarlo escrito: hoy, si sube una 0.11.2, el build local falla hasta
+  editar el script a mano.
+
 ### 🚀 Auto-update (prioridad máxima)
 - [x] `electron-updater` en el proceso principal, con eventos main → preload → renderer
 - [x] Comprobación en segundo plano al arrancar (5 s) y manual desde **Help → Check for Updates…**
