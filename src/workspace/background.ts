@@ -8,6 +8,8 @@ interface BackgroundOptions {
   showGrid: boolean;
   showOutline: boolean;
   units: 'mm' | 'in';
+  /** Ruler guides from the document, drawn above the grid and below objects. */
+  guides?: readonly { axis: 'x' | 'y'; position: number }[];
 }
 
 /** Band reserved for the rulers at the top and left of the workspace. */
@@ -33,6 +35,11 @@ export class BackgroundRenderer {
     this.fabric = fabric;
     this.options = options;
     this.resize();
+  }
+
+  /** Where the rulers end, in CSS pixels (the controller uses it to start drags). */
+  static rulerBands(): { width: number; height: number } {
+    return { width: RULER_W, height: RULER_H };
   }
 
   setOptions(patch: Partial<BackgroundOptions>): void {
@@ -142,8 +149,47 @@ export class BackgroundRenderer {
       }
     }
 
+    // Ruler guides sit above the grid and below the artwork.
+    this.drawGuides(ctx, zoom, ox, oy, width, height);
+
     // Rulers pinned to the viewport edges (not to the bed), like LightBurn.
     this.drawRulers(ctx, zoom, ox, oy, width, height, units);
+  }
+
+  /**
+   * Persistent guides dragged out of the rulers. They are drawn on the
+   * backdrop, so they never become selection, export or snap targets as Fabric
+   * objects would.
+   */
+  private drawGuides(
+    ctx: CanvasRenderingContext2D,
+    zoom: number,
+    ox: number,
+    oy: number,
+    width: number,
+    height: number,
+  ): void {
+    const guides = this.options.guides ?? [];
+    if (guides.length === 0) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(94,160,220,0.85)';
+    ctx.lineWidth = 1;
+    for (const guide of guides) {
+      ctx.beginPath();
+      if (guide.axis === 'x') {
+        const sx = Math.round(ox + guide.position * zoom) + 0.5;
+        if (sx < RULER_W || sx > width) continue;
+        ctx.moveTo(sx, RULER_H);
+        ctx.lineTo(sx, height);
+      } else {
+        const sy = Math.round(oy + guide.position * zoom) + 0.5;
+        if (sy < RULER_H || sy > height) continue;
+        ctx.moveTo(RULER_W, sy);
+        ctx.lineTo(width, sy);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   /**

@@ -195,6 +195,16 @@ export interface DocumentMeta {
   updatedAt: string;
 }
 
+/**
+ * A guide the user dragged out of a ruler. Guides live in the document (not in
+ * the snap preferences) because they belong to the layout of that design.
+ */
+export interface Guide {
+  axis: 'x' | 'y';
+  /** Position in document units (mm or inch, like the bed). */
+  position: number;
+}
+
 export interface OpenBurnDocument {
   format: 'openburn';
   version: 1;
@@ -203,6 +213,8 @@ export interface OpenBurnDocument {
   layers: LayerDef[];
   /** Fabric.js scene graph (JSON) */
   canvas: unknown;
+  /** Ruler guides; absent in documents saved before they existed. */
+  guides?: Guide[];
   pages?: PageDef[];
   meta: DocumentMeta;
 }

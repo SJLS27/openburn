@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { SnapOptions, SnapShape, SnapTarget } from './snap';
 import {
+  KIND_PRIORITY,
+  arcCenter,
+  arcMidpoint,
+  arcTargets,
   boxXs,
   boxYs,
   intersectionTargets,
@@ -8,6 +12,8 @@ import {
   snapDragDelta,
   snapPoint,
   snapRadiusScene,
+  tangentPoints,
+  tangentTargets,
   targetsForShape,
 } from './snap';
 
@@ -193,5 +199,63 @@ describe('workspace/snap — target collection', () => {
     expect(hits.some((h) => h.position.x === 5 && h.position.y === 0)).toBe(true);
     expect(hits.some((h) => h.position.x === 10 && h.position.y === 5)).toBe(true);
     expect(intersectionTargets([a])).toEqual([]);
+  });
+});
+
+describe('workspace/snap — arcs and tangents', () => {
+  it('finds the circumcentre of three points on a circle', () => {
+    // Unit circle around (10, 20).
+    const center = arcCenter({ x: 11, y: 20 }, { x: 10, y: 21 }, { x: 9, y: 20 });
+    expect(center?.x).toBeCloseTo(10, 6);
+    expect(center?.y).toBeCloseTo(20, 6);
+  });
+
+  it('returns null for collinear points', () => {
+    expect(arcCenter({ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 })).toBeNull();
+  });
+
+  it('keeps the arc midpoint on the circle', () => {
+    const mid = arcMidpoint({ x: 10, y: 0 }, { x: 0, y: 10 }, { x: -10, y: 0 });
+    expect(mid?.x).toBeCloseTo(0, 6);
+    expect(mid?.y).toBeCloseTo(10, 6);
+  });
+
+  it('offers centre, mid and endpoints for an arc', () => {
+    const targets = arcTargets([{ id: 'a1', start: { x: 10, y: 0 }, mid: { x: 0, y: 10 }, end: { x: -10, y: 0 } }]);
+    expect(targets.filter((t) => t.kind === 'arcCenter')).toHaveLength(1);
+    expect(targets.filter((t) => t.kind === 'midpoint')).toHaveLength(1);
+    expect(targets.filter((t) => t.kind === 'vertex')).toHaveLength(2);
+    expect(targets.every((t) => t.source === 'a1')).toBe(true);
+  });
+
+  it('puts the arc centre above a plain midpoint when both are in range', () => {
+    const targets: SnapTarget[] = [
+      { position: { x: 0, y: 0 }, kind: 'midpoint', source: 'x' },
+      { position: { x: 0, y: 0 }, kind: 'arcCenter', source: 'y' },
+    ];
+    const hit = snapPoint({ x: 0, y: 0 }, targets, { ...baseOptions(), grid: false });
+    expect(hit?.kind).toBe('arcCenter');
+  });
+
+  it('returns two tangent points from a point outside the circle', () => {
+    const points = tangentPoints({ x: 10, y: 0 }, { x: 0, y: 0 }, 5);
+    expect(points).toHaveLength(2);
+    for (const p of points) expect(Math.hypot(p.x, p.y)).toBeCloseTo(5, 6);
+  });
+
+  it('returns no tangent from a point inside the circle', () => {
+    expect(tangentPoints({ x: 1, y: 0 }, { x: 0, y: 0 }, 5)).toEqual([]);
+  });
+
+  it('tags tangent targets with the circle they come from', () => {
+    const targets = tangentTargets({ x: 10, y: 0 }, [{ id: 'c1', center: { x: 0, y: 0 }, radius: 5 }]);
+    expect(targets).toHaveLength(2);
+    expect(targets.every((t) => t.kind === 'tangent' && t.source === 'c1')).toBe(true);
+  });
+
+  it('ranks tangents above midpoints', () => {
+    expect(KIND_PRIORITY.tangent).toBeLessThan(KIND_PRIORITY.midpoint);
+    expect(KIND_PRIORITY.arcCenter).toBeLessThan(KIND_PRIORITY.tangent);
+    expect(KIND_PRIORITY.vertex).toBeLessThan(KIND_PRIORITY.arcCenter);
   });
 });

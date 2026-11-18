@@ -50,6 +50,7 @@ import { prepareSvgForImport, applySvgPhysicalSize } from '@/io/svg';
 import { findImageLayer } from './layers';
 import { applyNumericSingle, resolveSizePatch } from './numeric';
 import { liveMeasure } from './measure';
+import { addGuide, guideAt, guideShapes, guideTargets, snapToGuide } from './guides';
 import {
   buildPath,
   insertNode,
@@ -69,6 +70,7 @@ import {
   intersectionTargets,
   snapDragDelta,
   snapPoint,
+  snapRadiusScene,
   targetsForShape,
   type SnapKind,
   type SnapOptions,
@@ -133,6 +135,8 @@ export class WorkspaceController implements WorkspaceApi {
   private snapGuides: Line[] = [];
   /** Objects being dragged, so a selection never snaps to itself. */
   private dragSnap: Set<string> | null = null;
+  /** Guide being dragged out of (or along) a ruler, in scene units. */
+  private guideDrag: { axis: 'x' | 'y'; value: number } | null = null;
 
   private drawing: DrawState | null = null;
   private panning = false;
@@ -290,6 +294,7 @@ export class WorkspaceController implements WorkspaceApi {
       if (s.tool === 'node') this.rebuildNodeHandles();
       else this.clearNodeHandles();
     }
+    const guides = s.doc.guides ?? [];
     const bgKey = [
       s.doc.bed.width,
       s.doc.bed.height,
@@ -297,6 +302,7 @@ export class WorkspaceController implements WorkspaceApi {
       s.gridSize,
       s.showGrid,
       s.doc.units,
+      guides.map((g) => `${g.axis}${g.position}`).join(','),
     ].join('|');
     if (bgKey !== this.lastBgKey) {
       this.lastBgKey = bgKey;
@@ -307,9 +313,31 @@ export class WorkspaceController implements WorkspaceApi {
         showGrid: s.showGrid,
         showOutline: s.doc.bed.showOutline,
         units: s.doc.units,
+        guides,
       });
     }
   };
+
+  /**
+   * Remove the ruler guide closest to the pointer (within the snap radius).
+   * Returns whether one was removed, so Delete only falls through to the
+   * selection when there is no guide under the cursor.
+   */
+  private deleteGuideUnderPointer(): boolean {
+    const guides = store.getState().doc.guides ?? [];
+    if (guides.length === 0 || this.canvas.getActiveObject()) return false;
+    const x = this.lastCursorStoreX;
+    const y = this.lastCursorStoreY;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+
+    const radius = snapRadiusScene(this.snapOptions());
+    const hit = guideAt(guides, { x, y }, radius);
+    if (hit < 0) return false;
+
+    store.setGuides(guides.filter((_, index) => index !== hit));
+    this.setStatus('Guide removed');
+    return true;
+  }
 
   private updateCursorStyle(): void {
     const tool = store.getState().tool;
@@ -352,6 +380,14 @@ export class WorkspaceController implements WorkspaceApi {
         return;
       }
       if (e.button === 2) return;
+      if (e.button === 0 && store.getState().tool === 'select' || store.getState().tool === 'node') {
+        const ruler = this.isOverRuler(e);
+        if (ruler) {
+          this.guideDrag = { axis: ruler, value: this.sceneAlong(ruler, e) };
+          this.canvas.defaultCursor = ruler === 'x' ? 'col-resize' : 'row-resize';
+          return;
+        }
+      }
       if (this.mirrorMode || this.rotate2Mode) {
         if (e.button === 0) this.handleTransformClick(this.canvas.getScenePoint(e));
         return;
@@ -394,6 +430,10 @@ export class WorkspaceController implements WorkspaceApi {
         }
         return;
       }
+      if (this.guideDrag) {
+        this.guideDrag.value = this.sceneAlong(this.guideDrag.axis, e);
+        return;
+      }
       const p = this.canvas.getScenePoint(e);
       if (this.mirrorMode || this.rotate2Mode) this.handleTransformMove(p);
       if (this.drawing) this.updateDraw(p);
@@ -405,6 +445,15 @@ export class WorkspaceController implements WorkspaceApi {
     });
 
     this.canvas.on('mouse:up', () => {
+      if (this.guideDrag) {
+        const { axis, value } = this.guideDrag;
+        this.guideDrag = null;
+        this.updateCursorStyle();
+        store.setGuides(addGuide(store.getState().doc.guides ?? [], axis, value));
+        this.setStatus(`Guide added at ${value.toFixed(1)} ${store.getState().doc.units}`);
+        this.canvas.requestRenderAll();
+        return;
+      }
       this.endMeasure();
       if (this.panning) {
         this.panning = false;
@@ -475,6 +524,26 @@ export class WorkspaceController implements WorkspaceApi {
       // keep background aligned with the fabric viewport
       this.bg.render();
     });
+  }
+
+  /**
+   * `true` when the pointer is over a ruler band. Guides are created and moved
+   * by dragging out of them, like every other vector editor.
+   */
+  private isOverRuler(e: MouseEvent): 'x' | 'y' | null {
+    const rect = this.host.getBoundingClientRect();
+    const { width, height } = BackgroundRenderer.rulerBands();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (y <= height && x > width) return 'y'; // top band → horizontal guide
+    if (x <= width && y > height) return 'x'; // left band → vertical guide
+    return null;
+  }
+
+  /** Scene coordinate of the pointer along the given axis. */
+  private sceneAlong(axis: 'x' | 'y', e: MouseEvent): number {
+    const point = this.canvas.getScenePoint(e);
+    return axis === 'x' ? point.x : point.y;
   }
 
   private isPanTrigger(e: MouseEvent): boolean {
@@ -670,6 +739,13 @@ export class WorkspaceController implements WorkspaceApi {
     for (const shape of list) targets.push(...targetsForShape(shape));
     if (store.getState().snapSettings.intersections && list.length > 1) {
       targets.push(...intersectionTargets(list));
+    }
+    // Ruler guides participate in snapping like any other target.
+    const doc = store.getState().doc;
+    targets.push(...guideTargets(doc.guides ?? []));
+    const guideLines = guideShapes(doc.guides ?? [], doc.bed);
+    if (store.getState().snapSettings.intersections && guideLines.length > 0 && list.length > 0) {
+      targets.push(...intersectionTargets([...list, ...guideLines]));
     }
     return targets;
   }
@@ -1676,6 +1752,10 @@ export class WorkspaceController implements WorkspaceApi {
   // Workspace API implementation
   // -------------------------------------------------------------------------
 
+  setGuides(guides: OpenBurnDocument['guides']): void {
+    store.setGuides(guides);
+  }
+
   newDocument(): void {
     const empty = buildDocument({
       name: 'Untitled',
@@ -1683,6 +1763,7 @@ export class WorkspaceController implements WorkspaceApi {
       bed: store.getState().doc.bed,
       layers: store.getState().doc.layers,
       canvas: { version: '6', objects: [] },
+      guides: [],
     });
     this.applyDocument(empty, null);
     this.setStatus('New document');
@@ -1697,6 +1778,7 @@ export class WorkspaceController implements WorkspaceApi {
       bed: s.doc.bed,
       layers: s.doc.layers,
       canvas: this.canvas.toObject(['layerId']),
+      guides: s.doc.guides ?? [],
       pages: s.doc.pages,
       createdAt: s.doc.meta.createdAt,
     });
@@ -4374,6 +4456,9 @@ export class WorkspaceController implements WorkspaceApi {
       // Node mode deletes the selected nodes, never the whole path unless
       // nothing is selected (the old behaviour deleted the path by surprise).
       if (store.getState().tool === 'node' && this.deleteSelectedNodes()) return;
+      // A guide under the pointer goes before the selection: it is the closest
+      // thing to what the user is pointing at.
+      if (this.deleteGuideUnderPointer()) return;
       this.deleteSelection();
       return;
     }

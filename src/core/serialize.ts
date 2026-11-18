@@ -10,6 +10,7 @@ export interface SaveInput {
   bed: OpenBurnDocument['bed'];
   layers: OpenBurnDocument['layers'];
   canvas: unknown;
+  guides?: OpenBurnDocument['guides'];
   pages?: OpenBurnDocument['pages'];
   createdAt?: string;
 }
@@ -23,6 +24,7 @@ export function buildDocument(input: SaveInput): OpenBurnDocument {
     bed: input.bed,
     layers: input.layers,
     canvas: input.canvas,
+    guides: input.guides,
     pages: input.pages,
     meta: {
       name: input.name,
@@ -30,6 +32,20 @@ export function buildDocument(input: SaveInput): OpenBurnDocument {
       updatedAt: now,
     },
   };
+}
+
+/** Keep only well-formed guides; older documents simply have none. */
+export function normalizeGuides(input: unknown): OpenBurnDocument['guides'] {
+  if (!Array.isArray(input)) return [];
+  const out: NonNullable<OpenBurnDocument['guides']> = [];
+  for (const entry of input) {
+    if (!entry || typeof entry !== 'object') continue;
+    const guide = entry as Partial<{ axis: unknown; position: unknown }>;
+    if (guide.axis !== 'x' && guide.axis !== 'y') continue;
+    if (typeof guide.position !== 'number' || !Number.isFinite(guide.position)) continue;
+    out.push({ axis: guide.axis, position: guide.position });
+  }
+  return out;
 }
 
 export function serializeDocument(doc: OpenBurnDocument): string {
@@ -64,6 +80,7 @@ export function parseDocument(text: string): OpenBurnDocument {
           }))
         : base.layers,
     canvas: obj.canvas ?? base.canvas,
+    guides: normalizeGuides(obj.guides),
     meta: { ...base.meta, ...(obj.meta ?? {}) },
   };
   return doc;

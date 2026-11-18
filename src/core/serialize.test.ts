@@ -32,6 +32,39 @@ describe('core/serialize (.obrn)', () => {
     expect(doc.layers).toHaveLength(2);
   });
 
+  it('round-trips ruler guides', () => {
+    const base = sampleDocument();
+    const doc = { ...base, guides: [{ axis: 'x' as const, position: 42.5 }] };
+    const parsed = parseDocument(serializeDocument(doc));
+    expect(parsed.guides).toEqual([{ axis: 'x', position: 42.5 }]);
+  });
+
+  it('drops malformed guides instead of failing the whole file', () => {
+    const base = sampleDocument();
+    const parsed = parseDocument(
+      JSON.stringify({
+        ...base,
+        guides: [
+          { axis: 'x', position: 10 },
+          { axis: 'z', position: 20 },
+          { axis: 'y', position: 'nope' },
+          null,
+          { axis: 'y', position: 30 },
+        ],
+      }),
+    );
+    expect(parsed.guides).toEqual([
+      { axis: 'x', position: 10 },
+      { axis: 'y', position: 30 },
+    ]);
+  });
+
+  it('opens documents saved before guides existed', () => {
+    const base = sampleDocument();
+    const { guides: _guides, ...legacy } = base as typeof base & { guides?: unknown };
+    expect(parseDocument(JSON.stringify(legacy)).guides).toEqual([]);
+  });
+
   it('round-trips through serialize + parse', () => {
     const doc = sampleDocument();
     const parsed = parseDocument(serializeDocument(doc));

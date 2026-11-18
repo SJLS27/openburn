@@ -263,6 +263,11 @@ class AppStore {
     this.setState({ doc: { ...this.state.doc, units }, dirty: true });
   }
 
+  /** Replace the ruler guides of the current design (undoable via the history). */
+  setGuides(guides: OpenBurnDocument['guides']): void {
+    this.setState({ doc: { ...this.state.doc, guides }, dirty: true });
+  }
+
   setBed(width: number, height: number): void {
     const doc = this.state.doc;
     this.setState({ doc: { ...doc, bed: { ...doc.bed, width, height } }, dirty: true });
@@ -388,6 +393,8 @@ export interface DroppedFile {
  */
 export interface WorkspaceApi {
   newDocument(): void;
+  /** Replace the ruler guides (used by the e2e specs and the tests). */
+  setGuides(guides: OpenBurnDocument['guides']): void;
   openDocument(): Promise<void>;
   openPath(filePath: string): Promise<void>;
   dropFiles(files: DroppedFile[], at?: { x: number; y: number }): Promise<void>;

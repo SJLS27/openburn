@@ -21,6 +21,8 @@ export type SnapKind =
   | 'center'
   | 'midpoint'
   | 'intersection'
+  | 'tangent'
+  | 'arcCenter'
   | 'guide';
 
 export interface SnapTarget {
@@ -55,13 +57,15 @@ export interface SnapResult {
 export const DEFAULT_SNAP_RADIUS_PX = 8;
 
 /** Priority when several targets are inside the radius: smaller wins. */
-const KIND_PRIORITY: Record<SnapKind, number> = {
+export const KIND_PRIORITY: Record<SnapKind, number> = {
   vertex: 0,
   intersection: 1,
-  midpoint: 2,
-  center: 3,
-  guide: 4,
-  grid: 5,
+  arcCenter: 2,
+  tangent: 3,
+  midpoint: 4,
+  center: 5,
+  guide: 6,
+  grid: 7,
 };
 
 /** Scene-space radius for the current zoom. */
@@ -267,6 +271,96 @@ export function intersectionTargets(shapes: readonly SnapShape[]): SnapTarget[] 
           if (hit) out.push({ position: hit, kind: 'intersection', source: shapes[j].id });
         }
       }
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Arcs: centre and tangents
+// ---------------------------------------------------------------------------
+
+/**
+ * Candidate targets of a circular arc. `corners` of an arc are its two
+ * endpoints; the centre is their circumcentre together with `mid`, a third
+ * point on the arc.
+ *
+ * Arcs are a frequent snapping target in laser work (a round hole, a fillet),
+ * and "the middle of the arc" or "its centre" are what the user aims at.
+ */
+export interface ArcShape {
+  id: string;
+  start: Pt;
+  mid: Pt;
+  end: Pt;
+}
+
+/** Circumcentre of three points, or `null` when they are collinear. */
+export function arcCenter(a: Pt, b: Pt, c: Pt): Pt | null {
+  const d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
+  if (Math.abs(d) < 1e-9) return null;
+  const a2 = a.x * a.x + a.y * a.y;
+  const b2 = b.x * b.x + b.y * b.y;
+  const c2 = c.x * c.x + c.y * c.y;
+  return {
+    x: (a2 * (b.y - c.y) + b2 * (c.y - a.y) + c2 * (a.y - b.y)) / d,
+    y: (a2 * (c.x - b.x) + b2 * (a.x - c.x) + c2 * (b.x - a.x)) / d,
+  };
+}
+
+/** Point of the arc exactly between start and end along the circle. */
+export function arcMidpoint(start: Pt, mid: Pt, end: Pt): Pt | null {
+  const center = arcCenter(start, mid, end);
+  if (!center) return null;
+  const radius = Math.hypot(start.x - center.x, start.y - center.y);
+  const angle = Math.atan2(mid.y - center.y, mid.x - center.x);
+  return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
+}
+
+/** Centre + arc midpoint targets for a set of arcs. */
+export function arcTargets(arcs: readonly ArcShape[]): SnapTarget[] {
+  const out: SnapTarget[] = [];
+  for (const arc of arcs) {
+    const center = arcCenter(arc.start, arc.mid, arc.end);
+    if (center) out.push({ position: center, kind: 'arcCenter', source: arc.id });
+    const mid = arcMidpoint(arc.start, arc.mid, arc.end);
+    if (mid) out.push({ position: mid, kind: 'midpoint', source: arc.id });
+    out.push({ position: { ...arc.start }, kind: 'vertex', source: arc.id });
+    out.push({ position: { ...arc.end }, kind: 'vertex', source: arc.id });
+  }
+  return out;
+}
+
+/**
+ * Tangent points from `from` to the circle (centre `center`, radius `r`).
+ * Zero, one or two points; a point inside the circle has none.
+ */
+export function tangentPoints(from: Pt, center: Pt, r: number): Pt[] {
+  const dx = from.x - center.x;
+  const dy = from.y - center.y;
+  const d = Math.hypot(dx, dy);
+  if (!(r > 0) || d <= r + 1e-9) return [];
+  const a = (r * r) / d;
+  const h = Math.sqrt(Math.max(0, r * r - a * a));
+  const ux = dx / d;
+  const uy = dy / d;
+  const base = { x: center.x + a * ux, y: center.y + a * uy };
+  const out: Pt[] = [
+    { x: base.x - h * uy, y: base.y + h * ux },
+    { x: base.x + h * uy, y: base.y - h * ux },
+  ];
+  return out;
+}
+
+/** Tangent targets that a pointer at `from` can reach on each circle. */
+export function tangentTargets(
+  from: Pt,
+  circles: readonly { id: string; center: Pt; radius: number }[],
+): SnapTarget[] {
+  const out: SnapTarget[] = [];
+  for (const circle of circles) {
+    for (const point of tangentPoints(from, circle.center, circle.radius)) {
+      out.push({ position: point, kind: 'tangent', source: circle.id });
     }
   }
   return out;
