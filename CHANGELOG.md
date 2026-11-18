@@ -53,6 +53,11 @@ para GitHub #1, #2 y #5.
 ### Limitaciones conocidas
 - xTool solo se validó en conexión y jog (D1, fw 40.30.002.01); el progreso del
   trabajo puede adelantarse al cabezal y Pause/Stop no está verificado.
+- **La app no arranca en un sistema sin ninguna fuente instalada**: Chromium
+  aborta en Skia (`FATAL: Not implemented`) antes de crear la ventana. Es la
+  máxima urgencia para la próxima release (ver `TODO.md`).
+- Las colecciones `.ttc`/`.otc` (habituales en Windows y macOS) no se listan ni
+  se usan para cortar, porque opentype.js no las parsea como una sola cara.
 
 ### Desarrollo
 - Tests nuevos: `electron/serialPort.test.ts` (catálogo USB, recomendación de

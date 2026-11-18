@@ -83,6 +83,65 @@ máquina/taller**, hardware (rotary/cámaras/DSP) cuando haya máquinas para pro
 y P6b (varios documentos) cuando el store pase a multi-documento. Detalle en
 [TODO.md](TODO.md#-paridad-con-lightburn-feature-parity).
 
+> ⚠️ **Antes de la próxima release, como máxima urgencia:** resolver los bloques
+> [🖥️ Arranque sin fuentes del sistema](#️-arranque-sin-fuentes-del-sistema-máxima-urgencia),
+> [🔤 Soporte `.ttc`](#-soporte-de-colecciones-de-fuentes-ttc), **la deuda de
+> `fs:*`** ([🔐 Seguridad](#-seguridad-y-hardening)) y el
+> [🔁 Circuito de release](#-circuito-de-release) que dejó el release de 0.11.1.
+
+### 🖥️ Arranque sin fuentes del sistema (máxima urgencia)
+
+**La app no arranca si el sistema no tiene ninguna fuente instalada.** Chromium
+aborta en `third_party/skia/src/ports/SkFontMgr_FontConfigInterface.cpp:163`
+con `FATAL: Not implemented` antes de crear la ventana. No es código nuestro,
+pero rompe OpenBurn en entornos reales:
+
+- contenedores/imágenes mínimas (Docker, CI, `scratch` sin `fontconfig`),
+- servidores headless o distros peladas donde arranque el binario,
+- Flatpak/Snap si el runtime no trae fuentes (verificar `fc-list` dentro del sandbox),
+- usuarios que vacían `~/.local/share/fonts` o rompen `fontconfig`.
+
+**Reproducción:** `FONTCONFIG_FILE=/tmp/empty.conf npx electron . --no-sandbox`
+con un `fontconfig` apuntando a un directorio vacío.
+
+**Qué hacer:**
+- [ ] Detectar el caso al arrancar y mostrar un error claro (diálogo nativo con
+  "no se encontró ninguna fuente en el sistema") en vez de morir con SIGTRAP.
+- [ ] Empaquetar una fuente mínima (la Inter propia sirve) y registrarla como
+  *fallback* de Chromium cuando `fc-list` esté vacío: `app.commandLine.appendSwitch`
+  o copiar la TTF a un directorio de fuentes temporal y apuntar `FONTCONFIG_PATH`.
+- [ ] Test que arranque Electron con un `FONTCONFIG_FILE` vacío y compruebe que
+  la ventana aparece (o que sale el diálogo controlado), sin `SIGTRAP`.
+- [ ] Documentar en `docs/USAGE.md` (requisitos) y en el README la dependencia
+  de al menos una fuente en el sistema.
+
+### 🔤 Soporte de colecciones de fuentes (`.ttc`)
+
+Hoy `electron/fonts.ts` **ignora** `.ttc`/`.otc` (`SKIPPED_EXTENSIONS`) porque
+opentype.js no las parsea como una sola cara. Consecuencia: en **Windows** y
+**macOS** muchas familias del sistema no aparecen en el selector ni se usan para
+cortar (Arial, Times New Roman y otras van en colecciones).
+
+- [ ] Parsear la colección y elegir la cara correcta por familia/estilo, o
+  extraer las caras y listarlas individualmente.
+- [ ] Fuentes variables (`Inter[wght].ttf`): seleccionar la instancia por peso
+  en vez de quedarse con la primera que reporta `fc-list`.
+- [ ] Test con un `.ttc` real de fixture y con una fuente variable.
+
+### 🔁 Circuito de release
+
+Lecciones del release de 0.11.1 (el primer intento falló y hubo que mover la
+etiqueta):
+
+- [ ] Un fallo de test dependía de las fuentes instaladas en el runner de CI;
+  ya corregido (`registerFontHandlers` acepta la fuente de datos), pero **hay que
+  revisar que ningún otro test dependa de recursos del sistema**.
+- [ ] El workflow de release compila aunque `CI` en `main` haya fallado en el
+  push de la etiqueta: validar que el gate de release use el estado **del tag**,
+  no el de `main` previo.
+- [ ] Documentar en `docs/DEVELOPMENT.md` cómo re-taggear un release fallido
+  (borrar etiqueta remota y local, recrear sobre el commit corregido).
+
 ### 🚀 Auto-update (prioridad máxima)
 - [x] `electron-updater` en el proceso principal, con eventos main → preload → renderer
 - [x] Comprobación en segundo plano al arrancar (5 s) y manual desde **Help → Check for Updates…**
@@ -168,7 +227,8 @@ Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
 ### 🔐 Seguridad y hardening
 - [ ] Habilitar `sandbox: true` en `BrowserWindow` (hoy `false`)
 - [ ] Endurecer CSP: quitar `script-src 'unsafe-inline'`
-- [x] 🟡 Restringir los handlers `fs:readFile`/`fs:writeFile`/`readBinary` a rutas elegidas por el usuario (hoy aceptan cualquier ruta); los de fuentes ya usan allow-list (`fonts:read`)
+- [ ] 🟡 Restringir los handlers `fs:readFile`/`fs:writeFile`/`readBinary` a rutas elegidas por el usuario
+  (hoy aceptan cualquier ruta). Solo los de fuentes (`fonts:read`) tienen allow-list.
 - [ ] `SECURITY.md` con política de reporte y respuesta
 - [ ] Auditoría de dependencias en CI
 
