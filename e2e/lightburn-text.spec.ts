@@ -47,13 +47,20 @@ test.afterAll(async () => {
 });
 
 test('opens LightBurn text as an editable textbox (GitHub #1)', async () => {
-  await page.evaluate(
-    (filePath) =>
-      (
-        window as unknown as { __openburn: { openPath: (p: string) => Promise<void> } }
-      ).__openburn.openPath(filePath),
-    fixture,
-  );
+  // Paths are only read after the user picked them, so the renderer asks for
+  // the "Open" dialog and then opens what the user chose.
+  await app.evaluate(({ dialog }, filePath) => {
+    dialog.showOpenDialog = () =>
+      Promise.resolve({ canceled: false, filePaths: [filePath], bookmarks: undefined });
+  }, fixture);
+  await page.evaluate(async () => {
+    const api = window.openburn;
+    const chosen = await api?.openFile();
+    if (!chosen) throw new Error('the mocked dialog returned no path');
+    await (
+      window as unknown as { __openburn: { openPath: (p: string) => Promise<void> } }
+    ).__openburn.openPath(chosen);
+  });
 
   const texts = () =>
     page.evaluate<TextSnapshot[]>(() => {

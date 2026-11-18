@@ -58,6 +58,20 @@ const api = {
     defaultPath?: string;
     filters?: OpenDialogFilters[];
   }): Promise<string | null> => ipcRenderer.invoke('dialog:saveFile', options),
+  /**
+   * Tell the main process which paths the user just approved (a drop onto the
+   * canvas). `fs:*` only accepts paths granted this way, by a dialog, from the
+   * recent list or already opened.
+   */
+  approvePaths: (paths: string[]): Promise<void> => ipcRenderer.invoke('paths:approve', paths),
+  /** Main process asking whether a dropped path may be opened. */
+  onPathConfirm: (handler: (filePath: string) => boolean): (() => void) => {
+    const listener = (_e: unknown, id: number, filePath: string) => {
+      ipcRenderer.send('paths:confirm-result', id, handler(filePath));
+    };
+    ipcRenderer.on('paths:confirm', listener);
+    return () => ipcRenderer.removeListener('paths:confirm', listener);
+  },
   readFile: (filePath: string, encoding = 'utf-8'): Promise<string> =>
     ipcRenderer.invoke('fs:readFile', filePath, encoding),
   readBinary: (filePath: string): Promise<{ data: string; mime?: string }> =>

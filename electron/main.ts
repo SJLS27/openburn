@@ -29,6 +29,14 @@ import {
   systemFontConfigDirs,
 } from './fontFallback';
 import { registerAutosaveHandlers } from './autosave';
+import {
+  grantPath,
+  isPathAllowed,
+  isWriteTargetAllowed,
+  promotePendingPath,
+  resetAllowedPaths,
+  type PathKind,
+} from './pathAllowList';
 import { registerRecentHandlers } from './recentFiles';
 import {
   MIN_WINDOW_HEIGHT,
@@ -117,6 +125,9 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
+  // A reloaded renderer starts without permissions again.
+  mainWindow.webContents.on('did-start-loading', () => resetAllowedPaths());
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -168,7 +179,9 @@ ipcMain.handle('dialog:openFile', async (_e, filters) => {
     filters: filters ?? [{ name: 'All Files', extensions: ['*'] }],
   });
   if (result.canceled || result.filePaths.length === 0) return null;
-  return result.filePaths[0];
+  const [chosen] = result.filePaths;
+  grantPath(chosen, 'write'); // picking a file implies reading and later saving it
+  return chosen;
 });
 
 ipcMain.handle('dialog:saveFile', async (_e, options) => {
@@ -177,23 +190,96 @@ ipcMain.handle('dialog:saveFile', async (_e, options) => {
     filters: options?.filters ?? [{ name: 'OpenBurn Project', extensions: ['obrn'] }],
   });
   if (result.canceled || !result.filePath) return null;
+  grantPath(result.filePath, 'write');
   return result.filePath;
 });
 
-ipcMain.handle('fs:readFile', async (_e, filePath, encoding = 'utf-8') => {
-  if (encoding === 'binary' || encoding === 'buffer') {
-    return fs.promises.readFile(filePath);
+/**
+ * Ask the renderer whether the user just approved opening `filePath` (a drop
+ * onto the canvas). The main process cannot see drag & drop, and the renderer
+ * is the untrusted side, but the only thing it can do with a "yes" is read a
+ * file the user physically dragged in; a wrong answer cannot reach anything
+ * else, because `fs:*` still checks the allow-list.
+ */
+const pendingApprovals = new Map<number, (approved: boolean) => void>();
+let approvalSeq = 0;
+
+function askRendererApproval(filePath: string): Promise<boolean> {
+  const win = mainWindow;
+  if (!win || win.isDestroyed()) return Promise.resolve(false);
+  const id = ++approvalSeq;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      pendingApprovals.delete(id);
+      resolve(false);
+    }, 2000);
+    pendingApprovals.set(id, (approved) => {
+      clearTimeout(timer);
+      pendingApprovals.delete(id);
+      resolve(approved);
+    });
+    win.webContents.send('paths:confirm', id, filePath);
+  });
+}
+
+/**
+ * Drag & drop happens in the renderer, so it is the one telling us the user
+ * approved these paths. The grant is limited to files that exist and are not
+ * directories, and only allows reading them.
+ */
+ipcMain.handle('paths:approve', (_e, paths: unknown) => {
+  if (!Array.isArray(paths)) return;
+  for (const candidate of paths) {
+    if (typeof candidate !== 'string' || candidate.length === 0) continue;
+    try {
+      if (fs.statSync(candidate).isFile()) grantPath(candidate, 'read');
+    } catch {
+      /* a path that does not exist grants nothing */
+    }
   }
-  return fs.promises.readFile(filePath, encoding as BufferEncoding);
+});
+
+ipcMain.on('paths:confirm-result', (_e, id: number, approved: boolean) => {
+  pendingApprovals.get(id)?.(approved === true);
+});
+
+/**
+ * Resolve a path for `fs:*`: allowed outright, or confirmed by the renderer and
+ * then remembered so the rest of the workflow (Save, recent files) keeps working.
+ */
+async function resolvePath(filePath: unknown, kind: PathKind): Promise<string> {
+  const requested = typeof filePath === 'string' ? filePath : '';
+  if (kind === 'write' ? isWriteTargetAllowed(requested) : isPathAllowed(requested, kind)) {
+    return requested;
+  }
+  if (requested && (await askRendererApproval(requested))) {
+    grantPath(requested, kind);
+    return requested;
+  }
+  const error = new Error(`Access denied: ${requested || '(empty path)'} was not opened by the user`);
+  (error as NodeJS.ErrnoException).code = 'EACCES';
+  throw error;
+}
+
+ipcMain.handle('fs:readFile', async (_e, filePath, encoding = 'utf-8') => {
+  const allowed = await resolvePath(filePath, 'read');
+  if (encoding === 'binary' || encoding === 'buffer') {
+    return fs.promises.readFile(allowed);
+  }
+  return fs.promises.readFile(allowed, encoding as BufferEncoding);
 });
 
 ipcMain.handle('fs:writeFile', async (_e, filePath, content, encoding = 'utf-8') => {
-  await fs.promises.writeFile(filePath, content, encoding as BufferEncoding);
+  const allowed = await resolvePath(filePath, 'write');
+  await fs.promises.writeFile(allowed, content, encoding as BufferEncoding);
+  // A save target that did not exist is now a real file: remember it.
+  promotePendingPath(allowed);
   return true;
 });
 
 ipcMain.handle('fs:readBinary', async (_e, filePath) => {
-  const buf = await fs.promises.readFile(filePath);
+  const allowed = await resolvePath(filePath, 'read');
+  const buf = await fs.promises.readFile(allowed);
   return { data: buf.toString('base64'), mime: undefined };
 });
 

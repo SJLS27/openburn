@@ -2,6 +2,7 @@ import { app, ipcMain } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { readJsonFile, writeJsonFileAtomic } from './storage';
+import { grantPath } from './pathAllowList';
 
 export interface RecentFile {
   path: string;
@@ -66,10 +67,17 @@ export function registerRecentHandlers(): void {
     return list;
   };
 
-  ipcMain.handle('recent:list', () => load());
+  // Recent files are paths the user opened before, so they may be reopened
+  // without asking again (the list itself is written by the main process).
+  ipcMain.handle('recent:list', () => {
+    const list = load();
+    for (const entry of list) grantPath(entry.path, 'read');
+    return list;
+  });
 
   ipcMain.handle('recent:add', (_event, filePath: unknown) => {
     if (typeof filePath !== 'string' || filePath.length === 0) return load();
+    grantPath(filePath, 'write');
     return add(filePath);
   });
 

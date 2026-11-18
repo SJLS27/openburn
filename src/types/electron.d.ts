@@ -94,6 +94,10 @@ declare global {
       defaultPath?: string;
       filters?: { name: string; extensions: string[] }[];
     }): Promise<string | null>;
+    /** Paths the user just approved (drag & drop); required before `readFile`. */
+    approvePaths(paths: string[]): Promise<void>;
+    /** Answers the main process asking about a dropped path; returns an unsubscribe. */
+    onPathConfirm(handler: (filePath: string) => boolean): () => void;
     readFile(filePath: string, encoding?: string): Promise<string>;
     readBinary(filePath: string): Promise<{ data: string; mime?: string }>;
     readAppAsset(relativePath: string): Promise<string>;

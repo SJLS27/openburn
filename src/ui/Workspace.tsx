@@ -67,6 +67,26 @@ export function Workspace({ onReady }: Props) {
   }, [contextMenu]);
 
   useEffect(() => {
+    // Approve the paths of files the user drops so the main process lets the
+    // renderer read them, and answer the main process when it asks about one.
+    const api = window.openburn;
+    if (!api?.onPathConfirm) return;
+    const dropped = new Set<string>();
+    const dropListener = (e: DragEvent) => {
+      for (const file of Array.from(e.dataTransfer?.files ?? [])) {
+        const path = api.getFilePath(file);
+        if (path) dropped.add(path);
+      }
+    };
+    window.addEventListener('drop', dropListener, true);
+    const off = api.onPathConfirm((filePath) => dropped.has(filePath));
+    return () => {
+      window.removeEventListener('drop', dropListener, true);
+      off();
+    };
+  }, []);
+
+  useEffect(() => {
     // A file dropped outside the canvas would otherwise navigate the window.
     const prevent = (e: DragEvent) => {
       if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
@@ -106,6 +126,10 @@ export function Workspace({ onReady }: Props) {
       return kind === 'project' || kind === 'lightburn';
     });
     if (replacesDocument && !(await requestDiscardConfirmation())) return;
+
+    // The main process only reads paths the user picked or dropped.
+    const paths = dropped.map((file) => file.path).filter((p): p is string => !!p);
+    if (paths.length > 0) await window.openburn?.approvePaths?.(paths);
 
     const at = controller.getScenePointFromClient(e.clientX, e.clientY);
     await controller.dropFiles(dropped, at);
