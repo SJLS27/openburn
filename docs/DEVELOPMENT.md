@@ -204,6 +204,32 @@ Para publicar:
 3. `.github/workflows/release.yml` compila en Linux/Windows/macOS y publica los
    artefactos en la release del tag (requiere el `GITHUB_TOKEN` que Actions
    proporciona; no hay que configurar secretos para un repositorio público).
+4. El gate de release reutiliza `ci.yml` **sobre el commit etiquetado**
+   (`workflow_call` con `commit: github.sha`) y hace checkout de esa misma
+   referencia; no se reutiliza el resultado de CI sobre `main`.
+
+### Re-taggear un release fallido
+
+Si el workflow falla por un bug del código (no por un problema del runner), el
+tag no debe reutilizarse con un commit distinto:
+
+```bash
+# 1. Arregla el problema en main y deja CI en verde.
+git log -1 --oneline
+
+# 2. Borra el tag remoto y el local (un tag no es inmutable, pero no se puede
+#    "mover" a un commit existente: hay que recrearlo).
+git push origin :refs/tags/v0.11.1
+git tag -d v0.11.1
+
+# 3. Recrea el tag sobre el commit corregido y empuja.
+git tag v0.11.1 <sha-corregido>
+git push origin v0.11.1
+```
+
+Comprueba que `git rev-parse v0.11.1^{commit}` coincide con el commit cuyo CI
+está en verde antes de empujar. Si el fallo fue del runner (red, `xvfb`), basta
+con **re-ejecutar** el workflow del mismo tag desde la pestaña *Actions*.
 
 Detalles del cliente:
 

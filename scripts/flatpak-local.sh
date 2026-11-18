@@ -16,16 +16,27 @@ BUILD="$HOME/.openburn-flatpak/build"
 
 mkdir -p "$HOME/.openburn-flatpak"
 
-python3 - "$REPO/flatpak/io.github.SJLS27.OpenBurn.yml" "$MANIFEST" "$REPO" <<'PY'
+# The tag comes from package.json so a version bump never needs an edit here.
+VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$REPO/package.json")"
+TAG="v$VERSION"
+
+python3 - "$REPO/flatpak/io.github.SJLS27.OpenBurn.yml" "$MANIFEST" "$REPO" "$TAG" <<'PY'
 import json
 import os
+import re
 import sys
 
-src, dst, repo = sys.argv[1:4]
+src, dst, repo, tag = sys.argv[1:5]
 text = open(src).read()
-old = """      - type: git
-        url: https://github.com/SJLS27/openburn.git
-        tag: v0.11.1"""
+# Match the upstream git source whatever tag the manifest currently points at.
+pattern = re.compile(
+    r"""      - type: git
+        url: https://github\.com/SJLS27/openburn\.git
+        tag: v[^\s]+"""
+)
+if not pattern.search(text):
+    sys.exit('flatpak: the git source block changed; update this script')
+print(f'flatpak: building {tag} from the worktree')
 new = f"""      - type: dir
         path: {repo}
         skip:
@@ -36,9 +47,7 @@ new = f"""      - type: dir
           - repo
           - website
           - .flatpak-builder"""
-if old not in text:
-    sys.exit('flatpak: the git source block changed; update this script')
-text = text.replace(old, new)
+text = pattern.sub(lambda _m: new, text, count=1)
 # Sources are resolved next to the manifest, which lives under $HOME.
 text = text.replace('\n      - node-sources.json', f'\n      - {repo}/flatpak/node-sources.json')
 open(dst, 'w').write(text)

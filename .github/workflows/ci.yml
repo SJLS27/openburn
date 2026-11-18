@@ -4,8 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
-  # Reused by release.yml so a tag can only publish when CI is green.
+  # Reused by release.yml so a tag can only publish when CI is green on the
+  # same commit: `commit` is forwarded to every checkout.
   workflow_call:
+    inputs:
+      commit:
+        description: Commit to test (defaults to the triggering ref)
+        required: false
+        type: string
 
 jobs:
   build:
@@ -14,6 +20,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -32,6 +40,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20

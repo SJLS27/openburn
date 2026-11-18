@@ -6,6 +6,15 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 
 ## [Unreleased]
 
+### Seguridad
+- **Los ficheros solo se abren si el usuario los eligió**: `fs:readFile`,
+  `fs:writeFile` y `fs:readBinary` ya no aceptan cualquier ruta. El proceso
+  principal mantiene una lista de permisos (`electron/pathAllowList.ts`) que se
+  alimenta con el diálogo nativo, el drag & drop, la lista de recientes y lo ya
+  abierto; el resto responde `Access denied`. Las rutas se comparan tras
+  resolver enlaces simbólicos, así que un symlink no sirve para salir de la
+  carpeta permitida. La lista se vacía al recargar el renderer.
+
 ### Corregido
 - **Arranque sin fuentes**: en sistemas sin ninguna fuente instalada (contenedores,
   distros peladas, entornos Flatpak mínimos) Chromium abortaba dentro de Skia
@@ -15,6 +24,13 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
   reinicia una vez** con él; si aun así no hay fuentes, muestra un diálogo claro
   en lugar de morir. Las máquinas con fuentes no ven ningún cambio
   (`electron/fontFallback.ts`, e2e `e2e/startup-fonts.spec.ts`).
+
+### Cambiado
+- `scripts/flatpak-local.sh` deriva la versión de `package.json` en vez de llevar
+  el tag escrito a mano.
+- El gate de `.github/workflows/release.yml` valida CI **sobre el commit del
+  tag**, no sobre lo último de `main`, y el build hace checkout de ese commit.
+  `docs/DEVELOPMENT.md` documenta cómo re-taggear un release fallido.
 
 ### Añadido
 - **Preview vectorial**: el Preview ya no dibuja un canvas de 780×500 fijo, sino

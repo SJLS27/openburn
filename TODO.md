@@ -132,17 +132,14 @@ etiqueta):
 - [ ] Un fallo de test dependía de las fuentes instaladas en el runner de CI;
   ya corregido (`registerFontHandlers` acepta la fuente de datos), pero **hay que
   revisar que ningún otro test dependa de recursos del sistema**.
-- [ ] El workflow de release compila aunque `CI` en `main` haya fallado en el
-  push de la etiqueta: validar que el gate de release use el estado **del tag**,
-  no el de `main` previo.
-- [ ] Documentar en `docs/DEVELOPMENT.md` cómo re-taggear un release fallido
-  (borrar etiqueta remota y local, recrear sobre el commit corregido).
+- [x] El gate de release valida CI sobre el commit del tag (`workflow_call` con
+  `commit: github.sha` y checkout de esa referencia).
+- [x] `docs/DEVELOPMENT.md` documenta cómo re-taggear un release fallido.
 
 ### 📦 Empaquetado local (Flatpak)
 
-- [ ] `scripts/flatpak-local.sh` debería derivar el tag de `package.json` en vez
-  de llevarlo escrito: hoy, si sube una 0.11.2, el build local falla hasta
-  editar el script a mano.
+- [x] `scripts/flatpak-local.sh` deriva el tag de `package.json` (el bloque `git`
+  del manifiesto se sustituye por el `dir` del worktree con una regex).
 
 ### 🚀 Auto-update (prioridad máxima)
 - [x] `electron-updater` en el proceso principal, con eventos main → preload → renderer
@@ -230,8 +227,8 @@ Política, plantillas y cómo mockear los límites: [AGENTS.md](AGENTS.md).
 ### 🔐 Seguridad y hardening
 - [ ] Habilitar `sandbox: true` en `BrowserWindow` (hoy `false`)
 - [ ] Endurecer CSP: quitar `script-src 'unsafe-inline'`
-- [ ] 🟡 Restringir los handlers `fs:readFile`/`fs:writeFile`/`readBinary` a rutas elegidas por el usuario
-  (hoy aceptan cualquier ruta). Solo los de fuentes (`fonts:read`) tienen allow-list.
+- [x] Restringir los handlers `fs:readFile`/`fs:writeFile`/`readBinary` a rutas
+  elegidas por el usuario (`electron/pathAllowList.ts`, e2e `file-access`).
 - [ ] `SECURITY.md` con política de reporte y respuesta
 - [ ] Auditoría de dependencias en CI
 

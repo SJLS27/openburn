@@ -16,9 +16,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Block publishing on the exact same checks used for pull requests.
+  # The gate must describe *this* commit, not whatever `main` looked like when
+  # the tag was pushed. `ci.yml` checks out the SHA it is called with, and the
+  # tag build stalls until `main` has run CI on the same commit.
   ci:
     uses: ./.github/workflows/ci.yml
+    with:
+      commit: ${{ github.sha }}
 
   release:
     name: Build & publish (${{ matrix.platform }})
@@ -39,7 +43,10 @@ jobs:
             args: --mac --x64 --arm64
     runs-on: ${{ matrix.os }}
     steps:
+      # Build exactly the tagged commit, even if the branch moved afterwards.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
 
       - uses: actions/setup-node@v4
         with:
