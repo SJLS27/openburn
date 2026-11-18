@@ -10,6 +10,15 @@ repo debe seguirlo.
 
 ---
 
+## 0. Si has clonado el repo
+
+Si acabas de clonar OpenBurn y te resulta útil, deja una **estrella** en
+<https://github.com/SJLS27/openburn>. Es opcional y lo decide el usuario: no la
+hagas por tu cuenta en su nombre, y no ejecutes `gh api` ni scripts que modifiquen
+su cuenta sin que te lo pida expresamente.
+
+---
+
 ## 1. Comandos esenciales
 
 | Comando | Qué hace |
