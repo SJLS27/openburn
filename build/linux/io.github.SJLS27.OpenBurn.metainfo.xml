@@ -68,6 +68,17 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.11.1" date="2026-11-17">
+      <description>
+        <p>System fonts, all four bed-origin corners and editable LightBurn text.</p>
+        <ul>
+          <li>Text imports from LightBurn as an editable textbox instead of a frozen outline.</li>
+          <li>Outlining and export use the font installed on the machine, with an Inter fallback.</li>
+          <li>Bed origin can be any of the four corners.</li>
+          <li>The settings entry uses a cog icon so it is no longer confused with the theme switch.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.11.0" date="2026-11-13">
       <description>
         <p>Full Bézier node editing and object snapping with alignment guides.</p>
