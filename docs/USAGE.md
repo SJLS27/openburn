@@ -4,6 +4,17 @@ Esta guía cubre el flujo completo: diseñar, asignar capas, previsualizar, cali
 
 > Atajos completos en el [README](../README.md#️-atajos-principales).
 
+## Requisitos del sistema
+
+- **Al menos una fuente instalada.** Chromium (el motor de Electron) necesita
+  una fuente para abrir la ventana. Si no encuentra ninguna, antes cerraba el
+  proceso de golpe; ahora OpenBurn lo detecta y **se reinicia una vez** usando la
+  Inter que lleva incluida, y después ofrece el aviso *No fonts found* si eso
+  tampoco basta. En Linux, instalar `fontconfig` con un juego básico de fuentes
+  (p. ej. `dejavu-sans-fonts` o `google-noto-sans-fonts`) evita el reinicio
+  extra. El arreglo deja sus ficheros en `$TMPDIR/openburn-fonts` y
+  `$TMPDIR/openburn-fontconfig.conf`; se pueden borrar en cualquier momento.
+
 ---
 
 ## 1. Workspace

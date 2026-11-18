@@ -85,37 +85,31 @@ máquina/taller**, hardware (rotary/cámaras/DSP) cuando haya máquinas para pro
 y P6b (varios documentos) cuando el store pase a multi-documento. Detalle en
 [TODO.md](TODO.md#-paridad-con-lightburn-feature-parity).
 
-> ⚠️ **Antes de la próxima release, como máxima urgencia:** resolver los bloques
-> [🖥️ Arranque sin fuentes del sistema](#️-arranque-sin-fuentes-del-sistema-máxima-urgencia),
-> [🔤 Soporte `.ttc`](#-soporte-de-colecciones-de-fuentes-ttc), **la deuda de
-> `fs:*`** ([🔐 Seguridad](#-seguridad-y-hardening)) y el
+> ⚠️ **Antes de la próxima release, como máxima urgencia:** [🔤 Soporte
+> `.ttc`](#-soporte-de-colecciones-de-fuentes-ttc), **la deuda de `fs:*`**
+> ([🔐 Seguridad](#-seguridad-y-hardening)) y el
 > [🔁 Circuito de release](#-circuito-de-release) que dejó el release de 0.11.1.
+> El [arranque sin fuentes](#️-arranque-sin-fuentes-del-sistema-) queda resuelto.
 
-### 🖥️ Arranque sin fuentes del sistema (máxima urgencia)
+### 🖥️ Arranque sin fuentes del sistema ✅
 
-**La app no arranca si el sistema no tiene ninguna fuente instalada.** Chromium
-aborta en `third_party/skia/src/ports/SkFontMgr_FontConfigInterface.cpp:163`
-con `FATAL: Not implemented` antes de crear la ventana. No es código nuestro,
-pero rompe OpenBurn en entornos reales:
+**Resuelto.** En sistemas sin ninguna fuente, Chromium abortaba en
+`SkFontMgr_FontConfigInterface` (`FATAL: Not implemented`) antes de crear la
+ventana. Como lee `fontconfig` antes de ejecutar cualquier JS de la app, no se
+puede arreglar en el mismo arranque: `electron/fontFallback.ts` detecta el caso
+(`fc-list` + los `<dir>` del `fonts.conf` del sistema), escribe un `fontconfig`
+que añade la Inter incluida y **reinicia una vez** con `FONTCONFIG_FILE`
+apuntando a él. Si el reinicio tampoco encuentra fuentes, sale un diálogo
+*No fonts found* en vez de un SIGTRAP. Las máquinas con fuentes no se tocan.
 
-- contenedores/imágenes mínimas (Docker, CI, `scratch` sin `fontconfig`),
-- servidores headless o distros peladas donde arranque el binario,
-- Flatpak/Snap si el runtime no trae fuentes (verificar `fc-list` dentro del sandbox),
-- usuarios que vacían `~/.local/share/fonts` o rompen `fontconfig`.
-
-**Reproducción:** `FONTCONFIG_FILE=/tmp/empty.conf npx electron . --no-sandbox`
-con un `fontconfig` apuntando a un directorio vacío.
-
-**Qué hacer:**
-- [ ] Detectar el caso al arrancar y mostrar un error claro (diálogo nativo con
-  "no se encontró ninguna fuente en el sistema") en vez de morir con SIGTRAP.
-- [ ] Empaquetar una fuente mínima (la Inter propia sirve) y registrarla como
-  *fallback* de Chromium cuando `fc-list` esté vacío: `app.commandLine.appendSwitch`
-  o copiar la TTF a un directorio de fuentes temporal y apuntar `FONTCONFIG_PATH`.
-- [ ] Test que arranque Electron con un `FONTCONFIG_FILE` vacío y compruebe que
-  la ventana aparece (o que sale el diálogo controlado), sin `SIGTRAP`.
-- [ ] Documentar en `docs/USAGE.md` (requisitos) y en el README la dependencia
-  de al menos una fuente en el sistema.
+- [x] Detectarlo antes de crear la ventana y relanzar con la fuente incluida
+- [x] Aviso claro (`No fonts found`) si el fallback no basta
+- [x] Tests unitarios de la detección y del `fontconfig` generado
+- [x] E2E `e2e/startup-fonts.spec.ts`: el primer arranque deja el fallback y el
+  proceso relanzado **no** emite el `FATAL` de Skia
+- [x] Documentado en `docs/USAGE.md` (requisitos)
+- [ ] Verificar el diálogo *No fonts found* de forma automatizada (hoy depende de
+  un entorno sin fuentes ni Inter empaquetada)
 
 ### 🔤 Soporte de colecciones de fuentes (`.ttc`)
 

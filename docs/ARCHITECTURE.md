@@ -198,6 +198,7 @@ src/ui/UpdateDialog.tsx      banner de progreso + diálogo "Restart & install"
 ## 7. Texto e imágenes
 
 - **Texto a contornos**: opentype.js resuelve la familia del objeto contra el índice de fuentes del sistema (`electron/fonts.ts` → `fonts:list`, `fs`/`fc-list`), la carga por IPC con allow-list (`fonts:read`) y reconstruye líneas/alineación/rotación con la matriz de Fabric. Si la familia no está instalada, usa la Inter incluida (`public/fonts/`) y marca `font.substituted` para que el llamador avise.
+- **Arranque sin fuentes**: Chromium lee `fontconfig` antes de ejecutar cualquier JS de la app, así que el fallback no puede aplicarse en el mismo proceso. `electron/fontFallback.ts` detecta que no hay ninguna fuente (`fc-list` y los `<dir>` del `fonts.conf`), escribe un `fontconfig` que añade la Inter incluida con su propio `cachedir` y el proceso principal **se relanza una vez** con `FONTCONFIG_FILE` apuntando a él (marcador `OPENBURN_FONT_FALLBACK` para no entrar en bucle). Si el segundo arranque tampoco ve fuentes, sale el diálogo *No fonts found*.
 - **Adjust Image**: `applyImageAdjust` se comparte entre el rasterizador y la previsualización para que el resultado sea idéntico.
 - **Trace Image**: se dibuja la imagen a ≤700 px, se cuantiza (mono/color) y se pasa a ImageTracer; el SVG resultante se importa con Fabric y se ajusta al rectángulo original.
 

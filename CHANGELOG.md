@@ -6,6 +6,16 @@ Todas las novedades relevantes de OpenBurn. El formato sigue
 
 ## [Unreleased]
 
+### Corregido
+- **Arranque sin fuentes**: en sistemas sin ninguna fuente instalada (contenedores,
+  distros peladas, entornos Flatpak mínimos) Chromium abortaba dentro de Skia
+  (`FATAL: SkFontMgr_FontConfigInterface.cpp: Not implemented`) antes de crear la
+  ventana, así que OpenBurn no llegaba a abrirse. Ahora el proceso principal lo
+  detecta al arrancar, escribe un `fontconfig` que añade la Inter incluida y **se
+  reinicia una vez** con él; si aun así no hay fuentes, muestra un diálogo claro
+  en lugar de morir. Las máquinas con fuentes no ven ningún cambio
+  (`electron/fontFallback.ts`, e2e `e2e/startup-fonts.spec.ts`).
+
 ### Añadido
 - **Preview vectorial**: el Preview ya no dibuja un canvas de 780×500 fijo, sino
   un **SVG** cuyo `viewBox` cubre la cama en milímetros. Hacer zoom mueve esa
